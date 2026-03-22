@@ -99,8 +99,9 @@ LOG_CONTENT="$(cat "$LOG_FILE")"
 assert_contains "log contains session start event" '"event":"start"' "$LOG_CONTENT"
 
 # Check for shell_command events
-SHELL_CMD_COUNT="$(grep -c '"type":"shell_command"' "$LOG_FILE" 2>/dev/null || echo 0)"
+SHELL_CMD_COUNT="$(grep -c '"type":"shell_command"' "$LOG_FILE" 2>/dev/null || true)"
 SHELL_CMD_COUNT="$(echo "$SHELL_CMD_COUNT" | tr -d '[:space:]')"
+[ -z "$SHELL_CMD_COUNT" ] && SHELL_CMD_COUNT=0
 assert_gt "log contains shell_command events" 0 "$SHELL_CMD_COUNT"
 
 # Check for session stop or logger_stop event
@@ -141,6 +142,15 @@ fi
 
 # Check session summary was printed
 assert_contains "output contains session complete" "complete" "$OUTPUT"
+
+# Verify cache home directory was created
+if [ -d "$TMPSTATE/cache/$REPO_ID/home" ]; then
+  echo "  PASS: cache home directory created"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: cache home directory not created at $TMPSTATE/cache/$REPO_ID/home"
+  FAIL=$((FAIL + 1))
+fi
 
 # Cleanup (chattr +a files need special handling)
 docker run --rm --cap-add LINUX_IMMUTABLE -v "$TMPSTATE:/state" ubuntu:24.04 \

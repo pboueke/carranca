@@ -1,5 +1,8 @@
 # Carranca
 
+![tests: 93/93 passed](https://img.shields.io/badge/tests-93%2F93_passed-brightgreen)
+![coverage: 100%](https://img.shields.io/badge/coverage-100%25_(17%2F17_functions)-brightgreen)
+
 **Containerized agent runtime with session logging.**
 
 Named after the carved figureheads on boats in Brazil's São Francisco river, believed to protect sailors. Carranca protects engineers from coding agents — by running them in isolated containers with structured session logging.

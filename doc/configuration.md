@@ -16,6 +16,13 @@ runtime:
   # extra_flags: --gpus all     # Extra docker run flags for the agent
   # logger_extra_flags:         # Extra docker run flags for the logger
 
+# Persistent volumes for the agent container
+volumes:
+  cache: true                   # Cache agent memory, config, session across runs
+  # extra:                      # Custom volume mounts (host:container[:mode])
+  #   - ~/.ssh:/home/user/.ssh:ro
+  #   - ~/docs:/reference:ro
+
 # Policy guidance levels ("warn" or "off")
 policy:
   docs_before_code: warn        # Suggest docs-first workflow via skills
@@ -38,6 +45,8 @@ watched_paths:
 | `runtime.network` | No | `true` | Enable/disable container networking |
 | `runtime.extra_flags` | No | — | Additional `docker run` flags for agent |
 | `runtime.logger_extra_flags` | No | — | Additional `docker run` flags for logger |
+| `volumes.cache` | No | `true` | Persistent cache for agent memory/config/session |
+| `volumes.extra` | No | — | Custom volume mounts (`host:container[:mode]`) |
 
 ### Examples
 
@@ -68,6 +77,51 @@ agent:
 runtime:
   network: false
 ```
+
+**Agent with SSH keys and extra reference code:**
+```yaml
+agent:
+  command: claude
+volumes:
+  cache: true
+  extra:
+    - ~/.ssh:/home/user/.ssh:ro
+    - ~/projects/shared-lib:/reference/shared-lib:ro
+    - ~/docs/api-specs:/reference/api-specs:ro
+```
+
+**Disable cache (ephemeral sessions only):**
+```yaml
+agent:
+  command: claude
+volumes:
+  cache: false
+```
+
+### Cache volume
+
+When `volumes.cache` is `true` (the default), carranca persists the agent container's
+home directory (`/root`) across sessions by bind-mounting a host directory:
+
+| Host path | Container path | Purpose |
+|-----------|---------------|---------|
+| `~/.local/state/carranca/cache/<repo-id>/home/` | `/root` | Agent home directory (auth, config, session history) |
+
+This means agent-specific data — credentials (`~/.claude/.credentials.json`),
+session history, configuration — survives container teardown and is reused on
+subsequent `carranca run` invocations for the same repo. Each repo gets its own
+isolated cache.
+
+### Custom volumes
+
+The `volumes.extra` list accepts entries in Docker bind-mount format: `host:container[:mode]`.
+The `~` prefix in host paths is expanded to `$HOME`. Common use cases:
+
+- **Git SSH keys**: `~/.ssh:/home/user/.ssh:ro` — lets the agent push/pull via SSH
+- **Reference docs**: `~/docs:/reference:ro` — give the agent read access to specs, docs, or other repos
+- **Shared data**: `~/data:/data:rw` — bidirectional data exchange
+
+Custom volumes are only mounted in the agent container, not the logger.
 
 ## `.carranca/Containerfile`
 

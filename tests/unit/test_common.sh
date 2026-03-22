@@ -61,6 +61,24 @@ else
   PASS=$((PASS + 1))
 fi
 
+# Test carranca_log outputs to stdout for info/ok, stderr for warn/error
+info_out="$(carranca_log info "test message" 2>/dev/null)"
+assert_match "carranca_log info writes to stdout" "test message" "$info_out"
+
+ok_out="$(carranca_log ok "success" 2>/dev/null)"
+assert_match "carranca_log ok writes to stdout" "success" "$ok_out"
+
+warn_out="$(carranca_log warn "warning" 2>/dev/null 2>&1)"
+assert_match "carranca_log warn contains message" "warning" "$warn_out"
+
+error_out="$(carranca_log error "failure" 2>&1)"
+assert_match "carranca_log error contains message" "failure" "$error_out"
+
+# Test carranca_die exits with code 1 and prints error (run in subshell to catch exit)
+die_out="$(carranca_die "fatal error" 2>&1)" && die_rc=0 || die_rc=$?
+assert_match "carranca_die outputs error message" "fatal error" "$die_out"
+assert_eq "carranca_die exits with code 1" "1" "$die_rc"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1

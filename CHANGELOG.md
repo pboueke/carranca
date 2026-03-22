@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0] - 2026-03-22
+
+- feat: persistent agent home directory across sessions (`volumes.cache` config)
+- feat: custom volume mounts via `volumes.extra` config (e.g. SSH keys, reference docs)
+- feat: YAML list parsing in config (`carranca_config_get_list`)
+- feat: auto-detect TTY for non-interactive environments (tests/CI)
+- fix: inline YAML comments no longer break config value parsing
+- fix: logger graceful shutdown — `docker stop` (SIGTERM) instead of `docker rm -f` (SIGKILL)
+- fix: logger read timeout allows SIGTERM trap to fire between reads
+- fix: shell_command and agent_stop events now reliably appear in session logs
+- feat: pre-commit hook auto-updates README test/coverage badges
+- feat: test runner enforces 100% function coverage
+- test: add unit tests for `carranca_log`, `carranca_die`, runtime helpers, hooks, badge update
+- test: 93 tests, 9 suites, 100% function coverage (17/17)
+- docs: document cache volumes, custom volumes, and badge workflow
+
 ## [0.1.0] - 2026-03-22
 
 - feat: add `carranca init` to scaffold project config with `--claude` and `--codex` flags

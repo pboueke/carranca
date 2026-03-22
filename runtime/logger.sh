@@ -100,7 +100,18 @@ trap _cleanup SIGTERM SIGINT
 # even between individual writes from the agent.
 exec 3<>"$FIFO_PATH"
 
-while IFS= read -r line <&3; do
+while true; do
+  if ! IFS= read -t 2 -r line <&3; then
+    # read -t returns >128 on timeout, 1 on EOF/error
+    rc=$?
+    if [ "$rc" -le 128 ]; then
+      # EOF or error — FIFO closed, agent exited
+      break
+    fi
+    # Timeout — loop back to allow SIGTERM trap to fire
+    continue
+  fi
+
   # Skip empty lines
   [ -z "$line" ] && continue
 

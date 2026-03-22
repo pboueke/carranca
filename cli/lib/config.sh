@@ -18,11 +18,19 @@ carranca_config_get() {
     val="$(awk -v parent="$parent" -v child="$child" '
       $0 ~ "^"parent":" { in_section=1; next }
       in_section && /^[^ ]/ { in_section=0 }
-      in_section && $1 == child":" { gsub(/^[[:space:]]*[^:]+:[[:space:]]*/, ""); print; exit }
+      in_section && $1 == child":" {
+        gsub(/^[[:space:]]*[^:]+:[[:space:]]*/, "")
+        sub(/[[:space:]]+#.*$/, "")
+        print; exit
+      }
     ' "$file")"
   else
     val="$(awk -v key="$key" '
-      $1 == key":" { gsub(/^[[:space:]]*[^:]+:[[:space:]]*/, ""); print; exit }
+      $1 == key":" {
+        gsub(/^[[:space:]]*[^:]+:[[:space:]]*/, "")
+        sub(/[[:space:]]+#.*$/, "")
+        print; exit
+      }
     ' "$file")"
   fi
 
@@ -33,6 +41,47 @@ carranca_config_get() {
     val="${val:1:${#val}-2}"
   fi
   printf '%s' "$val"
+}
+
+# Read list items (lines starting with "- ") under a YAML section.
+# Supports one-level nested sections (e.g., volumes.extra).
+# Outputs one item per line, stripped of the "- " prefix and surrounding quotes.
+carranca_config_get_list() {
+  local key="$1"
+  local file="${2:-$CARRANCA_CONFIG_FILE}"
+
+  [ -f "$file" ] || return 1
+
+  local parent child
+  if [[ "$key" == *.* ]]; then
+    parent="${key%%.*}"
+    child="${key#*.}"
+  else
+    parent="$key"
+    child=""
+  fi
+
+  awk -v parent="$parent" -v child="$child" '
+    BEGIN { in_parent=0; in_child=0 }
+    # Match parent section
+    $0 ~ "^"parent":" { in_parent=1; next }
+    in_parent && /^[^ #]/ { in_parent=0; in_child=0 }
+    # If child is set, match nested section
+    in_parent && child != "" && $0 ~ "^  "child":" { in_child=1; next }
+    in_parent && child != "" && in_child && /^  [^ #-]/ { in_child=0 }
+    # If child is empty, read list items directly under parent
+    in_parent && child == "" && /^  - / {
+      sub(/^[[:space:]]*- [[:space:]]*/, "")
+      gsub(/^["'\''"]|["'\''"]$/, "")
+      print
+    }
+    # Read list items under child section
+    in_parent && in_child && /^    - / {
+      sub(/^[[:space:]]*- [[:space:]]*/, "")
+      gsub(/^["'\''"]|["'\''"]$/, "")
+      print
+    }
+  ' "$file"
 }
 
 # Validate required config fields. Exit with error if any are missing.

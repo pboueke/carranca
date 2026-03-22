@@ -49,6 +49,23 @@ NETWORK="$(carranca_config_get runtime.network)"
 EXTRA_FLAGS="$(carranca_config_get runtime.extra_flags)"
 LOGGER_EXTRA_FLAGS="$(carranca_config_get runtime.logger_extra_flags)"
 
+# --- Volume config ---
+
+CACHE_ENABLED="$(carranca_config_get volumes.cache)"
+[ -z "$CACHE_ENABLED" ] && CACHE_ENABLED="true"
+
+CACHE_VOLUME="carranca-cache-${REPO_ID}"
+CACHE_DIR="$STATE_BASE/cache/$REPO_ID"
+
+# Parse custom volume mounts
+CUSTOM_VOLUME_FLAGS=""
+while IFS= read -r mount; do
+  [ -z "$mount" ] && continue
+  # Expand ~ to $HOME in host path
+  mount="${mount/#\~/$HOME}"
+  CUSTOM_VOLUME_FLAGS="$CUSTOM_VOLUME_FLAGS -v $mount"
+done < <(carranca_config_get_list volumes.extra 2>/dev/null || true)
+
 # --- Naming ---
 
 PREFIX="carranca-${SESSION_ID}"
@@ -73,11 +90,27 @@ docker build -q -t "$AGENT_IMAGE" -f ".carranca/Containerfile" ".carranca" >/dev
 
 docker volume create "$FIFO_VOLUME" --driver local --opt type=tmpfs --opt device=tmpfs >/dev/null
 
+# --- Create persistent cache (survives across sessions) ---
+#
+# Agents store auth, config, and session data in their home directory
+# (e.g. ~/.claude/, ~/.codex/). We persist /root across runs so agents
+# don't lose credentials or context between sessions.
+
+CACHE_FLAGS=""
+if [ "$CACHE_ENABLED" = "true" ]; then
+  mkdir -p "$CACHE_DIR"
+  CACHE_FLAGS="-v $CACHE_DIR/home:/root"
+  mkdir -p "$CACHE_DIR/home"
+  carranca_log info "Cache: $CACHE_DIR"
+fi
+
 # --- Cleanup handler ---
 
 _cleanup() {
   carranca_log info "Stopping session..."
   docker rm -f "$AGENT_NAME" 2>/dev/null || true
+  # Graceful stop: SIGTERM lets the logger flush remaining events and write logger_stop
+  docker stop --timeout 5 "$LOGGER_NAME" 2>/dev/null || true
   docker rm -f "$LOGGER_NAME" 2>/dev/null || true
   docker volume rm "$FIFO_VOLUME" 2>/dev/null || true
   docker rmi "$AGENT_IMAGE" "$LOGGER_IMAGE" 2>/dev/null || true
@@ -127,16 +160,27 @@ fi
 carranca_log ok "Agent ready — entering interactive session"
 echo ""
 
+# Use -it when stdin is a TTY, -i only otherwise (e.g. in tests/CI)
+DOCKER_TTY_FLAGS="-i"
+if [ -t 0 ]; then
+  DOCKER_TTY_FLAGS="-it"
+fi
+
 # shellcheck disable=SC2086
-docker run -it --rm \
+docker run $DOCKER_TTY_FLAGS --rm \
   --name "$AGENT_NAME" \
   -v "$FIFO_VOLUME:/fifo" \
   -v "$WORKSPACE:/workspace:rw" \
+  $CACHE_FLAGS \
+  $CUSTOM_VOLUME_FLAGS \
   -e "AGENT_COMMAND=$AGENT_COMMAND" \
   -e "SESSION_ID=$SESSION_ID" \
   $NETWORK_FLAG \
   $EXTRA_FLAGS \
   "$AGENT_IMAGE" || true
+
+# Give the logger time to flush remaining FIFO events (shell_command, agent_stop)
+sleep 1
 
 echo ""
 

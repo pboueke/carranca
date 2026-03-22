@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # carranca pre-commit hook
-# Runs lint + unit tests. Blocks commit on failure.
+# Runs lint + unit tests, updates README badges, blocks commit on failure.
 # Setup: make hooks (or: git config core.hooksPath .githooks)
 set -euo pipefail
 
@@ -21,7 +21,17 @@ fi
 
 echo "Version: $VERSION"
 
-# Run lint + unit tests
+# Run lint + unit tests (generates tests/.results.json)
 make check
+
+# Update README badges from test results
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+bash "$HOOK_DIR/update-badges.sh"
+
+# Stage README.md if badges changed
+if ! git diff --quiet README.md 2>/dev/null; then
+  git add README.md
+  echo "pre-commit: staged updated README.md badges"
+fi
 
 echo "=== pre-commit passed ==="
