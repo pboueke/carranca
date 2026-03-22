@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+# carranca run — start an agent session in a containerized runtime
+# No docker-compose — uses docker run directly for both logger and agent.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
+source "$SCRIPT_DIR/lib/config.sh"
+source "$SCRIPT_DIR/lib/identity.sh"
+
+CARRANCA_HOME="${CARRANCA_HOME:-$HOME/.local/share/carranca}"
+STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
+
+# --- Parse args ---
+
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help)
+      echo "Usage: carranca run"
+      echo "  Start an agent session in a containerized runtime."
+      echo "  Requires .carranca.yml in the current directory."
+      exit 0
+      ;;
+  esac
+done
+
+# --- Precondition checks ---
+
+carranca_require_cmd docker
+docker info >/dev/null 2>&1 || carranca_die "Docker is not running. Start Docker and try again."
+[ -f ".carranca.yml" ] || carranca_die "No .carranca.yml found. Run 'carranca init' first."
+[ -f ".carranca/Containerfile" ] || carranca_die "No .carranca/Containerfile found. Run 'carranca init' to create one."
+carranca_config_validate
+
+# --- Compute identifiers ---
+
+REPO_ID="$(carranca_repo_id)"
+REPO_NAME="$(carranca_repo_name)"
+SESSION_ID="$(carranca_random_hex)"
+STATE_DIR="$STATE_BASE/sessions/$REPO_ID"
+WORKSPACE="$(realpath .)"
+mkdir -p "$STATE_DIR"
+
+# --- Read config ---
+
+AGENT_COMMAND="$(carranca_config_get agent.command)"
+NETWORK="$(carranca_config_get runtime.network)"
+[ -z "$NETWORK" ] && NETWORK="true"
+EXTRA_FLAGS="$(carranca_config_get runtime.extra_flags)"
+LOGGER_EXTRA_FLAGS="$(carranca_config_get runtime.logger_extra_flags)"
+
+# --- Naming ---
+
+PREFIX="carranca-${SESSION_ID}"
+LOGGER_NAME="${PREFIX}-logger"
+AGENT_NAME="${PREFIX}-agent"
+FIFO_VOLUME="${PREFIX}-fifo"
+LOGGER_IMAGE="${PREFIX}-logger"
+AGENT_IMAGE="${PREFIX}-agent"
+
+carranca_log info "Starting carranca session $SESSION_ID"
+carranca_log info "Repo: $REPO_NAME ($REPO_ID)"
+carranca_log info "Agent: $AGENT_COMMAND"
+carranca_log info "Log: $STATE_DIR/$SESSION_ID.jsonl"
+
+# --- Build images ---
+
+carranca_log info "Building images..."
+docker build -q -t "$LOGGER_IMAGE" -f "$CARRANCA_HOME/runtime/Containerfile.logger" "$CARRANCA_HOME/runtime" >/dev/null
+docker build -q -t "$AGENT_IMAGE" -f ".carranca/Containerfile" ".carranca" >/dev/null
+
+# --- Create shared FIFO volume ---
+
+docker volume create "$FIFO_VOLUME" --driver local --opt type=tmpfs --opt device=tmpfs >/dev/null
+
+# --- Cleanup handler ---
+
+_cleanup() {
+  carranca_log info "Stopping session..."
+  docker rm -f "$AGENT_NAME" 2>/dev/null || true
+  docker rm -f "$LOGGER_NAME" 2>/dev/null || true
+  docker volume rm "$FIFO_VOLUME" 2>/dev/null || true
+  docker rmi "$AGENT_IMAGE" "$LOGGER_IMAGE" 2>/dev/null || true
+}
+trap _cleanup SIGINT SIGTERM EXIT
+
+# --- Start logger (detached) ---
+
+carranca_log info "Starting logger..."
+# shellcheck disable=SC2086
+docker run -d --rm \
+  --name "$LOGGER_NAME" \
+  --cap-add LINUX_IMMUTABLE \
+  -v "$FIFO_VOLUME:/fifo" \
+  -v "$WORKSPACE:/workspace:ro" \
+  -v "$STATE_DIR:/state" \
+  -e "SESSION_ID=$SESSION_ID" \
+  -e "REPO_ID=$REPO_ID" \
+  -e "REPO_NAME=$REPO_NAME" \
+  -e "REPO_PATH=$WORKSPACE" \
+  $LOGGER_EXTRA_FLAGS \
+  "$LOGGER_IMAGE" >/dev/null
+
+# --- Wait for FIFO (logger healthcheck equivalent) ---
+
+WAIT=0
+while [ "$WAIT" -lt 30 ]; do
+  # Check if FIFO exists by running test -p inside the logger container
+  if docker exec "$LOGGER_NAME" test -p /fifo/events 2>/dev/null; then
+    break
+  fi
+  sleep 0.5
+  WAIT=$((WAIT + 1))
+done
+
+if [ "$WAIT" -ge 30 ]; then
+  carranca_die "Logger FIFO not ready after 15s"
+fi
+
+# --- Run agent interactively ---
+
+NETWORK_FLAG=""
+if [ "$NETWORK" = "false" ]; then
+  NETWORK_FLAG="--network=none"
+fi
+
+carranca_log ok "Agent ready — entering interactive session"
+echo ""
+
+# shellcheck disable=SC2086
+docker run -it --rm \
+  --name "$AGENT_NAME" \
+  -v "$FIFO_VOLUME:/fifo" \
+  -v "$WORKSPACE:/workspace:rw" \
+  -e "AGENT_COMMAND=$AGENT_COMMAND" \
+  -e "SESSION_ID=$SESSION_ID" \
+  $NETWORK_FLAG \
+  $EXTRA_FLAGS \
+  "$AGENT_IMAGE" || true
+
+echo ""
+
+# --- Session summary ---
+
+LOG_FILE="$STATE_DIR/$SESSION_ID.jsonl"
+if [ -f "$LOG_FILE" ]; then
+  carranca_log ok "Session $SESSION_ID complete"
+
+  TOTAL_CMDS=0
+  FAILED_CMDS=0
+  FILES_CREATED=0
+  FILES_MODIFIED=0
+  FIRST_TS=""
+  LAST_TS=""
+
+  while IFS= read -r line; do
+    type="$(printf '%s' "$line" | grep -o '"type":"[^"]*"' | head -1 | cut -d'"' -f4)"
+    case "$type" in
+      shell_command)
+        TOTAL_CMDS=$((TOTAL_CMDS + 1))
+        exit_code="$(printf '%s' "$line" | grep -o '"exit_code":[0-9]*' | head -1 | cut -d: -f2)"
+        [ "$exit_code" != "0" ] && FAILED_CMDS=$((FAILED_CMDS + 1))
+        ;;
+      file_event)
+        event="$(printf '%s' "$line" | grep -o '"event":"[^"]*"' | head -1 | cut -d'"' -f4)"
+        case "$event" in
+          CREATE) FILES_CREATED=$((FILES_CREATED + 1)) ;;
+          MODIFY) FILES_MODIFIED=$((FILES_MODIFIED + 1)) ;;
+        esac
+        ;;
+      session_event)
+        ts="$(printf '%s' "$line" | grep -o '"ts":"[^"]*"' | head -1 | cut -d'"' -f4)"
+        [ -z "$FIRST_TS" ] && FIRST_TS="$ts"
+        LAST_TS="$ts"
+        ;;
+    esac
+  done < "$LOG_FILE"
+
+  SUCCEEDED=$((TOTAL_CMDS - FAILED_CMDS))
+  FILES_TOTAL=$((FILES_CREATED + FILES_MODIFIED))
+
+  echo ""
+  echo "  Duration: $FIRST_TS → $LAST_TS"
+  echo "  Files changed: $FILES_TOTAL ($FILES_CREATED created, $FILES_MODIFIED modified)"
+  echo "  Commands run: $TOTAL_CMDS ($SUCCEEDED succeeded, $FAILED_CMDS failed)"
+  echo "  Action log: $LOG_FILE"
+  echo ""
+else
+  carranca_log warn "Session $SESSION_ID — no log file found"
+fi

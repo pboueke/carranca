@@ -1,0 +1,23 @@
+# .carranca.yml — carranca project configuration
+# See: https://github.com/pboueke/carranca
+
+agent:
+  adapter: default
+  command: bash
+
+# Container runtime settings
+runtime:
+  network: true
+  # Extra docker run flags for the agent container (e.g. --gpus all)
+  # extra_flags: --gpus all
+  # Extra docker run flags for the logger container
+  # logger_extra_flags:
+
+policy:
+  docs_before_code: warn
+  tests_before_impl: warn
+
+watched_paths:
+  - .env
+  - secrets/
+  - "*.key"

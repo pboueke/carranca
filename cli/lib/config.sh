@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# carranca/cli/lib/config.sh — YAML config parsing and validation
+
+CARRANCA_CONFIG_FILE=".carranca.yml"
+
+# Read a value from .carranca.yml using grep/awk.
+# Supports flat keys (network) and one-level nested keys (agent.command).
+carranca_config_get() {
+  local key="$1"
+  local file="${2:-$CARRANCA_CONFIG_FILE}"
+  local val
+
+  [ -f "$file" ] || return 1
+
+  if [[ "$key" == *.* ]]; then
+    local parent="${key%%.*}"
+    local child="${key#*.}"
+    val="$(awk -v parent="$parent" -v child="$child" '
+      $0 ~ "^"parent":" { in_section=1; next }
+      in_section && /^[^ ]/ { in_section=0 }
+      in_section && $1 == child":" { gsub(/^[[:space:]]*[^:]+:[[:space:]]*/, ""); print; exit }
+    ' "$file")"
+  else
+    val="$(awk -v key="$key" '
+      $1 == key":" { gsub(/^[[:space:]]*[^:]+:[[:space:]]*/, ""); print; exit }
+    ' "$file")"
+  fi
+
+  # Strip surrounding quotes only if both ends match
+  if [[ "$val" == \"*\" && ${#val} -ge 2 ]]; then
+    val="${val:1:${#val}-2}"
+  elif [[ "$val" == \'*\' && ${#val} -ge 2 ]]; then
+    val="${val:1:${#val}-2}"
+  fi
+  printf '%s' "$val"
+}
+
+# Validate required config fields. Exit with error if any are missing.
+carranca_config_validate() {
+  local file="${1:-$CARRANCA_CONFIG_FILE}"
+
+  [ -f "$file" ] || carranca_die "Config file not found: $file"
+
+  local agent_command
+  agent_command="$(carranca_config_get agent.command "$file")"
+  if [ -z "$agent_command" ]; then
+    carranca_die "Missing required config: agent.command in $file"
+  fi
+
+  # Defaults for optional fields (just validate they parse)
+  local adapter
+  adapter="$(carranca_config_get agent.adapter "$file")"
+  if [ -z "$adapter" ]; then
+    carranca_log warn "No agent.adapter set in $file, using 'default'"
+  fi
+
+  local network
+  network="$(carranca_config_get runtime.network "$file")"
+  if [ -z "$network" ]; then
+    carranca_log warn "No runtime.network setting in $file, defaulting to 'true'"
+  fi
+}

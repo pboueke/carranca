@@ -1,0 +1,35 @@
+# Carranca agent container
+# Customize this file to install your agent CLI and project dependencies.
+# The shell wrapper is injected automatically — do not remove the last lines.
+#
+# Examples:
+#   - Install Python: RUN apk add python3 py3-pip
+#   - Install Node.js: RUN apk add nodejs npm
+#   - Install Go: RUN apk add go
+
+FROM alpine:3.21
+
+# Install base tools
+RUN apk add --no-cache \
+      bash \
+      coreutils \
+      curl \
+      git \
+      ca-certificates
+
+# ──────────────────────────────────────────────
+# Add your agent and project dependencies below:
+# Claude Code
+RUN apk add --no-cache nodejs npm && \
+    npm install -g @anthropic-ai/claude-code
+# ──────────────────────────────────────────────
+
+
+
+# ──────────────────────────────────────────────
+# Carranca shell wrapper (do not remove)
+# ──────────────────────────────────────────────
+COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
+RUN chmod +x /usr/local/bin/shell-wrapper.sh
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]

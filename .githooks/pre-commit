@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# carranca pre-commit hook
+# Runs lint + unit tests. Blocks commit on failure.
+# Setup: make hooks (or: git config core.hooksPath .githooks)
+set -euo pipefail
+
+echo "=== carranca pre-commit ==="
+
+# Verify CHANGELOG.md exists and has a valid semver header
+if [ ! -f CHANGELOG.md ]; then
+  echo "ERROR: CHANGELOG.md not found"
+  exit 1
+fi
+
+VERSION="$(grep -m1 '## \[' CHANGELOG.md | sed 's/.*\[\(.*\)\].*/\1/')"
+if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "ERROR: CHANGELOG.md first version header is not valid semver: '$VERSION'"
+  echo "Expected format: ## [X.Y.Z] - YYYY-MM-DD"
+  exit 1
+fi
+
+echo "Version: $VERSION"
+
+# Run lint + unit tests
+make check
+
+echo "=== pre-commit passed ==="

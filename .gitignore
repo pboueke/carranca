@@ -1,0 +1,23 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Docker
+*.tar
+
+# Temporary files
+/tmp/
+*.tmp
+
+# Agent-specific config (carranca is agent-agnostic)
+.claude/
+.codex/
+.agents/
+CLAUDE.md

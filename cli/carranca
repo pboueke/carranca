@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# carranca — containerized agent runtime with session logging
+set -euo pipefail
+
+# Resolve install dir from the real path of this script (follows symlinks)
+CARRANCA_HOME="${CARRANCA_HOME:-$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)}"
+COMMAND="${1:-help}"
+shift 2>/dev/null || true
+
+case "$COMMAND" in
+  init)
+    source "$CARRANCA_HOME/cli/init.sh" "$@"
+    ;;
+  run)
+    source "$CARRANCA_HOME/cli/run.sh" "$@"
+    ;;
+  help|-h|--help)
+    echo "carranca — containerized agent runtime with session logging"
+    echo ""
+    echo "Usage: carranca <command>"
+    echo ""
+    echo "Commands:"
+    echo "  init    Scaffold carranca config in the current directory"
+    echo "  run     Start an agent session in a containerized runtime"
+    echo "  help    Show this help message"
+    echo ""
+    echo "Config:  ~/.config/carranca/config.yml"
+    echo "State:   ~/.local/state/carranca/"
+    echo "Install: ~/.local/share/carranca/"
+    ;;
+  *)
+    echo "carranca: unknown command '$COMMAND'" >&2
+    echo "Run 'carranca help' for usage." >&2
+    exit 1
+    ;;
+esac

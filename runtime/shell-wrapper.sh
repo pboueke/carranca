@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# carranca shell-wrapper — wraps agent command execution and writes events to FIFO
+#
+# This script is the ENTRYPOINT of the agent container. It:
+# 1. Waits for the FIFO to be ready (created by logger)
+# 2. Starts a heartbeat background process (30s interval)
+# 3. Writes agent_start event
+# 4. Executes the agent command, capturing exit code
+# 5. Writes agent_stop event
+# 6. Exits immediately if the FIFO breaks (fail closed)
+set -uo pipefail
+
+FIFO_PATH="/fifo/events"
+SESSION_ID="${SESSION_ID:-unknown}"
+AGENT_COMMAND="${AGENT_COMMAND:-bash}"
+
+# --- Helpers ---
+
+timestamp() {
+  date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+ms_now() {
+  date +%s%3N 2>/dev/null || date +%s
+}
+
+write_event() {
+  printf '%s\n' "$1" > "$FIFO_PATH" 2>/dev/null
+  local rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "[carranca] FIFO write failed — exiting (fail closed)" >&2
+    kill 0 2>/dev/null
+    exit 1
+  fi
+}
+
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr -d '\n'
+}
+
+# --- Wait for FIFO ---
+
+WAIT_LIMIT=20
+WAIT_COUNT=0
+while [ ! -p "$FIFO_PATH" ]; do
+  WAIT_COUNT=$((WAIT_COUNT + 1))
+  if [ "$WAIT_COUNT" -ge "$WAIT_LIMIT" ]; then
+    echo "[carranca] FIFO not found after ${WAIT_LIMIT}s — exiting (fail closed)" >&2
+    exit 1
+  fi
+  sleep 0.5
+done
+
+# --- Heartbeat ---
+
+_heartbeat_loop() {
+  while true; do
+    sleep 30
+    printf '{"type":"heartbeat","ts":"%s","session_id":"%s"}\n' "$(timestamp)" "$SESSION_ID" > "$FIFO_PATH" 2>/dev/null || exit 1
+  done
+}
+
+_heartbeat_loop &
+HEARTBEAT_PID=$!
+
+# --- Session start event ---
+
+write_event "{\"type\":\"session_event\",\"event\":\"agent_start\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\"}"
+
+# --- Execute agent command ---
+# We log the overall agent command as a shell_command event.
+# The agent may run sub-commands internally — those are captured by
+# inotifywait (file mutations) but not individually logged as shell_command
+# events in MVP (that requires execve tracing, Phase 2).
+
+START_MS="$(ms_now)"
+eval "$AGENT_COMMAND"
+AGENT_EXIT=$?
+END_MS="$(ms_now)"
+DURATION=$((END_MS - START_MS))
+
+ESCAPED_CMD="$(json_escape "$AGENT_COMMAND")"
+write_event "{\"type\":\"shell_command\",\"source\":\"shell-wrapper\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"command\":\"$ESCAPED_CMD\",\"exit_code\":$AGENT_EXIT,\"duration_ms\":$DURATION,\"cwd\":\"$(pwd)\"}"
+
+# --- Session stop event ---
+
+write_event "{\"type\":\"session_event\",\"event\":\"agent_stop\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"exit_code\":$AGENT_EXIT}"
+
+# Cleanup
+kill $HEARTBEAT_PID 2>/dev/null || true
+exit $AGENT_EXIT
