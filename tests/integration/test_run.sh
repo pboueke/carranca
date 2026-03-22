@@ -64,7 +64,7 @@ bash "$CARRANCA_HOME/cli/init.sh"
 cat > ".carranca.yml" <<'EOF'
 agent:
   adapter: default
-  command: bash -c "echo hello-from-agent && touch /workspace/testfile.txt && exit 0"
+  command: bash -c "echo hello-from-agent && printf '%s' \"\$HOME\" > /workspace/agent-home.txt && id -g > /workspace/agent-gid.txt && id -G > /workspace/agent-groups.txt && touch /workspace/testfile.txt && exit 0"
 runtime:
   network: true
 policy:
@@ -142,6 +142,38 @@ fi
 
 # Check session summary was printed
 assert_contains "output contains session complete" "complete" "$OUTPUT"
+
+# Verify workspace writes keep host ownership on Linux bind mounts
+EXPECTED_UID="$(id -u)"
+EXPECTED_GID="$(id -g)"
+ACTUAL_UID="$(stat -c '%u' "$TMPDIR/testfile.txt")"
+assert_eq "workspace file is owned by invoking host uid" "$EXPECTED_UID" "$ACTUAL_UID"
+
+if [ "$ACTUAL_UID" != "0" ]; then
+  echo "  PASS: workspace file is not owned by root"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: workspace file should not be owned by root"
+  FAIL=$((FAIL + 1))
+fi
+
+AGENT_HOME="$(cat "$TMPDIR/agent-home.txt" 2>/dev/null || true)"
+assert_eq "agent HOME is non-root cache path" "/home/carranca" "$AGENT_HOME"
+
+AGENT_GID="$(cat "$TMPDIR/agent-gid.txt" 2>/dev/null || true)"
+assert_eq "agent primary gid matches invoking host gid" "$EXPECTED_GID" "$AGENT_GID"
+
+HOST_GROUPS="$(id -G)"
+AGENT_GROUPS="$(cat "$TMPDIR/agent-groups.txt" 2>/dev/null || true)"
+for gid in $HOST_GROUPS; do
+  if echo " $AGENT_GROUPS " | grep -q " $gid "; then
+    echo "  PASS: agent groups include host gid $gid"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: agent groups missing host gid $gid"
+    FAIL=$((FAIL + 1))
+  fi
+done
 
 # Verify cache home directory was created
 if [ -d "$TMPSTATE/cache/$REPO_ID/home" ]; then

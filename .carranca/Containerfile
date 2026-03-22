@@ -17,11 +17,13 @@ RUN apk add --no-cache \
       git \
       ca-certificates
 
+RUN mkdir -p /home/carranca && chmod 0777 /home/carranca
+
 # ──────────────────────────────────────────────
 # Add your agent and project dependencies below:
-# Claude Code
-RUN apk add --no-cache nodejs npm && \
-    npm install -g @anthropic-ai/claude-code
+# OpenAI Codex CLI
+RUN apk add --no-cache bubblewrap nodejs npm && \
+    npm install -g @openai/codex
 # ──────────────────────────────────────────────
 
 

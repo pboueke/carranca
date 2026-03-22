@@ -48,6 +48,7 @@ echo "0" > "$SEQ_FILE"
 
 # Create FIFO
 mkfifo "$FIFO_PATH"
+chmod 0666 "$FIFO_PATH"
 
 # Create log file and try to make it append-only
 touch "$LOG_FILE"

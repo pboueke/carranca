@@ -91,7 +91,7 @@ agent:
 volumes:
   cache: true
   extra:
-    - ~/.ssh:/home/user/.ssh:ro
+    - ~/.ssh:/home/carranca/.ssh:ro
     - ~/docs:/reference:ro
     - /tmp/data:/data:rw
 watched_paths:
@@ -103,7 +103,7 @@ EOF
 mapfile -t items < <(carranca_config_get_list volumes.extra)
 assert_eq "volumes.extra list has 3 items" "3" "${#items[@]}"
 # shellcheck disable=SC2088
-assert_eq "volumes.extra[0]" "~/.ssh:/home/user/.ssh:ro" "${items[0]}"
+assert_eq "volumes.extra[0]" "~/.ssh:/home/carranca/.ssh:ro" "${items[0]}"
 # shellcheck disable=SC2088
 assert_eq "volumes.extra[1]" "~/docs:/reference:ro" "${items[1]}"
 assert_eq "volumes.extra[2]" "/tmp/data:/data:rw" "${items[2]}"

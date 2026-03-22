@@ -41,6 +41,11 @@ STATE_DIR="$STATE_BASE/sessions/$REPO_ID"
 WORKSPACE="$(realpath .)"
 mkdir -p "$STATE_DIR"
 
+HOST_UID="$(id -u)"
+HOST_GID="$(id -g)"
+HOST_GROUPS="$(id -G)"
+AGENT_HOME="/home/carranca"
+
 # --- Read config ---
 
 AGENT_COMMAND="$(carranca_config_get agent.command)"
@@ -93,16 +98,22 @@ docker volume create "$FIFO_VOLUME" --driver local --opt type=tmpfs --opt device
 # --- Create persistent cache (survives across sessions) ---
 #
 # Agents store auth, config, and session data in their home directory
-# (e.g. ~/.claude/, ~/.codex/). We persist /root across runs so agents
+# (e.g. ~/.claude/, ~/.codex/). We persist the container home across runs so agents
 # don't lose credentials or context between sessions.
 
 CACHE_FLAGS=""
 if [ "$CACHE_ENABLED" = "true" ]; then
   mkdir -p "$CACHE_DIR"
-  CACHE_FLAGS="-v $CACHE_DIR/home:/root"
+  CACHE_FLAGS="-v $CACHE_DIR/home:$AGENT_HOME"
   mkdir -p "$CACHE_DIR/home"
   carranca_log info "Cache: $CACHE_DIR"
 fi
+
+EXTRA_GROUP_FLAGS=""
+for gid in $HOST_GROUPS; do
+  [ "$gid" = "$HOST_GID" ] && continue
+  EXTRA_GROUP_FLAGS="$EXTRA_GROUP_FLAGS --group-add $gid"
+done
 
 # --- Cleanup handler ---
 
@@ -169,10 +180,14 @@ fi
 # shellcheck disable=SC2086
 docker run $DOCKER_TTY_FLAGS --rm \
   --name "$AGENT_NAME" \
+  --user "$HOST_UID:$HOST_GID" \
   -v "$FIFO_VOLUME:/fifo" \
   -v "$WORKSPACE:/workspace:rw" \
+  -e "HOME=$AGENT_HOME" \
+  -e "USER=carranca" \
   $CACHE_FLAGS \
   $CUSTOM_VOLUME_FLAGS \
+  $EXTRA_GROUP_FLAGS \
   -e "AGENT_COMMAND=$AGENT_COMMAND" \
   -e "SESSION_ID=$SESSION_ID" \
   $NETWORK_FLAG \

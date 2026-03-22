@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0] - 2026-03-22
+
+- feat: switch the default agent command and project scaffold to Codex
+- feat: run the agent container as the invoking host user and preserve supplemental groups
+- feat: move the default agent home and cache mount to `/home/carranca`
+- fix: make the shared logger FIFO writable across container user boundaries
+- fix: install `bubblewrap` in Codex agent images for sandboxed execution
+- test: cover host uid/gid mapping, supplemental groups, agent home, and FIFO permissions
+- test: 108 tests, 9 suites, 100% function coverage (17/17)
+- docs: update configuration and architecture docs for the Codex-based runtime defaults
+
 ## [0.2.0] - 2026-03-22
 
 - feat: persistent agent home directory across sessions (`volumes.cache` config)

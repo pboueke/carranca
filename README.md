@@ -25,6 +25,7 @@ carranca run
 ## How it works
 
 Two containers share a FIFO on a tmpfs volume. The agent gets an interactive TTY. The logger writes a structured JSONL session log that the agent cannot access.
+On Linux, the agent container runs as the invoking host UID:GID, so edits to the bind-mounted workspace keep host ownership instead of becoming `root`-owned.
 
 ```
   carranca run

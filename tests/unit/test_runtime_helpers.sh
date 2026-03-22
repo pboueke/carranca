@@ -122,6 +122,10 @@ assert_match "write_log preserves JSON fields" '"msg":"first"' "$(sed -n '1p' "$
 
 FIFO_PATH="$TMPDIR/fifo"
 mkfifo "$FIFO_PATH"
+chmod 0666 "$FIFO_PATH"
+
+FIFO_MODE="$(stat -c '%a' "$FIFO_PATH")"
+assert_eq "logger FIFO is world-readable and writable" "666" "$FIFO_MODE"
 
 write_event() {
   printf '%s\n' "$1" > "$FIFO_PATH" 2>/dev/null
