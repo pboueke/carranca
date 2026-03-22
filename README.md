@@ -1,7 +1,12 @@
+<div align="center">
+  <img src="doc/carranca.jpg" alt="Carranca" width="600" />
+  <p><em>Carranca photographed by Marcel Gautherot in 1946. Instituto Moreira Salles collection.</em></p>
+</div>
+
 # Carranca
 
-![tests: 191/191 passed](https://img.shields.io/badge/tests-191%2F191_passed-brightgreen)
-![coverage: 100%](https://img.shields.io/badge/coverage-100%25_(27%2F27_functions)-brightgreen)
+![tests: 214/214 passed](https://img.shields.io/badge/tests-214%2F214_passed-brightgreen)
+![coverage: 100%](https://img.shields.io/badge/coverage-100%25_(35%2F35_functions)-brightgreen)
 
 **Containerized agent runtime with session logging.**
 
@@ -16,13 +21,19 @@ export PATH="$HOME/.local/share/carranca/cli:$PATH"
 
 # Initialize a project
 cd your-project
-carranca init --codex     # or bare
+carranca init --agent codex
 
 # Ask carranca to propose runtime updates for this repo
-carranca config
+carranca config --prompt "install claude"
 
 # Run an agent session
-carranca run
+carranca run --agent codex
+
+# Inspect the latest session
+carranca log
+
+# Show command-specific help
+carranca help run
 ```
 
 ## How it works
@@ -42,11 +53,17 @@ See [doc/architecture.md](doc/architecture.md) for the full picture.
 ## Commands
 
 - `carranca init`: scaffold `.carranca.yml`, `.carranca/Containerfile`, and default skills
-- `carranca config`: launch the bound agent in its normal TUI, ask it to use Carranca `confiskill`, and propose updates to `.carranca.yml` and `.carranca/Containerfile`
+- `carranca config`: launch the selected configured agent in its normal TUI, ask it to use Carranca `confiskill`, and propose updates to `.carranca.yml` and `.carranca/Containerfile`
 - `carranca log`: pretty-print the latest session for the current repo, or a selected session via `--session <exact-id>`
-- `carranca run`: start an interactive agent session with structured logging
+- `carranca run`: start an interactive session with the default first agent or a named agent via `--agent <name>`
 
-`carranca config` mounts Carranca-managed skills and user skills into separate directories inside the agent container, launches the configured agent with the same interactive TTY behavior as `carranca run`, asks it to use `confiskill`, then shows its rationale and diff before applying changes. Use `--dangerously-skip-confirmation` only when you want to bypass the confirmation prompt and accept the proposal immediately.
+Each command also exposes command-specific help through either `carranca help <command>` or `carranca <command> help`.
+
+Carranca config is forward-only on the `agents:` format. `carranca init` scaffolds a supported agent (`codex` or `claude`) as the first/default entry, `carranca run --agent <name>` selects any configured agent, and `carranca config --agent <name> --prompt "..."` chooses which configured agent executes the config workflow while passing free-form operator intent into the prompt.
+
+`carranca config` mounts Carranca-managed skills and user skills into separate directories inside the agent container, launches the selected configured agent with the same interactive TTY behavior as `carranca run`, asks it to use `confiskill`, then shows its rationale and diff before applying changes. Use `--dangerously-skip-confirmation` only when you want to bypass the confirmation prompt and accept the proposal immediately.
+
+`carranca log` reports the latest or selected session in a developer-readable summary: duration, unique touched paths, file-event totals, top touched paths, command counts, and the ordered command list when shell-wrapper command capture exists.
 
 ## Documentation
 

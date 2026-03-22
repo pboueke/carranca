@@ -30,9 +30,10 @@ git init --quiet
 bash "$CARRANCA_HOME/cli/init.sh"
 
 cat > ".carranca.yml" <<'EOF'
-agent:
-  adapter: default
-  command: bash -c "echo degraded-test && exit 0"
+agents:
+  - name: shell
+    adapter: stdin
+    command: bash -c "echo degraded-test && exit 0"
 runtime:
   network: true
 EOF

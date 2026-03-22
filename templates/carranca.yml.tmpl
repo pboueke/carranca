@@ -1,9 +1,10 @@
 # .carranca.yml — carranca project configuration
 # See: https://github.com/pboueke/carranca
 
-agent:
-  adapter: default
-  command: bash
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
 
 # Container runtime settings
 runtime:

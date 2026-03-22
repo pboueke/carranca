@@ -3,12 +3,14 @@
 ## `.carranca.yml`
 
 Per-project configuration file created by `carranca init`. Lives in the project root.
+Carranca now supports only the `agents:` format for project config.
 
 ```yaml
 # Agent settings
-agent:
-  adapter: default              # Agent adapter (currently only "default")
-  command: codex                # CLI command to run inside the container
+agents:
+  - name: codex
+    adapter: codex              # Agent adapter: default, claude, codex, or stdin
+    command: codex              # CLI command to run inside the container
 
 # Container runtime settings
 runtime:
@@ -40,48 +42,66 @@ watched_paths:
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `agent.command` | Yes | — | The CLI command to run as the agent |
-| `agent.adapter` | No | `default` | Agent adapter type (`default`, `claude`, `codex`, or `stdin`) |
+| `agents` | Yes | — | Ordered list of configured agents; the first entry is the default |
+| `agents[].name` | Yes | — | Stable agent name used by `--agent <name>` |
+| `agents[].command` | Yes | — | The CLI command to run as the agent |
+| `agents[].adapter` | No | `default` | Agent adapter type (`default`, `claude`, `codex`, or `stdin`) |
 | `runtime.network` | No | `true` | Enable/disable container networking |
 | `runtime.extra_flags` | No | — | Additional `docker run` flags for agent |
 | `runtime.logger_extra_flags` | No | — | Additional `docker run` flags for logger |
 | `volumes.cache` | No | `true` | Persistent cache for agent memory/config/session |
 | `volumes.extra` | No | — | Custom volume mounts (`host:container[:mode]`) |
 
+`carranca init --agent <name>` accepts only supported starter agents. Today those
+are `codex` and `claude`.
+
 ### Examples
 
 **Claude Code:**
 ```yaml
-agent:
-  command: claude
+agents:
+  - name: claude
+    adapter: claude
+    command: claude
 ```
 
 **Codex CLI:**
 ```yaml
-agent:
-  command: codex
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
 ```
 
 **GPU-enabled agent:**
 ```yaml
-agent:
-  command: my-agent
+agents:
+  - name: gpu-agent
+    adapter: stdin
+    command: my-agent
 runtime:
   extra_flags: --gpus all
 ```
 
 **Fully isolated (no network):**
 ```yaml
-agent:
-  command: claude
+agents:
+  - name: claude
+    adapter: claude
+    command: claude
 runtime:
   network: false
 ```
 
-**Agent with SSH keys and extra reference code:**
+**Multiple agents with SSH keys and extra reference code:**
 ```yaml
-agent:
-  command: claude
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+  - name: claude
+    adapter: claude
+    command: claude
 volumes:
   cache: true
   extra:
@@ -92,15 +112,17 @@ volumes:
 
 **Disable cache (ephemeral sessions only):**
 ```yaml
-agent:
-  command: claude
+agents:
+  - name: claude
+    adapter: claude
+    command: claude
 volumes:
   cache: false
 ```
 
 ## `carranca config`
 
-`carranca config` runs the bound agent inside the sandboxed Carranca container and
+`carranca config` runs the selected configured agent inside the sandboxed Carranca container and
 asks it to use Carranca's `confiskill` before proposing updates to both
 `.carranca.yml` and `.carranca/Containerfile`.
 
@@ -116,14 +138,20 @@ The proposal prompt explicitly requires the agent to:
 - write complete proposed files to `/proposal` instead of editing the workspace directly
 
 `carranca config` allocates a TTY exactly like `carranca run` when stdin is a
-terminal, so the agent can reuse the same interactive auth/session flow.
+terminal, so the selected agent can reuse the same interactive auth/session flow.
+
+Agent selection and prompts are explicit:
+
+- `carranca run` uses the first configured agent by default, or `--agent <name>` to choose a different configured agent
+- `carranca config` uses the first configured agent by default, or `--agent <name>` to choose a different configured agent as the executor
+- `carranca config --prompt "..."` passes arbitrary operator intent into the config prompt; it does not select an agent
 
 Adapter handling remains explicit:
 
-- `agent.adapter: claude` runs the configured Claude command in its normal interactive mode with the config prompt as the initial request
-- `agent.adapter: codex` runs the configured Codex command in its normal interactive mode with the config prompt as the initial request
-- `agent.adapter: stdin` pipes the generated config prompt to the command on stdin
-- `agent.adapter: default` infers `claude` or `codex` only when the command itself starts with `claude` or `codex`; otherwise it falls back to `stdin`
+- `agents[].adapter: claude` runs the configured Claude command in its normal interactive mode with the config prompt as the initial request
+- `agents[].adapter: codex` runs the configured Codex command in its normal interactive mode with the config prompt as the initial request
+- `agents[].adapter: stdin` pipes the generated config prompt to the command on stdin
+- `agents[].adapter: default` infers `claude` or `codex` only when the command itself starts with `claude` or `codex`; otherwise it falls back to `stdin`
 
 By default, `carranca config` is propose-only until you confirm:
 
@@ -146,6 +174,18 @@ carranca config --dangerously-skip-confirmation
 This still prints the rationale and diff first, emits a strict warning, and records
 that confirmation was bypassed in the config audit log under
 `~/.local/state/carranca/config/<repo-id>/history.jsonl`.
+
+## Command help
+
+Each command exposes its own help output in three equivalent forms:
+
+```bash
+carranca help run
+carranca run help
+carranca run --help
+```
+
+The same pattern works for `init`, `config`, and `log`.
 
 ### Cache volume
 
@@ -194,12 +234,12 @@ WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
 ```
 
-### Quick-start with `--claude` or `--codex`
+### Quick-start with `--agent`
 
 ```bash
-carranca init --claude    # Pre-configures Claude Code
-carranca init --codex     # Pre-configures Codex CLI
-carranca init             # Bare container — edit Containerfile yourself
+carranca init --agent claude   # Pre-configures Claude Code
+carranca init --agent codex    # Pre-configures Codex CLI
+carranca init                  # Defaults to codex
 ```
 
 ## `.carranca/skills/`

@@ -3,8 +3,19 @@
 
 CARRANCA_CONFIG_FILE=".carranca.yml"
 
+carranca_config_strip_value() {
+  local val="$1"
+
+  if [[ "$val" == \"*\" && ${#val} -ge 2 ]]; then
+    val="${val:1:${#val}-2}"
+  elif [[ "$val" == \'*\' && ${#val} -ge 2 ]]; then
+    val="${val:1:${#val}-2}"
+  fi
+  printf '%s' "$val"
+}
+
 # Read a value from .carranca.yml using grep/awk.
-# Supports flat keys (network) and one-level nested keys (agent.command).
+# Supports flat keys (network) and one-level nested keys (runtime.network).
 carranca_config_get() {
   local key="$1"
   local file="${2:-$CARRANCA_CONFIG_FILE}"
@@ -34,13 +45,7 @@ carranca_config_get() {
     ' "$file")"
   fi
 
-  # Strip surrounding quotes only if both ends match
-  if [[ "$val" == \"*\" && ${#val} -ge 2 ]]; then
-    val="${val:1:${#val}-2}"
-  elif [[ "$val" == \'*\' && ${#val} -ge 2 ]]; then
-    val="${val:1:${#val}-2}"
-  fi
-  printf '%s' "$val"
+  carranca_config_strip_value "$val"
 }
 
 # Read list items (lines starting with "- ") under a YAML section.
@@ -63,19 +68,15 @@ carranca_config_get_list() {
 
   awk -v parent="$parent" -v child="$child" '
     BEGIN { in_parent=0; in_child=0 }
-    # Match parent section
     $0 ~ "^"parent":" { in_parent=1; next }
     in_parent && /^[^ #]/ { in_parent=0; in_child=0 }
-    # If child is set, match nested section
     in_parent && child != "" && $0 ~ "^  "child":" { in_child=1; next }
     in_parent && child != "" && in_child && /^  [^ #-]/ { in_child=0 }
-    # If child is empty, read list items directly under parent
     in_parent && child == "" && /^  - / {
       sub(/^[[:space:]]*- [[:space:]]*/, "")
       gsub(/^["'\''"]|["'\''"]$/, "")
       print
     }
-    # Read list items under child section
     in_parent && in_child && /^    - / {
       sub(/^[[:space:]]*- [[:space:]]*/, "")
       gsub(/^["'\''"]|["'\''"]$/, "")
@@ -84,12 +85,142 @@ carranca_config_get_list() {
   ' "$file"
 }
 
-carranca_config_agent_driver() {
+carranca_config_agent_names() {
   local file="${1:-$CARRANCA_CONFIG_FILE}"
+
+  [ -f "$file" ] || return 1
+
+  awk '
+    /^agents:/ { in_agents=1; next }
+    in_agents && /^[^ ]/ { in_agents=0 }
+    !in_agents { next }
+
+    /^  - / {
+      line=$0
+      sub(/^  -[[:space:]]*/, "", line)
+      if (line ~ /^name:[[:space:]]*/) {
+        sub(/^name:[[:space:]]*/, "", line)
+        sub(/[[:space:]]+#.*$/, "", line)
+        gsub(/^["'\''"]|["'\''"]$/, "", line)
+        print line
+      }
+      next
+    }
+
+    /^    name:/ {
+      line=$0
+      sub(/^    name:[[:space:]]*/, "", line)
+      sub(/[[:space:]]+#.*$/, "", line)
+      gsub(/^["'\''"]|["'\''"]$/, "", line)
+      print line
+    }
+  ' "$file"
+}
+
+carranca_config_agent_count() {
+  local file="${1:-$CARRANCA_CONFIG_FILE}"
+  local count=0
+
+  while IFS= read -r _name; do
+    count=$((count + 1))
+  done < <(carranca_config_agent_names "$file")
+
+  printf '%s' "$count"
+}
+
+carranca_config_agent_index() {
+  local agent_name="$1"
+  local file="${2:-$CARRANCA_CONFIG_FILE}"
+  local idx=0
+  local name
+
+  while IFS= read -r name; do
+    if [ "$name" = "$agent_name" ]; then
+      printf '%s' "$idx"
+      return 0
+    fi
+    idx=$((idx + 1))
+  done < <(carranca_config_agent_names "$file")
+
+  return 1
+}
+
+carranca_config_agent_field_by_index() {
+  local index="$1"
+  local field="$2"
+  local file="${3:-$CARRANCA_CONFIG_FILE}"
+  local val
+
+  [ -f "$file" ] || return 1
+
+  val="$(awk -v target="$index" -v field="$field" '
+    /^agents:/ { in_agents=1; next }
+    in_agents && /^[^ ]/ { in_agents=0 }
+    !in_agents { next }
+
+    /^  - / {
+      current_idx += 1
+      line=$0
+      sub(/^  -[[:space:]]*/, "", line)
+      if (current_idx - 1 == target && line ~ ("^" field ":[[:space:]]*")) {
+        sub(("^" field ":[[:space:]]*"), "", line)
+        sub(/[[:space:]]+#.*$/, "", line)
+        print line
+        exit
+      }
+      next
+    }
+
+    current_idx - 1 == target && $0 ~ ("^    " field ":[[:space:]]*") {
+      line=$0
+      sub(("^    " field ":[[:space:]]*"), "", line)
+      sub(/[[:space:]]+#.*$/, "", line)
+      print line
+      exit
+    }
+  ' "$file")"
+
+  carranca_config_strip_value "$val"
+}
+
+carranca_config_agent_field() {
+  local agent_name="$1"
+  local field="$2"
+  local file="${3:-$CARRANCA_CONFIG_FILE}"
+  local index
+
+  index="$(carranca_config_agent_index "$agent_name" "$file")" || return 1
+  carranca_config_agent_field_by_index "$index" "$field" "$file"
+}
+
+carranca_config_default_agent_name() {
+  local file="${1:-$CARRANCA_CONFIG_FILE}"
+  carranca_config_agent_names "$file" | head -1
+}
+
+carranca_config_resolve_agent_name() {
+  local requested_name="${1:-}"
+  local file="${2:-$CARRANCA_CONFIG_FILE}"
+  local resolved_name
+
+  if [ -n "$requested_name" ]; then
+    carranca_config_agent_index "$requested_name" "$file" >/dev/null 2>&1 || return 1
+    printf '%s' "$requested_name"
+    return 0
+  fi
+
+  resolved_name="$(carranca_config_default_agent_name "$file")"
+  [ -n "$resolved_name" ] || return 1
+  printf '%s' "$resolved_name"
+}
+
+carranca_config_agent_driver_for() {
+  local agent_name="$1"
+  local file="${2:-$CARRANCA_CONFIG_FILE}"
   local adapter agent_command cmd
 
-  adapter="$(carranca_config_get agent.adapter "$file")"
-  agent_command="$(carranca_config_get agent.command "$file")"
+  adapter="$(carranca_config_agent_field "$agent_name" adapter "$file")"
+  agent_command="$(carranca_config_agent_field "$agent_name" command "$file")"
   cmd="${agent_command%% *}"
 
   case "$adapter" in
@@ -109,28 +240,38 @@ carranca_config_agent_driver() {
   esac
 }
 
-# Validate required config fields. Exit with error if any are missing.
 carranca_config_validate() {
   local file="${1:-$CARRANCA_CONFIG_FILE}"
+  local count name command adapter network
+  declare -A seen_names=()
 
   [ -f "$file" ] || carranca_die "Config file not found: $file"
 
-  local agent_command
-  agent_command="$(carranca_config_get agent.command "$file")"
-  if [ -z "$agent_command" ]; then
-    carranca_die "Missing required config: agent.command in $file"
+  count="$(carranca_config_agent_count "$file")"
+  if [ "$count" -eq 0 ]; then
+    carranca_die "Missing required config: agents in $file"
   fi
 
-  # Defaults for optional fields (just validate they parse)
-  local adapter
-  adapter="$(carranca_config_get agent.adapter "$file")"
-  if [ -z "$adapter" ]; then
-    carranca_log warn "No agent.adapter set in $file, using 'default'"
-  elif ! carranca_config_agent_driver "$file" >/dev/null 2>&1; then
-    carranca_die "Unsupported agent.adapter in $file: $adapter (expected default, claude, codex, or stdin)"
-  fi
+  while IFS= read -r name; do
+    [ -n "$name" ] || carranca_die "Invalid agent entry in $file: missing agents[].name"
+    if [ -n "${seen_names[$name]+x}" ]; then
+      carranca_die "Duplicate agent name in $file: $name"
+    fi
+    seen_names["$name"]=1
 
-  local network
+    command="$(carranca_config_agent_field "$name" command "$file")"
+    if [ -z "$command" ]; then
+      carranca_die "Missing required config: agents[$name].command in $file"
+    fi
+
+    adapter="$(carranca_config_agent_field "$name" adapter "$file")"
+    if [ -z "$adapter" ]; then
+      carranca_log warn "No agents[$name].adapter set in $file, using 'default'"
+    elif ! carranca_config_agent_driver_for "$name" "$file" >/dev/null 2>&1; then
+      carranca_die "Unsupported agents[$name].adapter in $file: $adapter (expected default, claude, codex, or stdin)"
+    fi
+  done < <(carranca_config_agent_names "$file")
+
   network="$(carranca_config_get runtime.network "$file")"
   if [ -z "$network" ]; then
     carranca_log warn "No runtime.network setting in $file, defaulting to 'true'"

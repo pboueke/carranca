@@ -62,9 +62,13 @@ bash "$CARRANCA_HOME/cli/init.sh"
 
 # Override agent command to something that runs and exits quickly
 cat > ".carranca.yml" <<'EOF'
-agent:
-  adapter: default
-  command: bash -c "echo hello-from-agent && printf '%s' \"\$HOME\" > /workspace/agent-home.txt && id -g > /workspace/agent-gid.txt && id -G > /workspace/agent-groups.txt && touch /workspace/testfile.txt && exit 0"
+agents:
+  - name: codex
+    adapter: stdin
+    command: bash -c "echo default-agent > /workspace/selected-agent.txt && exit 0"
+  - name: shell
+    adapter: stdin
+    command: bash -c "echo hello-from-agent && echo shell > /workspace/selected-agent.txt && printf '%s' \"\$HOME\" > /workspace/agent-home.txt && id -g > /workspace/agent-gid.txt && id -G > /workspace/agent-groups.txt && touch /workspace/testfile.txt && exit 0"
 runtime:
   network: true
 policy:
@@ -74,7 +78,7 @@ EOF
 
 # Run carranca
 echo "  Running carranca session (this may take a moment on first build)..."
-OUTPUT="$(bash "$CARRANCA_HOME/cli/run.sh" 2>&1)" || true
+OUTPUT="$(bash "$CARRANCA_HOME/cli/run.sh" --agent shell 2>&1)" || true
 
 # Find the session log
 REPO_ID="$(source "$CARRANCA_HOME/cli/lib/common.sh" && source "$CARRANCA_HOME/cli/lib/identity.sh" && carranca_repo_id)"
@@ -142,6 +146,10 @@ fi
 
 # Check session summary was printed
 assert_contains "output contains session complete" "complete" "$OUTPUT"
+assert_contains "output mentions selected agent" "Agent: shell" "$OUTPUT"
+
+SELECTED_AGENT="$(cat "$TMPDIR/selected-agent.txt" 2>/dev/null || true)"
+assert_eq "run --agent selects configured named agent" "shell" "$SELECTED_AGENT"
 
 # Verify workspace writes keep host ownership on Linux bind mounts
 EXPECTED_UID="$(id -u)"

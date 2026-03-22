@@ -5,6 +5,10 @@
 Carranca runs coding agents inside Docker containers with host isolation and
 structured session logging. No docker-compose — just `docker run`.
 
+Projects are configured through `.carranca.yml` using an ordered `agents:` list.
+The first configured agent is the default execution target for `run` and
+`config`, and `--agent <name>` selects a different configured agent explicitly.
+
 ```
   carranca run
        │
@@ -66,7 +70,7 @@ Two containers share a tmpfs volume containing a Unix FIFO:
 | `~/.local/state/carranca/sessions/<repo-id>/` | Yes | Carranca | Session JSONL logs |
 | `~/.local/state/carranca/cache/<repo-id>/home/` | Yes | Agent | Persistent agent home dir mounted at `/home/carranca` (auth, config, history) |
 | `~/.config/carranca/config.yml` | Yes | User | Global settings (future) |
-| `.carranca.yml` | Yes | User | Per-project configuration |
+| `.carranca.yml` | Yes | User | Per-project configuration, including the ordered `agents:` list |
 | `.carranca/Containerfile` | Yes | User | Agent container definition |
 | `.carranca/shell-wrapper.sh` | No | Carranca | Injected into agent image at build |
 | `.carranca/skills/carranca/` | No | Carranca | Carranca-managed project skills copied on init |

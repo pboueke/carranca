@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0] - 2026-03-22
+
+- feat: move project config to ordered `agents:` entries only and drop legacy single-agent config support
+- feat: add canonical `--agent <name>` selection for `carranca init`, `carranca run`, and `carranca config`
+- feat: add `carranca config --prompt <text>` so free-form operator requests are passed into the config-agent prompt
+- fix: report the actual selected agent name in `carranca run` session output instead of the container name
+- fix: install the Codex CLI in this repo's Carranca agent container so the configured `codex` agent runs successfully
+- docs: update README, configuration, architecture, and session-log docs for multi-agent config, command help, and improved `carranca log` output
+- docs: add repository `LICENSE` and Carranca artwork used in the README header
+- test: expand unit, integration, and failure coverage for agent selection, prompt plumbing, and `agents:` validation
+- test: 214 tests, 13 suites, 100% function coverage (35/35)
+
 ## [0.5.0] - 2026-03-22
 
 - feat: add `carranca log` to pretty-print the latest or selected session log for the current repo

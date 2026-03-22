@@ -36,7 +36,8 @@ main_help="$(bash "$CLI" help 2>&1)"
 assert_contains "main help shows help subcommand usage" "carranca help <command>" "$main_help"
 
 run_help_from_root="$(bash "$CLI" help run 2>&1)"
-assert_contains "root help routes to run help" "Usage: carranca run" "$run_help_from_root"
+assert_contains "root help routes to run help" "Usage: carranca run [--agent <name>]" "$run_help_from_root"
+assert_contains "run help documents agent option" "--agent <name>" "$run_help_from_root"
 
 run_help_from_subcommand="$(bash "$CLI" run help 2>&1)"
 assert_eq "run help matches between root and subcommand forms" "$run_help_from_root" "$run_help_from_subcommand"
@@ -55,7 +56,9 @@ log_help_flag="$(bash "$CLI" log --help 2>&1)"
 assert_eq "log help matches --help form" "$log_help_from_root" "$log_help_flag"
 
 config_help_from_root="$(bash "$CLI" help config 2>&1)"
-assert_contains "root help routes to config help" "Usage: carranca config [--dangerously-skip-confirmation]" "$config_help_from_root"
+assert_contains "root help routes to config help" "Usage: carranca config [--agent <name>] [--prompt <text>] [--dangerously-skip-confirmation]" "$config_help_from_root"
+assert_contains "config help documents agent option" "--agent <name>" "$config_help_from_root"
+assert_contains "config help documents prompt option" "--prompt <text>" "$config_help_from_root"
 config_help_from_subcommand="$(bash "$CLI" config help 2>&1)"
 assert_eq "config help matches between root and subcommand forms" "$config_help_from_root" "$config_help_from_subcommand"
 
@@ -63,7 +66,8 @@ config_help_flag="$(bash "$CLI" config --help 2>&1)"
 assert_eq "config help matches --help form" "$config_help_from_root" "$config_help_flag"
 
 init_help_from_root="$(bash "$CLI" help init 2>&1)"
-assert_contains "root help routes to init help" "Usage: carranca init [--force] [--claude|--codex]" "$init_help_from_root"
+assert_contains "root help routes to init help" "Usage: carranca init [--agent <name>] [--force]" "$init_help_from_root"
+assert_contains "init help documents agent option" "--agent <name>" "$init_help_from_root"
 init_help_from_subcommand="$(bash "$CLI" init help 2>&1)"
 assert_eq "init help matches between root and subcommand forms" "$init_help_from_root" "$init_help_from_subcommand"
 

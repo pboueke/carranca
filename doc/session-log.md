@@ -95,3 +95,33 @@ jq '{seq, type, event, command, path}' session.jsonl
 # Count commands
 jq -s '[.[] | select(.type=="shell_command")] | length' session.jsonl
 ```
+
+## `carranca log`
+
+`carranca log` reads one session JSONL file and prints a compact summary for
+developers:
+
+- session and repo identifiers
+- start/end timestamps
+- unique paths touched
+- file-event totals split by create, modify, and delete
+- top touched paths ranked by event count
+- command totals, failures, and ordered command list
+
+Examples:
+
+```bash
+# Latest session for the current repo
+carranca log
+
+# Exact session id for the current repo
+carranca log --session abc12345
+```
+
+Important nuance: file counts shown by `carranca log` distinguish between
+`Unique paths touched` and raw `File events`. Repeated writes to the same path
+increase the event count without increasing the unique-path count.
+
+If a session shows file activity but `Commands run: 0`, that usually means the
+agent changed files through native tool APIs or edits that bypassed shell-wrapper
+command capture.

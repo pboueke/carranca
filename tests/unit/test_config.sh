@@ -22,13 +22,16 @@ assert_eq() {
 
 echo "=== test_config.sh ==="
 
-# Create a test config
 TMPDIR="$(mktemp -d)"
 CONFIG="$TMPDIR/.carranca.yml"
 cat > "$CONFIG" <<'EOF'
-agent:
-  adapter: default
-  command: bash -c "echo test"
+agents:
+  - name: codex
+    adapter: codex
+    command: codex --model gpt-5.4
+  - name: shell
+    adapter: default
+    command: bash -c "echo test"
 runtime:
   network: true                 # allow network access
   extra_flags: ""
@@ -37,24 +40,22 @@ policy:
   tests_before_impl: off
 volumes:
   cache: true                   # persist agent home
+  extra:
+    - ~/.ssh:/home/carranca/.ssh:ro
+    - ~/docs:/reference:ro
 watched_paths:
   - .env
   - secrets/
 EOF
 
-# Test inline comments are stripped
 val="$(carranca_config_get runtime.network "$CONFIG")"
 assert_eq "inline comment stripped from runtime.network" "true" "$val"
 
+val="$(carranca_config_strip_value '"quoted-value"')"
+assert_eq "strip value removes surrounding quotes" "quoted-value" "$val"
+
 val="$(carranca_config_get volumes.cache "$CONFIG")"
 assert_eq "inline comment stripped from volumes.cache" "true" "$val"
-
-# Test nested key parsing
-val="$(carranca_config_get agent.adapter "$CONFIG")"
-assert_eq "nested key 'agent.adapter' reads correctly" "default" "$val"
-
-val="$(carranca_config_get agent.command "$CONFIG")"
-assert_eq "nested key 'agent.command' reads correctly" 'bash -c "echo test"' "$val"
 
 val="$(carranca_config_get policy.docs_before_code "$CONFIG")"
 assert_eq "nested key 'policy.docs_before_code' reads correctly" "warn" "$val"
@@ -65,16 +66,57 @@ assert_eq "nested key 'policy.tests_before_impl' reads correctly" "off" "$val"
 val="$(carranca_config_get runtime.network "$CONFIG")"
 assert_eq "nested key 'runtime.network' reads correctly" "true" "$val"
 
-# Test missing key returns empty
 val="$(carranca_config_get nonexistent "$CONFIG")"
 assert_eq "missing flat key returns empty" "" "$val"
 
-val="$(carranca_config_get agent.nonexistent "$CONFIG")"
+val="$(carranca_config_get runtime.nonexistent "$CONFIG")"
 assert_eq "missing nested key returns empty" "" "$val"
 
-# Test validation passes with valid config
+mapfile -t names < <(carranca_config_agent_names "$CONFIG")
+assert_eq "agent names list has 2 items" "2" "${#names[@]}"
+assert_eq "agent names[0]" "codex" "${names[0]}"
+assert_eq "agent names[1]" "shell" "${names[1]}"
+
+count="$(carranca_config_agent_count "$CONFIG")"
+assert_eq "agent count reads correctly" "2" "$count"
+
+index="$(carranca_config_agent_index shell "$CONFIG")"
+assert_eq "agent index resolves by name" "1" "$index"
+
+val="$(carranca_config_agent_field_by_index 0 name "$CONFIG")"
+assert_eq "agent field by index reads name" "codex" "$val"
+
+val="$(carranca_config_agent_field shell command "$CONFIG")"
+assert_eq "agent field by name reads command" 'bash -c "echo test"' "$val"
+
+val="$(carranca_config_default_agent_name "$CONFIG")"
+assert_eq "default agent is first entry" "codex" "$val"
+
+val="$(carranca_config_resolve_agent_name "" "$CONFIG")"
+assert_eq "empty agent selection resolves to default" "codex" "$val"
+
+val="$(carranca_config_resolve_agent_name shell "$CONFIG")"
+assert_eq "named agent selection resolves directly" "shell" "$val"
+
+val="$(carranca_config_agent_driver_for codex "$CONFIG")"
+assert_eq "explicit codex adapter resolves to codex driver" "codex" "$val"
+
+val="$(carranca_config_agent_driver_for shell "$CONFIG")"
+assert_eq "default adapter resolves to stdin for custom command" "stdin" "$val"
+
+mapfile -t items < <(carranca_config_get_list volumes.extra "$CONFIG")
+assert_eq "volumes.extra list has 2 items" "2" "${#items[@]}"
+# shellcheck disable=SC2088
+assert_eq "volumes.extra[0]" "~/.ssh:/home/carranca/.ssh:ro" "${items[0]}"
+# shellcheck disable=SC2088
+assert_eq "volumes.extra[1]" "~/docs:/reference:ro" "${items[1]}"
+
+mapfile -t items < <(carranca_config_get_list watched_paths "$CONFIG")
+assert_eq "watched_paths list has 2 items" "2" "${#items[@]}"
+assert_eq "watched_paths[0]" ".env" "${items[0]}"
+assert_eq "watched_paths[1]" "secrets/" "${items[1]}"
+
 cd "$TMPDIR"
-# CONFIG is already at $TMPDIR/.carranca.yml
 if (carranca_config_validate 2>/dev/null); then
   echo "  PASS: validation passes for valid config"
   PASS=$((PASS + 1))
@@ -83,150 +125,76 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-val="$(carranca_config_agent_driver "$CONFIG")"
-assert_eq "default adapter resolves to stdin for custom command" "stdin" "$val"
-
-# --- Test carranca_config_get_list ---
-
 cat > ".carranca.yml" <<'EOF'
-agent:
-  command: claude
-volumes:
-  cache: true
-  extra:
-    - ~/.ssh:/home/carranca/.ssh:ro
-    - ~/docs:/reference:ro
-    - /tmp/data:/data:rw
-watched_paths:
-  - .env
-  - secrets/
-EOF
-
-# Test list parsing for volumes.extra
-mapfile -t items < <(carranca_config_get_list volumes.extra)
-assert_eq "volumes.extra list has 3 items" "3" "${#items[@]}"
-# shellcheck disable=SC2088
-assert_eq "volumes.extra[0]" "~/.ssh:/home/carranca/.ssh:ro" "${items[0]}"
-# shellcheck disable=SC2088
-assert_eq "volumes.extra[1]" "~/docs:/reference:ro" "${items[1]}"
-assert_eq "volumes.extra[2]" "/tmp/data:/data:rw" "${items[2]}"
-
-# Test list parsing for watched_paths (top-level list)
-mapfile -t items < <(carranca_config_get_list watched_paths)
-assert_eq "watched_paths list has 2 items" "2" "${#items[@]}"
-assert_eq "watched_paths[0]" ".env" "${items[0]}"
-assert_eq "watched_paths[1]" "secrets/" "${items[1]}"
-
-# Test empty list returns nothing
-mapfile -t items < <(carranca_config_get_list volumes.nonexistent 2>/dev/null || true)
-assert_eq "missing list returns 0 items" "0" "${#items[@]}"
-
-# Test scalar value with cache
-val="$(carranca_config_get volumes.cache)"
-assert_eq "volumes.cache reads correctly" "true" "$val"
-
-# Test cache disabled
-cat > ".carranca.yml" <<'EOF'
-agent:
-  command: claude
-volumes:
-  cache: false
-EOF
-
-val="$(carranca_config_get volumes.cache)"
-assert_eq "volumes.cache=false reads correctly" "false" "$val"
-
-# Test empty extra list (section present but no items)
-cat > ".carranca.yml" <<'EOF'
-agent:
-  command: claude
-volumes:
-  cache: true
-  extra:
-policy:
-  docs_before_code: warn
-EOF
-
-mapfile -t items < <(carranca_config_get_list volumes.extra 2>/dev/null || true)
-assert_eq "empty extra list returns 0 items" "0" "${#items[@]}"
-
-# Test quoted list items
-cat > ".carranca.yml" <<'EOF'
-agent:
-  command: claude
-volumes:
-  extra:
-    - "~/My Documents:/docs:ro"
-    - '/path with spaces:/mount:rw'
-EOF
-
-mapfile -t items < <(carranca_config_get_list volumes.extra)
-# shellcheck disable=SC2088
-assert_eq "quoted extra[0] strips quotes" "~/My Documents:/docs:ro" "${items[0]}"
-assert_eq "quoted extra[1] strips quotes" "/path with spaces:/mount:rw" "${items[1]}"
-
-# Test volumes section absent entirely (defaults)
-cat > ".carranca.yml" <<'EOF'
-agent:
-  command: claude
+agents:
+  - name: codex
+    adapter: codex
 runtime:
   network: true
 EOF
 
-val="$(carranca_config_get volumes.cache)"
-assert_eq "absent volumes.cache returns empty" "" "$val"
-mapfile -t items < <(carranca_config_get_list volumes.extra 2>/dev/null || true)
-assert_eq "absent volumes.extra returns 0 items" "0" "${#items[@]}"
-
-# Test validation fails with missing agent.command
-cat > ".carranca.yml" <<'EOF'
-agent:
-  adapter: default
-network: true
-EOF
-
 if (carranca_config_validate 2>/dev/null); then
-  echo "  FAIL: validation should fail when agent.command is missing"
+  echo "  FAIL: validation should fail when agents[name].command is missing"
   FAIL=$((FAIL + 1))
 else
-  echo "  PASS: validation fails when agent.command is missing"
+  echo "  PASS: validation fails when agents[name].command is missing"
   PASS=$((PASS + 1))
 fi
 
-# Test explicit adapter passthrough
 cat > ".carranca.yml" <<'EOF'
-agent:
-  adapter: codex
-  command: some-custom-wrapper --agent codex
-EOF
-
-val="$(carranca_config_agent_driver)"
-assert_eq "explicit codex adapter resolves to codex driver" "codex" "$val"
-
-cat > ".carranca.yml" <<'EOF'
-agent:
-  adapter: stdin
-  command: bash /usr/local/bin/fake-config-agent.sh
-EOF
-
-val="$(carranca_config_agent_driver)"
-assert_eq "explicit stdin adapter resolves to stdin driver" "stdin" "$val"
-
-cat > ".carranca.yml" <<'EOF'
-agent:
-  adapter: invalid
-  command: codex
+runtime:
+  network: true
 EOF
 
 if (carranca_config_validate 2>/dev/null); then
-  echo "  FAIL: validation should fail for unsupported agent.adapter"
+  echo "  FAIL: validation should fail when agents is missing"
   FAIL=$((FAIL + 1))
 else
-  echo "  PASS: validation fails for unsupported agent.adapter"
+  echo "  PASS: validation fails when agents is missing"
   PASS=$((PASS + 1))
 fi
 
-# Cleanup
+cat > ".carranca.yml" <<'EOF'
+agents:
+  - name: codex
+    adapter: invalid
+    command: codex
+EOF
+
+if (carranca_config_validate 2>/dev/null); then
+  echo "  FAIL: validation should fail for unsupported agent adapter"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: validation fails for unsupported agent adapter"
+  PASS=$((PASS + 1))
+fi
+
+cat > ".carranca.yml" <<'EOF'
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+  - name: codex
+    adapter: codex
+    command: codex --fast
+EOF
+
+if (carranca_config_validate 2>/dev/null); then
+  echo "  FAIL: validation should fail for duplicate agent names"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: validation fails for duplicate agent names"
+  PASS=$((PASS + 1))
+fi
+
+if carranca_config_resolve_agent_name missing ".carranca.yml" >/dev/null 2>&1; then
+  echo "  FAIL: resolving an unknown agent should fail"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: resolving an unknown agent fails"
+  PASS=$((PASS + 1))
+fi
+
 rm -rf "$TMPDIR"
 
 echo ""

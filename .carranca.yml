@@ -1,9 +1,14 @@
 # .carranca.yml — carranca project configuration
 # See: https://github.com/pboueke/carranca
 
-agent:
-  adapter: codex
-  command: codex
+agents:
+  - name: claude
+    adapter: claude
+    command: claude
+
+  - name: codex
+    adapter: codex
+    command: codex
 
 # Container runtime settings
 runtime:
@@ -28,5 +33,3 @@ watched_paths:
   - .env
   - secrets/
   - "*.key"
-  - .carranca.yml
-  - .carranca/Containerfile

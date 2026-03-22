@@ -36,8 +36,9 @@ fi
 
 # Test 3: carranca run with missing agent.command
 cat > ".carranca.yml" <<'EOF'
-agent:
-  adapter: default
+agents:
+  - name: codex
+    adapter: codex
 runtime:
   network: true
 EOF
@@ -52,9 +53,10 @@ fi
 
 # Test 4: carranca config without .carranca/Containerfile
 cat > ".carranca.yml" <<'EOF'
-agent:
-  adapter: default
-  command: codex
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
 runtime:
   network: true
 EOF
@@ -87,9 +89,10 @@ fi
 
 # Test 5: carranca log with no logs for current repo
 cat > ".carranca.yml" <<'EOF'
-agent:
-  adapter: default
-  command: bash -c "exit 0"
+agents:
+  - name: codex
+    adapter: stdin
+    command: bash -c "exit 0"
 runtime:
   network: true
 EOF
@@ -112,6 +115,42 @@ if bash "$CARRANCA_HOME/cli/log.sh" --session missing1234 2>/dev/null; then
   FAIL=$((FAIL + 1))
 else
   echo "  PASS: log with missing exact session id fails"
+  PASS=$((PASS + 1))
+fi
+
+# Test 7: run with unknown named agent
+if bash "$CARRANCA_HOME/cli/run.sh" --agent missing 2>/dev/null; then
+  echo "  FAIL: run with unknown named agent should fail"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: run with unknown named agent fails"
+  PASS=$((PASS + 1))
+fi
+
+# Test 8: config with unknown named agent
+if bash "$CARRANCA_HOME/cli/config.sh" --agent missing 2>/dev/null; then
+  echo "  FAIL: config with unknown named agent should fail"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: config with unknown named agent fails"
+  PASS=$((PASS + 1))
+fi
+
+# Test 9: init with unsupported agent
+if bash "$CARRANCA_HOME/cli/init.sh" --agent missing 2>/dev/null; then
+  echo "  FAIL: init with unsupported agent should fail"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: init with unsupported agent fails"
+  PASS=$((PASS + 1))
+fi
+
+# Test 10: init with missing agent value
+if bash "$CARRANCA_HOME/cli/init.sh" --agent 2>/dev/null; then
+  echo "  FAIL: init with missing --agent value should fail"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: init with missing --agent value fails"
   PASS=$((PASS + 1))
 fi
 

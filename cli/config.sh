@@ -11,35 +11,52 @@ CARRANCA_HOME="${CARRANCA_HOME:-$HOME/.local/share/carranca}"
 STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
 
 SKIP_CONFIRMATION=false
-for arg in "$@"; do
-  case "$arg" in
+SELECTED_AGENT=""
+USER_PROMPT=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
     help)
-      echo "Usage: carranca config [--dangerously-skip-confirmation]"
+      echo "Usage: carranca config [--agent <name>] [--prompt <text>] [--dangerously-skip-confirmation]"
       echo ""
       echo "  Inspect the current workspace and propose updates to .carranca.yml"
       echo "  and .carranca/Containerfile so the container has the repo's dev tools."
       echo ""
       echo "Options:"
+      echo "  --agent <name>                    Use the named configured agent instead of the default first agent"
+      echo "  --prompt <text>                   Pass a free-form request to the config agent"
       echo "  --dangerously-skip-confirmation  Apply proposed changes without prompting"
       exit 0
+      ;;
+    --agent)
+      shift
+      [ "$#" -gt 0 ] || carranca_die "Missing value for --agent"
+      SELECTED_AGENT="$1"
+      ;;
+    --prompt)
+      shift
+      [ "$#" -gt 0 ] || carranca_die "Missing value for --prompt"
+      USER_PROMPT="$1"
       ;;
     --dangerously-skip-confirmation)
       SKIP_CONFIRMATION=true
       ;;
     -h|--help)
-      echo "Usage: carranca config [--dangerously-skip-confirmation]"
+      echo "Usage: carranca config [--agent <name>] [--prompt <text>] [--dangerously-skip-confirmation]"
       echo ""
       echo "  Inspect the current workspace and propose updates to .carranca.yml"
       echo "  and .carranca/Containerfile so the container has the repo's dev tools."
       echo ""
       echo "Options:"
+      echo "  --agent <name>                    Use the named configured agent instead of the default first agent"
+      echo "  --prompt <text>                   Pass a free-form request to the config agent"
       echo "  --dangerously-skip-confirmation  Apply proposed changes without prompting"
       exit 0
       ;;
     *)
-      carranca_die "Unknown argument: $arg"
+      carranca_die "Unknown argument: $1"
       ;;
   esac
+  shift
 done
 
 carranca_require_cmd docker
@@ -57,9 +74,11 @@ PROPOSAL_DIR="$CONFIG_STATE_DIR/proposal"
 AUDIT_LOG="$STATE_BASE/config/$REPO_ID/history.jsonl"
 CONFIG_IMAGE="carranca-config-${SESSION_ID}"
 PROMPT_FILE="$CONFIG_STATE_DIR/prompt.txt"
-AGENT_COMMAND="$(carranca_config_get agent.command)"
-AGENT_ADAPTER="$(carranca_config_get agent.adapter)"
-AGENT_DRIVER="$(carranca_config_agent_driver)"
+AGENT_NAME="$(carranca_config_resolve_agent_name "$SELECTED_AGENT")" || \
+  carranca_die "Configured agent not found in .carranca.yml: ${SELECTED_AGENT:-<default>}"
+AGENT_COMMAND="$(carranca_config_agent_field "$AGENT_NAME" command)"
+AGENT_ADAPTER="$(carranca_config_agent_field "$AGENT_NAME" adapter)"
+AGENT_DRIVER="$(carranca_config_agent_driver_for "$AGENT_NAME")"
 HOST_UID="$(id -u)"
 HOST_GID="$(id -g)"
 HOST_GROUPS="$(id -G)"
@@ -79,6 +98,7 @@ trap 'docker rmi "$CONFIG_IMAGE" 2>/dev/null || true' EXIT
 carranca_log info "Inspecting workspace for carranca config updates"
 carranca_log info "Repo: $REPO_NAME ($REPO_ID)"
 carranca_log info "Proposal dir: $PROPOSAL_DIR"
+carranca_log info "Config agent: $AGENT_NAME"
 carranca_log info "Config agent driver: ${AGENT_ADAPTER:-default} -> $AGENT_DRIVER"
 
 [ -z "$NETWORK" ] && NETWORK="true"
@@ -133,6 +153,22 @@ Constraints:
 - Preserve the shell-wrapper contract in the Containerfile.
 - If no changes are needed, still copy the current files into `/proposal` and explain why.
 EOF
+
+{
+  echo ""
+  echo "Execution context:"
+  echo "- Selected config agent name: $AGENT_NAME"
+  echo "- Selected config agent adapter: ${AGENT_ADAPTER:-default}"
+  echo "- Selected config agent command: $AGENT_COMMAND"
+} >> "$PROMPT_FILE"
+
+if [ -n "$USER_PROMPT" ]; then
+  {
+    echo ""
+    echo "Operator request:"
+    echo "- $USER_PROMPT"
+  } >> "$PROMPT_FILE"
+fi
 
 carranca_log info "Building agent image..."
 docker build -q -t "$CONFIG_IMAGE" -f ".carranca/Containerfile" ".carranca" >/dev/null

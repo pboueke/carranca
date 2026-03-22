@@ -6,7 +6,6 @@
 - config command must allow for user request. When provided, agent focus on user request. For example: 'carranca config codex', has config agent run to update configs in order to add claude agent
 - init command must check for init status. If already inited, suggest use of config command. If --force is used, ask for confirmation of possibly ovewrite
 
-
 ## `carranca status` — Show active/recent sessions
 List running carranca sessions (via compose project listing) and 5 most recent
 JSONL files from the state directory. Depends on: core MVP.

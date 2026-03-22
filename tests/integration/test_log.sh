@@ -47,9 +47,10 @@ git init --quiet
 bash "$CARRANCA_HOME/cli/init.sh"
 
 cat > ".carranca.yml" <<'EOF'
-agent:
-  adapter: default
-  command: bash -c "echo hello-log && touch /workspace/log-test.txt && printf updated >> /workspace/log-test.txt && exit 0"
+agents:
+  - name: shell
+    adapter: stdin
+    command: bash -c "echo hello-log && touch /workspace/log-test.txt && printf updated >> /workspace/log-test.txt && exit 0"
 runtime:
   network: true
 policy:

@@ -68,7 +68,30 @@ test -f /carranca-skills/confiskill/SKILL.md
 test -f /user-skills/custom/SKILL.md
 
 cp /workspace/.carranca.yml /proposal/.carranca.yml
-sed -i 's/^  command: .*/  command: codex/' /proposal/.carranca.yml
+awk '
+  BEGIN {
+    replaced_name=0
+    replaced_adapter=0
+    replaced_command=0
+  }
+  !replaced_name && /^  - name: / {
+    print "  - name: claude"
+    replaced_name=1
+    next
+  }
+  replaced_name && !replaced_adapter && /^    adapter: / {
+    print "    adapter: claude"
+    replaced_adapter=1
+    next
+  }
+  replaced_adapter && !replaced_command && /^    command: / {
+    print "    command: claude"
+    replaced_command=1
+    next
+  }
+  { print }
+' /proposal/.carranca.yml > /proposal/.carranca.yml.next
+mv /proposal/.carranca.yml.next /proposal/.carranca.yml
 
 awk '
   {
@@ -107,24 +130,39 @@ cat > package.json <<'EOF'
 EOF
 touch pnpm-lock.yaml
 
-sed -i 's/^  adapter: .*/  adapter: stdin/' .carranca.yml
-sed -i 's/^  command: .*/  command: bash \/usr\/local\/bin\/fake-config-agent.sh/' .carranca.yml
+cat > ".carranca.yml" <<'EOF'
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+  - name: shell
+    adapter: stdin
+    command: bash /usr/local/bin/fake-config-agent.sh
+runtime:
+  network: true
+volumes:
+  cache: true
+policy:
+  docs_before_code: warn
+  tests_before_impl: warn
+EOF
 
 ORIGINAL_CONFIG="$(cat .carranca.yml)"
 ORIGINAL_CONTAINERFILE="$(cat .carranca/Containerfile)"
 
-REJECT_OUTPUT="$(printf 'n\n' | bash "$CARRANCA_HOME/cli/config.sh" 2>&1)" || true
+REJECT_OUTPUT="$(printf 'n\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent shell --prompt "install claude" 2>&1)" || true
 assert_contains "proposal asks for confirmation" "Apply these changes" "$REJECT_OUTPUT"
 assert_contains "proposal references confiskill" "confiskill" "$REJECT_OUTPUT"
+assert_contains "config command reports selected agent" "Config agent: shell" "$REJECT_OUTPUT"
 assert_contains "config command reports stdin driver" "Config agent driver: stdin -> stdin" "$REJECT_OUTPUT"
 assert_eq "rejected proposal keeps config unchanged" "$ORIGINAL_CONFIG" "$(cat .carranca.yml)"
 assert_eq "rejected proposal keeps Containerfile unchanged" "$ORIGINAL_CONTAINERFILE" "$(cat .carranca/Containerfile)"
 assert_eq "config reject does not recreate carranca-managed skills in workspace" "missing" "$(test -d .carranca/skills/carranca && echo present || echo missing)"
 
-APPLY_OUTPUT="$(bash "$CARRANCA_HOME/cli/config.sh" --dangerously-skip-confirmation 2>&1)" || true
+APPLY_OUTPUT="$(bash "$CARRANCA_HOME/cli/config.sh" --agent shell --prompt "install claude" --dangerously-skip-confirmation 2>&1)" || true
 assert_contains "dangerous apply prints strict warning" "WARNING: applying configurator-generated changes without user confirmation" "$APPLY_OUTPUT"
 assert_contains "config command applied proposal" "Applied configurator proposal" "$APPLY_OUTPUT"
-assert_contains "config file switches to codex" "command: codex" "$(cat .carranca.yml)"
+assert_contains "config file switches selected agent to claude" "command: claude" "$(cat .carranca.yml)"
 assert_contains "Containerfile has managed config block" "# carranca-config:start" "$(cat .carranca/Containerfile)"
 assert_contains "Containerfile adds pnpm" "pnpm" "$(cat .carranca/Containerfile)"
 assert_eq "config apply still avoids workspace carranca skill writes" "missing" "$(test -d .carranca/skills/carranca && echo present || echo missing)"
@@ -133,6 +171,9 @@ REPO_ID="$(source "$CARRANCA_HOME/cli/lib/common.sh" && source "$CARRANCA_HOME/c
 AUDIT_LOG="$TMPSTATE/config/$REPO_ID/history.jsonl"
 REQUEST_FILE="$(find "$TMPSTATE/config/$REPO_ID" -name request.txt | sort | tail -1)"
 assert_contains "agent prompt instructs use of confiskill" "/carranca-skills/confiskill/SKILL.md" "$(cat "$REQUEST_FILE")"
+assert_contains "agent prompt includes selected executor name" "Selected config agent name: shell" "$(cat "$REQUEST_FILE")"
+assert_contains "agent prompt includes operator request" "Operator request:" "$(cat "$REQUEST_FILE")"
+assert_contains "agent prompt includes exact operator request text" "install claude" "$(cat "$REQUEST_FILE")"
 assert_contains "audit log records confirmation bypass" '"event":"confirmation_bypassed"' "$(cat "$AUDIT_LOG")"
 assert_contains "audit log records apply event" '"event":"applied"' "$(cat "$AUDIT_LOG")"
 

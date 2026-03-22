@@ -14,21 +14,37 @@ STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
 
 # --- Parse args ---
 
-for arg in "$@"; do
-  case "$arg" in
+SELECTED_AGENT=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
     help)
-      echo "Usage: carranca run"
+      echo "Usage: carranca run [--agent <name>]"
       echo "  Start an agent session in a containerized runtime."
       echo "  Requires .carranca.yml in the current directory."
+      echo ""
+      echo "Options:"
+      echo "  --agent <name>  Run the named configured agent instead of the default first agent"
       exit 0
       ;;
     -h|--help)
-      echo "Usage: carranca run"
+      echo "Usage: carranca run [--agent <name>]"
       echo "  Start an agent session in a containerized runtime."
       echo "  Requires .carranca.yml in the current directory."
+      echo ""
+      echo "Options:"
+      echo "  --agent <name>  Run the named configured agent instead of the default first agent"
       exit 0
       ;;
+    --agent)
+      shift
+      [ "$#" -gt 0 ] || carranca_die "Missing value for --agent"
+      SELECTED_AGENT="$1"
+      ;;
+    *)
+      carranca_die "Unknown argument: $1"
+      ;;
   esac
+  shift
 done
 
 # --- Precondition checks ---
@@ -55,7 +71,9 @@ AGENT_HOME="/home/carranca"
 
 # --- Read config ---
 
-AGENT_COMMAND="$(carranca_config_get agent.command)"
+SELECTED_AGENT_NAME="$(carranca_config_resolve_agent_name "$SELECTED_AGENT")" || \
+  carranca_die "Configured agent not found in .carranca.yml: ${SELECTED_AGENT:-<default>}"
+AGENT_COMMAND="$(carranca_config_agent_field "$SELECTED_AGENT_NAME" command)"
 NETWORK="$(carranca_config_get runtime.network)"
 [ -z "$NETWORK" ] && NETWORK="true"
 EXTRA_FLAGS="$(carranca_config_get runtime.extra_flags)"
@@ -82,14 +100,14 @@ done < <(carranca_config_get_list volumes.extra 2>/dev/null || true)
 
 PREFIX="carranca-${SESSION_ID}"
 LOGGER_NAME="${PREFIX}-logger"
-AGENT_NAME="${PREFIX}-agent"
+AGENT_CONTAINER_NAME="${PREFIX}-agent"
 FIFO_VOLUME="${PREFIX}-fifo"
 LOGGER_IMAGE="${PREFIX}-logger"
 AGENT_IMAGE="${PREFIX}-agent"
 
 carranca_log info "Starting carranca session $SESSION_ID"
 carranca_log info "Repo: $REPO_NAME ($REPO_ID)"
-carranca_log info "Agent: $AGENT_COMMAND"
+carranca_log info "Agent: $SELECTED_AGENT_NAME ($AGENT_COMMAND)"
 carranca_log info "Log: $STATE_DIR/$SESSION_ID.jsonl"
 
 # --- Build images ---
@@ -134,7 +152,7 @@ fi
 
 _cleanup() {
   carranca_log info "Stopping session..."
-  docker rm -f "$AGENT_NAME" 2>/dev/null || true
+  docker rm -f "$AGENT_CONTAINER_NAME" 2>/dev/null || true
   # Graceful stop: SIGTERM lets the logger flush remaining events and write logger_stop
   docker stop --timeout 5 "$LOGGER_NAME" 2>/dev/null || true
   docker rm -f "$LOGGER_NAME" 2>/dev/null || true
@@ -194,7 +212,7 @@ fi
 
 # shellcheck disable=SC2086
 docker run $DOCKER_TTY_FLAGS --rm \
-  --name "$AGENT_NAME" \
+  --name "$AGENT_CONTAINER_NAME" \
   --user "$HOST_UID:$HOST_GID" \
   -v "$FIFO_VOLUME:/fifo" \
   -v "$WORKSPACE:/workspace:rw" \
