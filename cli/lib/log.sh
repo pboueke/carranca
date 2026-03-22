@@ -35,19 +35,6 @@ carranca_session_recent_logs() {
     sort -nr | head -n "$limit" | cut -d' ' -f2-
 }
 
-carranca_session_is_active() {
-  local session_id="$1"
-
-  docker ps --format '{{.Names}}' 2>/dev/null | awk -v session_id="$session_id" '
-    $0 == "carranca-" session_id "-logger" || $0 == "carranca-" session_id "-agent" {
-      found = 1
-    }
-    END {
-      exit(found ? 0 : 1)
-    }
-  '
-}
-
 carranca_session_active_ids() {
   local repo_id="$1"
   local state_base="${2:-${CARRANCA_STATE:-$HOME/.local/state/carranca}}"

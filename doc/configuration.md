@@ -187,6 +187,24 @@ carranca run --help
 
 The same pattern works for `init`, `config`, and `log`.
 
+Session-management commands follow the same help shape:
+
+```bash
+carranca help status
+carranca status help
+carranca status --help
+
+carranca help kill
+carranca kill help
+carranca kill --help
+```
+
+Operationally:
+
+- `carranca status` inspects active sessions for the current repo and recent logs
+- `carranca kill --session <id>` stops one exact session after confirmation
+- `carranca kill` stops all active Carranca sessions globally after confirmation
+
 ### Cache volume
 
 When `volumes.cache` is `true` (the default), carranca persists the agent container's

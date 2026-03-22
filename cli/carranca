@@ -17,6 +17,9 @@ case "$COMMAND" in
   log)
     source "$CARRANCA_HOME/cli/log.sh" "$@"
     ;;
+  kill)
+    source "$CARRANCA_HOME/cli/kill.sh" "$@"
+    ;;
   status)
     source "$CARRANCA_HOME/cli/status.sh" "$@"
     ;;
@@ -28,6 +31,7 @@ case "$COMMAND" in
       init) source "$CARRANCA_HOME/cli/init.sh" help ;;
       config) source "$CARRANCA_HOME/cli/config.sh" help ;;
       log) source "$CARRANCA_HOME/cli/log.sh" help ;;
+      kill) source "$CARRANCA_HOME/cli/kill.sh" help ;;
       status) source "$CARRANCA_HOME/cli/status.sh" help ;;
       run) source "$CARRANCA_HOME/cli/run.sh" help ;;
       "")
@@ -39,6 +43,7 @@ case "$COMMAND" in
         echo "Commands:"
         echo "  config  Propose carranca config updates for the current workspace"
         echo "  init    Scaffold carranca config in the current directory"
+        echo "  kill    Stop one session or all active sessions"
         echo "  log     Pretty-print the latest or selected session log"
         echo "  run     Start an agent session in a containerized runtime"
         echo "  status  Show active sessions and recent session logs for the current repo"

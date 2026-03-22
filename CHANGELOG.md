@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.0] - 2026-03-22
+
+- feat: add `carranca kill` to stop one exact session or all active Carranca sessions after confirmation
+- feat: add shared session lifecycle helpers so `run`, `status`, and `kill` use the same container teardown logic
+- fix: stop interrupted `carranca run` sessions cleanly so agent and logger containers do not remain running after `Ctrl+C`
+- docs: update README, architecture, configuration, and session-log docs for session lifecycle and `kill` behavior
+- test: add unit and Docker integration coverage for session helpers and `carranca kill`
+- test: 278 tests, 18 suites, 100% function coverage (48/48)
+
 ## [0.7.0] - 2026-03-22
 
 - feat: add `carranca status` to show active sessions and the 5 most recent session logs for the current repo

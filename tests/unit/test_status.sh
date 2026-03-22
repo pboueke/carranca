@@ -72,6 +72,7 @@ printf '%s\n' '{"type":"session_event","event":"start","ts":"2026-03-22T14:00:00
 sleep 1
 printf '%s\n' '{"type":"session_event","event":"start","ts":"2026-03-22T15:00:00Z","session_id":"f6a7b8c9"}' > "$LOG_DIR/f6a7b8c9.jsonl"
 
+source "$SCRIPT_DIR/cli/lib/session.sh"
 source "$SCRIPT_DIR/cli/lib/log.sh"
 
 RECENT_LOGS="$(carranca_session_recent_logs "$REPO_ID" 5 "$TMPSTATE")"

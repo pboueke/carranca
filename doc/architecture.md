@@ -8,6 +8,9 @@ structured session logging. No docker-compose — just `docker run`.
 Projects are configured through `.carranca.yml` using an ordered `agents:` list.
 The first configured agent is the default execution target for `run` and
 `config`, and `--agent <name>` selects a different configured agent explicitly.
+Session ids are 8-char hex values and name all ephemeral runtime resources for a
+single run: the agent container, logger container, FIFO tmpfs volume, and
+transient images.
 
 ```
   carranca run
@@ -28,6 +31,41 @@ The first configured agent is the default execution target for `run` and
              ├── heartbeat every 30s
              └── runs agent command interactively
 ```
+
+## Session lifecycle
+
+A `carranca run` session owns a small set of runtime resources:
+
+- `carranca-<session>-agent` container
+- `carranca-<session>-logger` container
+- `carranca-<session>-fifo` tmpfs volume
+- `carranca-<session>-agent` and `carranca-<session>-logger` transient images
+
+Lifecycle is explicit:
+
+1. Carranca computes a fresh `session_id`
+2. It builds the transient logger and agent images
+3. It creates the shared FIFO volume
+4. It starts the logger container
+5. It starts the interactive agent container
+6. On normal exit, `SIGINT`, `SIGTERM`, or `carranca kill`, it stops the agent,
+   stops the logger gracefully so it can flush `logger_stop`, then removes the
+   FIFO volume and transient images
+
+This teardown path is idempotent. Interrupted interactive sessions should not
+leave the logger container behind.
+
+## Session management commands
+
+Carranca exposes two complementary session-management commands:
+
+- `carranca status` shows active sessions for the current repo and recent logs
+- `carranca kill` stops either one exact session (`--session <id>`) or all
+  active sessions globally after confirmation
+
+`status` is repo-scoped because logs are stored under the current repo's
+`repo_id`. `kill` is global because active container resources are not tied to
+the current working directory once they are running.
 
 ## Containers
 

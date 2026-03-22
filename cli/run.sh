@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/config.sh"
 source "$SCRIPT_DIR/lib/identity.sh"
 source "$SCRIPT_DIR/lib/log.sh"
+source "$SCRIPT_DIR/lib/session.sh"
 
 CARRANCA_HOME="${CARRANCA_HOME:-$HOME/.local/share/carranca}"
 STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
@@ -98,12 +99,12 @@ done < <(carranca_config_get_list volumes.extra 2>/dev/null || true)
 
 # --- Naming ---
 
-PREFIX="carranca-${SESSION_ID}"
-LOGGER_NAME="${PREFIX}-logger"
-AGENT_CONTAINER_NAME="${PREFIX}-agent"
-FIFO_VOLUME="${PREFIX}-fifo"
-LOGGER_IMAGE="${PREFIX}-logger"
-AGENT_IMAGE="${PREFIX}-agent"
+PREFIX="$(carranca_session_prefix "$SESSION_ID")"
+LOGGER_NAME="$(carranca_session_logger_name "$SESSION_ID")"
+AGENT_CONTAINER_NAME="$(carranca_session_agent_name "$SESSION_ID")"
+FIFO_VOLUME="$(carranca_session_fifo_volume "$SESSION_ID")"
+LOGGER_IMAGE="$(carranca_session_logger_image "$SESSION_ID")"
+AGENT_IMAGE="$(carranca_session_agent_image "$SESSION_ID")"
 
 carranca_log info "Starting carranca session $SESSION_ID"
 carranca_log info "Repo: $REPO_NAME ($REPO_ID)"
@@ -150,14 +151,15 @@ fi
 
 # --- Cleanup handler ---
 
+SESSION_CLEANED_UP=0
+
 _cleanup() {
+  if [ "$SESSION_CLEANED_UP" -eq 1 ]; then
+    return
+  fi
+  SESSION_CLEANED_UP=1
   carranca_log info "Stopping session..."
-  docker rm -f "$AGENT_CONTAINER_NAME" 2>/dev/null || true
-  # Graceful stop: SIGTERM lets the logger flush remaining events and write logger_stop
-  docker stop --timeout 5 "$LOGGER_NAME" 2>/dev/null || true
-  docker rm -f "$LOGGER_NAME" 2>/dev/null || true
-  docker volume rm "$FIFO_VOLUME" 2>/dev/null || true
-  docker rmi "$AGENT_IMAGE" "$LOGGER_IMAGE" 2>/dev/null || true
+  carranca_session_stop "$SESSION_ID"
 }
 trap _cleanup SIGINT SIGTERM EXIT
 
@@ -211,6 +213,7 @@ if [ -t 0 ]; then
 fi
 
 # shellcheck disable=SC2086
+AGENT_EXIT_CODE=0
 docker run $DOCKER_TTY_FLAGS --rm \
   --name "$AGENT_CONTAINER_NAME" \
   --user "$HOST_UID:$HOST_GID" \
@@ -226,7 +229,11 @@ docker run $DOCKER_TTY_FLAGS --rm \
   -e "SESSION_ID=$SESSION_ID" \
   $NETWORK_FLAG \
   $EXTRA_FLAGS \
-  "$AGENT_IMAGE" || true
+  "$AGENT_IMAGE" || AGENT_EXIT_CODE=$?
+
+if carranca_session_is_active "$SESSION_ID"; then
+  _cleanup
+fi
 
 # Give the logger time to flush remaining FIFO events (shell_command, agent_stop)
 sleep 1
@@ -245,3 +252,5 @@ if [ -f "$LOG_FILE" ]; then
 else
   carranca_log warn "Session $SESSION_ID — no log file found"
 fi
+
+exit "$AGENT_EXIT_CODE"

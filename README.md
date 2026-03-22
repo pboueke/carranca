@@ -35,6 +35,9 @@ carranca log
 # Show active and recent sessions for this repo
 carranca status
 
+# Stop a specific session or all active sessions
+carranca kill --session <id>
+
 # Show command-specific help
 carranca help run
 ```
@@ -56,6 +59,7 @@ See [doc/architecture.md](doc/architecture.md) for the full picture.
 ## Commands
 
 - `carranca init`: scaffold `.carranca.yml`, `.carranca/Containerfile`, and default skills
+- `carranca kill`: stop one active session by exact id or all active sessions globally after confirmation
 - `carranca config`: launch the selected configured agent in its normal TUI, ask it to use Carranca `confiskill`, and propose updates to `.carranca.yml` and `.carranca/Containerfile`
 - `carranca log`: pretty-print the latest session for the current repo, or a selected session via `--session <exact-id>`
 - `carranca run`: start an interactive session with the default first agent or a named agent via `--agent <name>`

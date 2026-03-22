@@ -25,6 +25,16 @@ Session lifecycle events produced by carranca itself.
 
 Events: `start`, `degraded`, `agent_start`, `agent_stop`, `logger_stop`
 
+Typical lifecycle patterns:
+
+- Normal completion: `start` → `agent_start` → `agent_stop` → `logger_stop`
+- Interrupted run (`Ctrl+C`) or `carranca kill`: Carranca still tries to stop the
+  agent first and then the logger, so a clean session usually still ends with
+  `logger_stop`
+- Crash or host failure: the tail of the lifecycle may be missing; absence of
+  `logger_stop` should be treated as incomplete shutdown evidence, not proof that
+  no cleanup was attempted
+
 ### `shell_command`
 
 Commands executed through the shell wrapper.
@@ -125,3 +135,17 @@ increase the event count without increasing the unique-path count.
 If a session shows file activity but `Commands run: 0`, that usually means the
 agent changed files through native tool APIs or edits that bypassed shell-wrapper
 command capture.
+
+## `carranca status` and `carranca kill`
+
+The JSONL log is the durable record for a session, but active-state inspection is
+container-based:
+
+- `carranca status` marks a session as active when its logger or agent container
+  still exists
+- `carranca kill --session <id>` stops that exact session after confirmation
+- `carranca kill` stops all active Carranca sessions globally after confirmation
+
+This means a session can have a log file and still be marked active while the
+containers are running, and older sessions remain queryable through `log` even
+after teardown.
