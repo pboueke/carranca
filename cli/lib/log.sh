@@ -24,6 +24,57 @@ carranca_session_log_for_id() {
   printf '%s' "$(carranca_session_log_dir "$repo_id" "$state_base")/$session_id.jsonl"
 }
 
+carranca_session_recent_logs() {
+  local repo_id="$1"
+  local limit="${2:-5}"
+  local state_base="${3:-${CARRANCA_STATE:-$HOME/.local/state/carranca}}"
+  local log_dir
+
+  log_dir="$(carranca_session_log_dir "$repo_id" "$state_base")"
+  find "$log_dir" -maxdepth 1 -type f -name '*.jsonl' -printf '%T@ %p\n' 2>/dev/null | \
+    sort -nr | head -n "$limit" | cut -d' ' -f2-
+}
+
+carranca_session_is_active() {
+  local session_id="$1"
+
+  docker ps --format '{{.Names}}' 2>/dev/null | awk -v session_id="$session_id" '
+    $0 == "carranca-" session_id "-logger" || $0 == "carranca-" session_id "-agent" {
+      found = 1
+    }
+    END {
+      exit(found ? 0 : 1)
+    }
+  '
+}
+
+carranca_session_active_ids() {
+  local repo_id="$1"
+  local state_base="${2:-${CARRANCA_STATE:-$HOME/.local/state/carranca}}"
+  local log_file
+  local session_id
+
+  while IFS= read -r log_file; do
+    [ -n "$log_file" ] || continue
+    session_id="$(basename "$log_file" .jsonl)"
+    if carranca_session_is_active "$session_id"; then
+      printf '%s\n' "$session_id"
+    fi
+  done < <(carranca_session_recent_logs "$repo_id" 999999 "$state_base")
+}
+
+carranca_session_display_ts() {
+  local log_file="$1"
+  local ts
+
+  ts="$(awk 'match($0, /"ts":"[^"]+"/) { print substr($0, RSTART + 6, RLENGTH - 7); exit }' "$log_file" 2>/dev/null)"
+  if [ -n "$ts" ]; then
+    printf '%s' "$ts"
+  else
+    date -u -r "$log_file" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || printf '%s' "unknown"
+  fi
+}
+
 carranca_json_get_string() {
   local line="$1"
   local key="$2"

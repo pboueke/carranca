@@ -55,6 +55,17 @@ assert_eq "log help matches between root and subcommand forms" "$log_help_from_r
 log_help_flag="$(bash "$CLI" log --help 2>&1)"
 assert_eq "log help matches --help form" "$log_help_from_root" "$log_help_flag"
 
+status_help_from_root="$(bash "$CLI" help status 2>&1)"
+assert_contains "root help routes to status help" "Usage: carranca status [--session <exact-id>]" "$status_help_from_root"
+assert_contains "status help describes active sessions" "Show active carranca sessions" "$status_help_from_root"
+assert_contains "status help documents session option" "--session <id>" "$status_help_from_root"
+
+status_help_from_subcommand="$(bash "$CLI" status help 2>&1)"
+assert_eq "status help matches between root and subcommand forms" "$status_help_from_root" "$status_help_from_subcommand"
+
+status_help_flag="$(bash "$CLI" status --help 2>&1)"
+assert_eq "status help matches --help form" "$status_help_from_root" "$status_help_flag"
+
 config_help_from_root="$(bash "$CLI" help config 2>&1)"
 assert_contains "root help routes to config help" "Usage: carranca config [--agent <name>] [--prompt <text>] [--dangerously-skip-confirmation]" "$config_help_from_root"
 assert_contains "config help documents agent option" "--agent <name>" "$config_help_from_root"
@@ -85,6 +96,14 @@ assert_contains "log without session value reports error" "Missing value for --s
 log_unknown_arg_output="$(bash "$CLI" log --bogus 2>&1)" && log_unknown_arg_rc=0 || log_unknown_arg_rc=$?
 assert_eq "log with unknown argument exits non-zero" "1" "$log_unknown_arg_rc"
 assert_contains "log with unknown argument reports error" "Unknown argument: --bogus" "$log_unknown_arg_output"
+
+status_unknown_arg_output="$(bash "$CLI" status --bogus 2>&1)" && status_unknown_arg_rc=0 || status_unknown_arg_rc=$?
+assert_eq "status with unknown argument exits non-zero" "1" "$status_unknown_arg_rc"
+assert_contains "status with unknown argument reports error" "Unknown argument: --bogus" "$status_unknown_arg_output"
+
+status_missing_session_output="$(bash "$CLI" status --session 2>&1)" && status_missing_session_rc=0 || status_missing_session_rc=$?
+assert_eq "status without session value exits non-zero" "1" "$status_missing_session_rc"
+assert_contains "status without session value reports error" "Missing value for --session" "$status_missing_session_output"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

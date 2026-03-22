@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0] - 2026-03-22
+
+- feat: add `carranca status` to show active sessions and the 5 most recent session logs for the current repo
+- feat: add `carranca status --session <exact-id>` for detailed per-session status, including active state, summary, touched paths, and commands
+- docs: update README command docs for the new `status` command and detailed session mode
+- test: add unit and Docker integration coverage for status overview, detailed session output, recent-session limits, and missing-session failures
+- test: 253 tests, 15 suites, 100% function coverage (39/39)
+
 ## [0.6.0] - 2026-03-22
 
 - feat: move project config to ordered `agents:` entries only and drop legacy single-agent config support

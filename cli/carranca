@@ -17,6 +17,9 @@ case "$COMMAND" in
   log)
     source "$CARRANCA_HOME/cli/log.sh" "$@"
     ;;
+  status)
+    source "$CARRANCA_HOME/cli/status.sh" "$@"
+    ;;
   run)
     source "$CARRANCA_HOME/cli/run.sh" "$@"
     ;;
@@ -25,6 +28,7 @@ case "$COMMAND" in
       init) source "$CARRANCA_HOME/cli/init.sh" help ;;
       config) source "$CARRANCA_HOME/cli/config.sh" help ;;
       log) source "$CARRANCA_HOME/cli/log.sh" help ;;
+      status) source "$CARRANCA_HOME/cli/status.sh" help ;;
       run) source "$CARRANCA_HOME/cli/run.sh" help ;;
       "")
         echo "carranca — containerized agent runtime with session logging"
@@ -37,6 +41,7 @@ case "$COMMAND" in
         echo "  init    Scaffold carranca config in the current directory"
         echo "  log     Pretty-print the latest or selected session log"
         echo "  run     Start an agent session in a containerized runtime"
+        echo "  status  Show active sessions and recent session logs for the current repo"
         echo "  help    Show this help message"
         echo ""
         echo "Run 'carranca help <command>' for command-specific help."
