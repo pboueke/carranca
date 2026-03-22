@@ -13,6 +13,16 @@ STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
 SKIP_CONFIRMATION=false
 for arg in "$@"; do
   case "$arg" in
+    help)
+      echo "Usage: carranca config [--dangerously-skip-confirmation]"
+      echo ""
+      echo "  Inspect the current workspace and propose updates to .carranca.yml"
+      echo "  and .carranca/Containerfile so the container has the repo's dev tools."
+      echo ""
+      echo "Options:"
+      echo "  --dangerously-skip-confirmation  Apply proposed changes without prompting"
+      exit 0
+      ;;
     --dangerously-skip-confirmation)
       SKIP_CONFIRMATION=true
       ;;

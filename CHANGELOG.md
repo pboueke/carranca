@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0] - 2026-03-22
+
+- feat: add `carranca log` to pretty-print the latest or selected session log for the current repo
+- feat: improve `carranca log` with unique-path counts, file-event totals, top touched paths, and clearer agent-native edit summaries
+- feat: add command-specific help routing via both `carranca help <command>` and `carranca <command> help`
+- test: add unit, failure-mode, and Docker integration coverage for `carranca log`
+- test: add coverage for help routing, sparse-session summaries, and log parsing helpers
+- test: 191 tests, 13 suites, 100% function coverage (27/27)
+
 ## [0.4.0] - 2026-03-22
 
 - feat: add `carranca config` to launch the bound agent, apply `confiskill`, and propose `.carranca.yml` and `.carranca/Containerfile` updates

@@ -13,6 +13,17 @@ FORCE=false
 AGENT=""
 for arg in "$@"; do
   case "$arg" in
+    help)
+      echo "Usage: carranca init [--force] [--claude|--codex]"
+      echo ""
+      echo "  Scaffolds carranca config in the current directory."
+      echo ""
+      echo "Options:"
+      echo "  --force   Overwrite existing .carranca.yml and Containerfile"
+      echo "  --claude  Pre-configure for Claude Code agent"
+      echo "  --codex   Pre-configure for OpenAI Codex CLI agent"
+      exit 0
+      ;;
     --force) FORCE=true ;;
     --claude) AGENT="claude" ;;
     --codex)  AGENT="codex" ;;

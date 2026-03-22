@@ -1,12 +1,11 @@
 # TODOs
 
-## `carranca config` - Launch agent, review workspace and configure .carranca
-Using the sandboxed agent, launch skill to review the current workspace and and update the carranca containerfile to have it include all dev dependencies so no local setup is needed for development outside the container. The point is to allow the agent to have all tools needed for development worklofws w/o access to the host 
+## init and config updates for multi agent setup
+- multi agent setup. Carranca config file must support multiple agents, first is used by default during run and config executions
+- run command can receive extra --[claude|codex|etc] param that has it launch the selected agent instead of the default one
+- config command must allow for user request. When provided, agent focus on user request. For example: 'carranca config codex', has config agent run to update configs in order to add claude agent
+- init command must check for init status. If already inited, suggest use of config command. If --force is used, ask for confirmation of possibly ovewrite
 
-## `carranca log` — Pretty-print last session log
-Show the last session's summary + commands without navigating the state directory.
-Resolve repo_id from current directory, find most recent JSONL, pretty-print.
-Depends on: core MVP (init + run).
 
 ## `carranca status` — Show active/recent sessions
 List running carranca sessions (via compose project listing) and 5 most recent
@@ -64,3 +63,8 @@ sensitive paths. Implement alerting or access control for watched paths.
 The trust model assumes cooperative (buggy, not adversarial) agents. A malicious agent
 could tamper with logging (e.g., write garbage to the FIFO, manipulate timestamps).
 Harden the runtime for adversarial scenarios if needed.
+
+## `carranca log` follow-ups
+- add filters for files-only and commands-only views
+- add `--top <n>` for top touched paths
+- add a full touched-path list mode for a session

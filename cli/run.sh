@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/config.sh"
 source "$SCRIPT_DIR/lib/identity.sh"
+source "$SCRIPT_DIR/lib/log.sh"
 
 CARRANCA_HOME="${CARRANCA_HOME:-$HOME/.local/share/carranca}"
 STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
@@ -15,6 +16,12 @@ STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
 
 for arg in "$@"; do
   case "$arg" in
+    help)
+      echo "Usage: carranca run"
+      echo "  Start an agent session in a containerized runtime."
+      echo "  Requires .carranca.yml in the current directory."
+      exit 0
+      ;;
     -h|--help)
       echo "Usage: carranca run"
       echo "  Start an agent session in a containerized runtime."
@@ -214,44 +221,8 @@ LOG_FILE="$STATE_DIR/$SESSION_ID.jsonl"
 if [ -f "$LOG_FILE" ]; then
   carranca_log ok "Session $SESSION_ID complete"
 
-  TOTAL_CMDS=0
-  FAILED_CMDS=0
-  FILES_CREATED=0
-  FILES_MODIFIED=0
-  FIRST_TS=""
-  LAST_TS=""
-
-  while IFS= read -r line; do
-    type="$(printf '%s' "$line" | grep -o '"type":"[^"]*"' | head -1 | cut -d'"' -f4)"
-    case "$type" in
-      shell_command)
-        TOTAL_CMDS=$((TOTAL_CMDS + 1))
-        exit_code="$(printf '%s' "$line" | grep -o '"exit_code":[0-9]*' | head -1 | cut -d: -f2)"
-        [ "$exit_code" != "0" ] && FAILED_CMDS=$((FAILED_CMDS + 1))
-        ;;
-      file_event)
-        event="$(printf '%s' "$line" | grep -o '"event":"[^"]*"' | head -1 | cut -d'"' -f4)"
-        case "$event" in
-          CREATE) FILES_CREATED=$((FILES_CREATED + 1)) ;;
-          MODIFY) FILES_MODIFIED=$((FILES_MODIFIED + 1)) ;;
-        esac
-        ;;
-      session_event)
-        ts="$(printf '%s' "$line" | grep -o '"ts":"[^"]*"' | head -1 | cut -d'"' -f4)"
-        [ -z "$FIRST_TS" ] && FIRST_TS="$ts"
-        LAST_TS="$ts"
-        ;;
-    esac
-  done < "$LOG_FILE"
-
-  SUCCEEDED=$((TOTAL_CMDS - FAILED_CMDS))
-  FILES_TOTAL=$((FILES_CREATED + FILES_MODIFIED))
-
   echo ""
-  echo "  Duration: $FIRST_TS → $LAST_TS"
-  echo "  Files changed: $FILES_TOTAL ($FILES_CREATED created, $FILES_MODIFIED modified)"
-  echo "  Commands run: $TOTAL_CMDS ($SUCCEEDED succeeded, $FAILED_CMDS failed)"
-  echo "  Action log: $LOG_FILE"
+  carranca_session_print_summary "$LOG_FILE"
   echo ""
 else
   carranca_log warn "Session $SESSION_ID — no log file found"

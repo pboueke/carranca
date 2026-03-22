@@ -85,6 +85,36 @@ else
   PASS=$((PASS + 1))
 fi
 
+# Test 5: carranca log with no logs for current repo
+cat > ".carranca.yml" <<'EOF'
+agent:
+  adapter: default
+  command: bash -c "exit 0"
+runtime:
+  network: true
+EOF
+
+if bash "$CARRANCA_HOME/cli/log.sh" 2>/dev/null; then
+  echo "  FAIL: log without prior sessions should fail"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: log without prior sessions fails"
+  PASS=$((PASS + 1))
+fi
+
+# Test 6: carranca log with unknown exact session id
+REPO_ID="$(source "$CARRANCA_HOME/cli/lib/common.sh" && source "$CARRANCA_HOME/cli/lib/identity.sh" && carranca_repo_id)"
+mkdir -p "$TMPSTATE/sessions/$REPO_ID"
+touch "$TMPSTATE/sessions/$REPO_ID/known1234.jsonl"
+
+if bash "$CARRANCA_HOME/cli/log.sh" --session missing1234 2>/dev/null; then
+  echo "  FAIL: log with missing exact session id should fail"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: log with missing exact session id fails"
+  PASS=$((PASS + 1))
+fi
+
 # Cleanup
 rm -rf "$TMPDIR" "$TMPSTATE"
 

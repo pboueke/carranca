@@ -14,23 +14,43 @@ case "$COMMAND" in
   config)
     source "$CARRANCA_HOME/cli/config.sh" "$@"
     ;;
+  log)
+    source "$CARRANCA_HOME/cli/log.sh" "$@"
+    ;;
   run)
     source "$CARRANCA_HOME/cli/run.sh" "$@"
     ;;
   help|-h|--help)
-    echo "carranca — containerized agent runtime with session logging"
-    echo ""
-    echo "Usage: carranca <command>"
-    echo ""
-    echo "Commands:"
-    echo "  config  Propose carranca config updates for the current workspace"
-    echo "  init    Scaffold carranca config in the current directory"
-    echo "  run     Start an agent session in a containerized runtime"
-    echo "  help    Show this help message"
-    echo ""
-    echo "Config:  ~/.config/carranca/config.yml"
-    echo "State:   ~/.local/state/carranca/"
-    echo "Install: ~/.local/share/carranca/"
+    case "${1:-}" in
+      init) source "$CARRANCA_HOME/cli/init.sh" help ;;
+      config) source "$CARRANCA_HOME/cli/config.sh" help ;;
+      log) source "$CARRANCA_HOME/cli/log.sh" help ;;
+      run) source "$CARRANCA_HOME/cli/run.sh" help ;;
+      "")
+        echo "carranca — containerized agent runtime with session logging"
+        echo ""
+        echo "Usage: carranca <command>"
+        echo "       carranca help <command>"
+        echo ""
+        echo "Commands:"
+        echo "  config  Propose carranca config updates for the current workspace"
+        echo "  init    Scaffold carranca config in the current directory"
+        echo "  log     Pretty-print the latest or selected session log"
+        echo "  run     Start an agent session in a containerized runtime"
+        echo "  help    Show this help message"
+        echo ""
+        echo "Run 'carranca help <command>' for command-specific help."
+        echo ""
+        echo "Config:  ~/.config/carranca/config.yml"
+        echo "State:   ~/.local/state/carranca/"
+        echo "Install: ~/.local/share/carranca/"
+        ;;
+      *)
+        echo "carranca: unknown command '$1'" >&2
+        echo "Run 'carranca help' for usage." >&2
+        exit 1
+        ;;
+    esac
     ;;
   *)
     echo "carranca: unknown command '$COMMAND'" >&2

@@ -1,7 +1,7 @@
 # Carranca
 
-![tests: 132/132 passed](https://img.shields.io/badge/tests-132%2F132_passed-brightgreen)
-![coverage: 100%](https://img.shields.io/badge/coverage-100%25_(18%2F18_functions)-brightgreen)
+![tests: 191/191 passed](https://img.shields.io/badge/tests-191%2F191_passed-brightgreen)
+![coverage: 100%](https://img.shields.io/badge/coverage-100%25_(27%2F27_functions)-brightgreen)
 
 **Containerized agent runtime with session logging.**
 
@@ -43,6 +43,7 @@ See [doc/architecture.md](doc/architecture.md) for the full picture.
 
 - `carranca init`: scaffold `.carranca.yml`, `.carranca/Containerfile`, and default skills
 - `carranca config`: launch the bound agent in its normal TUI, ask it to use Carranca `confiskill`, and propose updates to `.carranca.yml` and `.carranca/Containerfile`
+- `carranca log`: pretty-print the latest session for the current repo, or a selected session via `--session <exact-id>`
 - `carranca run`: start an interactive agent session with structured logging
 
 `carranca config` mounts Carranca-managed skills and user skills into separate directories inside the agent container, launches the configured agent with the same interactive TTY behavior as `carranca run`, asks it to use `confiskill`, then shows its rationale and diff before applying changes. Use `--dangerously-skip-confirmation` only when you want to bypass the confirmation prompt and accept the proposal immediately.
