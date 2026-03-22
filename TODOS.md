@@ -1,10 +1,7 @@
 # TODOs
 
-## fix permissions
-carranca agent running as root is not acceptable. agent edits to mounted files must not change the files permissions on the host computer
-
 ## `carranca config` - Launch agent, review workspace and configure .carranca
-Using the sandboxed agent, launch skill to review the current workspace and and update the carranca containerfile to have it include all dev dependencies so no local setup is needed for development outside the container
+Using the sandboxed agent, launch skill to review the current workspace and and update the carranca containerfile to have it include all dev dependencies so no local setup is needed for development outside the container. The point is to allow the agent to have all tools needed for development worklofws w/o access to the host 
 
 ## `carranca log` — Pretty-print last session log
 Show the last session's summary + commands without navigating the state directory.

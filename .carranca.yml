@@ -2,7 +2,7 @@
 # See: https://github.com/pboueke/carranca
 
 agent:
-  adapter: default
+  adapter: codex
   command: codex
 
 # Container runtime settings
@@ -28,3 +28,5 @@ watched_paths:
   - .env
   - secrets/
   - "*.key"
+  - .carranca.yml
+  - .carranca/Containerfile

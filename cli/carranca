@@ -11,6 +11,9 @@ case "$COMMAND" in
   init)
     source "$CARRANCA_HOME/cli/init.sh" "$@"
     ;;
+  config)
+    source "$CARRANCA_HOME/cli/config.sh" "$@"
+    ;;
   run)
     source "$CARRANCA_HOME/cli/run.sh" "$@"
     ;;
@@ -20,6 +23,7 @@ case "$COMMAND" in
     echo "Usage: carranca <command>"
     echo ""
     echo "Commands:"
+    echo "  config  Propose carranca config updates for the current workspace"
     echo "  init    Scaffold carranca config in the current directory"
     echo "  run     Start an agent session in a containerized runtime"
     echo "  help    Show this help message"

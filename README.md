@@ -1,7 +1,7 @@
 # Carranca
 
-![tests: 93/93 passed](https://img.shields.io/badge/tests-93%2F93_passed-brightgreen)
-![coverage: 100%](https://img.shields.io/badge/coverage-100%25_(17%2F17_functions)-brightgreen)
+![tests: 132/132 passed](https://img.shields.io/badge/tests-132%2F132_passed-brightgreen)
+![coverage: 100%](https://img.shields.io/badge/coverage-100%25_(18%2F18_functions)-brightgreen)
 
 **Containerized agent runtime with session logging.**
 
@@ -16,7 +16,10 @@ export PATH="$HOME/.local/share/carranca/cli:$PATH"
 
 # Initialize a project
 cd your-project
-carranca init --claude    # or --codex, or bare
+carranca init --codex     # or bare
+
+# Ask carranca to propose runtime updates for this repo
+carranca config
 
 # Run an agent session
 carranca run
@@ -35,6 +38,14 @@ On Linux, the agent container runs as the invoking host UID:GID, so edits to the
 ```
 
 See [doc/architecture.md](doc/architecture.md) for the full picture.
+
+## Commands
+
+- `carranca init`: scaffold `.carranca.yml`, `.carranca/Containerfile`, and default skills
+- `carranca config`: launch the bound agent in its normal TUI, ask it to use Carranca `confiskill`, and propose updates to `.carranca.yml` and `.carranca/Containerfile`
+- `carranca run`: start an interactive agent session with structured logging
+
+`carranca config` mounts Carranca-managed skills and user skills into separate directories inside the agent container, launches the configured agent with the same interactive TTY behavior as `carranca run`, asks it to use `confiskill`, then shows its rationale and diff before applying changes. Use `--dangerously-skip-confirmation` only when you want to bypass the confirmation prompt and accept the proposal immediately.
 
 ## Documentation
 

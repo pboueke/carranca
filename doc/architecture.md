@@ -39,7 +39,7 @@ Two containers share a tmpfs volume containing a Unix FIFO:
 - User-configurable per project
 - Copied to `.carranca/` on `carranca init`
 - The user installs their agent CLI, language runtimes, tools
-- Mounts: FIFO volume (rw), workspace (rw), cache dirs (rw), custom volumes
+- Mounts: FIFO volume (rw), workspace (rw), cache dirs (rw), custom volumes, Carranca skills (ro), user skills (ro)
 - Runs as the invoking host UID:GID on Linux so bind-mounted workspace writes keep host ownership
 - The shell wrapper is always injected as the entrypoint
 
@@ -69,7 +69,8 @@ Two containers share a tmpfs volume containing a Unix FIFO:
 | `.carranca.yml` | Yes | User | Per-project configuration |
 | `.carranca/Containerfile` | Yes | User | Agent container definition |
 | `.carranca/shell-wrapper.sh` | No | Carranca | Injected into agent image at build |
-| `.carranca/skills/` | Yes | User | Per-project policy skills |
+| `.carranca/skills/carranca/` | No | Carranca | Carranca-managed project skills copied on init |
+| `.carranca/skills/user/` | Yes | User | Per-project user-authored skills |
 
 ## Repo identity
 

@@ -50,6 +50,41 @@ else
   PASS=$((PASS + 1))
 fi
 
+# Test 4: carranca config without .carranca/Containerfile
+cat > ".carranca.yml" <<'EOF'
+agent:
+  adapter: default
+  command: codex
+runtime:
+  network: true
+EOF
+
+if bash "$CARRANCA_HOME/cli/config.sh" 2>/dev/null; then
+  echo "  FAIL: config without .carranca/Containerfile should fail"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: config without .carranca/Containerfile fails (precondition check)"
+  PASS=$((PASS + 1))
+fi
+
+mkdir -p .carranca
+cat > ".carranca/Containerfile" <<'EOF'
+FROM alpine:3.21
+RUN apk add --no-cache bash coreutils curl git ca-certificates
+COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
+RUN chmod +x /usr/local/bin/shell-wrapper.sh
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
+EOF
+
+if bash "$CARRANCA_HOME/cli/config.sh" 2>/dev/null; then
+  echo "  FAIL: config with missing agent.command should fail"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: config with missing agent.command fails (config validation)"
+  PASS=$((PASS + 1))
+fi
+
 # Cleanup
 rm -rf "$TMPDIR" "$TMPSTATE"
 

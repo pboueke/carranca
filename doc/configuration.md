@@ -8,7 +8,7 @@ Per-project configuration file created by `carranca init`. Lives in the project 
 # Agent settings
 agent:
   adapter: default              # Agent adapter (currently only "default")
-  command: claude               # CLI command to run inside the container
+  command: codex                # CLI command to run inside the container
 
 # Container runtime settings
 runtime:
@@ -41,7 +41,7 @@ watched_paths:
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `agent.command` | Yes | — | The CLI command to run as the agent |
-| `agent.adapter` | No | `default` | Agent adapter type |
+| `agent.adapter` | No | `default` | Agent adapter type (`default`, `claude`, `codex`, or `stdin`) |
 | `runtime.network` | No | `true` | Enable/disable container networking |
 | `runtime.extra_flags` | No | — | Additional `docker run` flags for agent |
 | `runtime.logger_extra_flags` | No | — | Additional `docker run` flags for logger |
@@ -97,6 +97,55 @@ agent:
 volumes:
   cache: false
 ```
+
+## `carranca config`
+
+`carranca config` runs the bound agent inside the sandboxed Carranca container and
+asks it to use Carranca's `confiskill` before proposing updates to both
+`.carranca.yml` and `.carranca/Containerfile`.
+
+The command mounts skills into the agent container in two separate locations:
+
+- Carranca-managed skills: `/carranca-skills`
+- User-managed skills: `/user-skills`
+
+The proposal prompt explicitly requires the agent to:
+
+- read and follow `/carranca-skills/confiskill/SKILL.md`
+- inspect any user-provided skills under `/user-skills/`
+- write complete proposed files to `/proposal` instead of editing the workspace directly
+
+`carranca config` allocates a TTY exactly like `carranca run` when stdin is a
+terminal, so the agent can reuse the same interactive auth/session flow.
+
+Adapter handling remains explicit:
+
+- `agent.adapter: claude` runs the configured Claude command in its normal interactive mode with the config prompt as the initial request
+- `agent.adapter: codex` runs the configured Codex command in its normal interactive mode with the config prompt as the initial request
+- `agent.adapter: stdin` pipes the generated config prompt to the command on stdin
+- `agent.adapter: default` infers `claude` or `codex` only when the command itself starts with `claude` or `codex`; otherwise it falls back to `stdin`
+
+By default, `carranca config` is propose-only until you confirm:
+
+```bash
+carranca config
+```
+
+It prints:
+
+- detected workspace profile
+- rationale for each proposed change
+- unified diff for `.carranca.yml` and `.carranca/Containerfile`
+
+To bypass the prompt and apply immediately, use:
+
+```bash
+carranca config --dangerously-skip-confirmation
+```
+
+This still prints the rationale and diff first, emits a strict warning, and records
+that confirmation was bypassed in the config audit log under
+`~/.local/state/carranca/config/<repo-id>/history.jsonl`.
 
 ### Cache volume
 
@@ -155,8 +204,16 @@ carranca init             # Bare container — edit Containerfile yourself
 
 ## `.carranca/skills/`
 
-SKILL.md files that provide policy guidance to the agent. These are prompt-level
-instructions — they shape behavior, they don't enforce it technically.
+Carranca separates toolkit-managed skills from user-managed skills inside the repo:
 
-Skills are copied from `carranca/skills/` on `carranca init` and can be customized
-per project.
+- `.carranca/skills/carranca/` — skills copied from the Carranca install, such as `plan` and `confiskill`
+- `.carranca/skills/user/` — user-authored project-specific skills
+
+Both directories are mounted into the agent container during `carranca run` and
+`carranca config`:
+
+- `.carranca/skills/carranca/` → `/carranca-skills`
+- `.carranca/skills/user/` → `/user-skills`
+
+This keeps Carranca's built-in workflow skills separate from repo-local user guidance
+while still making both available to the agent.

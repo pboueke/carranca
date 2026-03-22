@@ -4,8 +4,8 @@
 VERSION := $(shell grep -m1 '## \[' CHANGELOG.md 2>/dev/null | sed 's/.*\[\(.*\)\].*/\1/' || echo "0.0.0")
 
 # Shell files to lint
-SHELL_SRC := cli/carranca cli/init.sh cli/run.sh cli/lib/common.sh cli/lib/config.sh cli/lib/identity.sh
-SHELL_RUNTIME := runtime/shell-wrapper.sh runtime/logger.sh
+SHELL_SRC := cli/carranca cli/config.sh cli/init.sh cli/run.sh cli/lib/common.sh cli/lib/config.sh cli/lib/identity.sh
+SHELL_RUNTIME := runtime/config-runner.sh runtime/shell-wrapper.sh runtime/logger.sh
 SHELL_TESTS := $(wildcard tests/unit/*.sh) $(wildcard tests/integration/*.sh) $(wildcard tests/failure/*.sh) tests/run_tests.sh
 SHELL_HOOKS := .githooks/pre-commit .githooks/update-badges.sh
 SHELL_ALL := $(SHELL_SRC) $(SHELL_RUNTIME) $(SHELL_TESTS) $(SHELL_HOOKS)

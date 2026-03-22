@@ -83,6 +83,9 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+val="$(carranca_config_agent_driver "$CONFIG")"
+assert_eq "default adapter resolves to stdin for custom command" "stdin" "$val"
+
 # --- Test carranca_config_get_list ---
 
 cat > ".carranca.yml" <<'EOF'
@@ -187,6 +190,39 @@ if (carranca_config_validate 2>/dev/null); then
   FAIL=$((FAIL + 1))
 else
   echo "  PASS: validation fails when agent.command is missing"
+  PASS=$((PASS + 1))
+fi
+
+# Test explicit adapter passthrough
+cat > ".carranca.yml" <<'EOF'
+agent:
+  adapter: codex
+  command: some-custom-wrapper --agent codex
+EOF
+
+val="$(carranca_config_agent_driver)"
+assert_eq "explicit codex adapter resolves to codex driver" "codex" "$val"
+
+cat > ".carranca.yml" <<'EOF'
+agent:
+  adapter: stdin
+  command: bash /usr/local/bin/fake-config-agent.sh
+EOF
+
+val="$(carranca_config_agent_driver)"
+assert_eq "explicit stdin adapter resolves to stdin driver" "stdin" "$val"
+
+cat > ".carranca.yml" <<'EOF'
+agent:
+  adapter: invalid
+  command: codex
+EOF
+
+if (carranca_config_validate 2>/dev/null); then
+  echo "  FAIL: validation should fail for unsupported agent.adapter"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: validation fails for unsupported agent.adapter"
   PASS=$((PASS + 1))
 fi
 

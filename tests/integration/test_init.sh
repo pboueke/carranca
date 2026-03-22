@@ -45,7 +45,10 @@ bash "$CARRANCA_HOME/cli/init.sh"
 
 assert_file_exists "init creates .carranca.yml" ".carranca.yml"
 assert_dir_exists "init creates .carranca/skills/" ".carranca/skills"
-assert_file_exists "init copies plan skill" ".carranca/skills/plan/SKILL.md"
+assert_dir_exists "init creates carranca-managed skill dir" ".carranca/skills/carranca"
+assert_dir_exists "init creates user skill dir" ".carranca/skills/user"
+assert_file_exists "init copies plan skill" ".carranca/skills/carranca/plan/SKILL.md"
+assert_file_exists "init copies confiskill" ".carranca/skills/carranca/confiskill/SKILL.md"
 
 # Verify state dir created
 REPO_ID="$(source "$CARRANCA_HOME/cli/lib/common.sh" && source "$CARRANCA_HOME/cli/lib/identity.sh" && carranca_repo_id)"

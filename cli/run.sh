@@ -115,6 +115,14 @@ for gid in $HOST_GROUPS; do
   EXTRA_GROUP_FLAGS="$EXTRA_GROUP_FLAGS --group-add $gid"
 done
 
+SKILL_MOUNT_FLAGS=""
+if [ -d "$WORKSPACE/.carranca/skills/carranca" ]; then
+  SKILL_MOUNT_FLAGS="$SKILL_MOUNT_FLAGS -v $WORKSPACE/.carranca/skills/carranca:/carranca-skills:ro"
+fi
+if [ -d "$WORKSPACE/.carranca/skills/user" ]; then
+  SKILL_MOUNT_FLAGS="$SKILL_MOUNT_FLAGS -v $WORKSPACE/.carranca/skills/user:/user-skills:ro"
+fi
+
 # --- Cleanup handler ---
 
 _cleanup() {
@@ -187,6 +195,7 @@ docker run $DOCKER_TTY_FLAGS --rm \
   -e "USER=carranca" \
   $CACHE_FLAGS \
   $CUSTOM_VOLUME_FLAGS \
+  $SKILL_MOUNT_FLAGS \
   $EXTRA_GROUP_FLAGS \
   -e "AGENT_COMMAND=$AGENT_COMMAND" \
   -e "SESSION_ID=$SESSION_ID" \

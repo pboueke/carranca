@@ -9,21 +9,29 @@
 
 FROM alpine:3.21
 
-# Install base tools
+# Install base tools plus repo-local development tooling.
 RUN apk add --no-cache \
       bash \
       coreutils \
       curl \
       git \
-      ca-certificates
+      ca-certificates \
+      make \
+      bubblewrap \
+      nodejs \
+      npm \
+      python3 \
+      py3-pip \
+      shellcheck
+
+RUN pip install --no-cache-dir --break-system-packages yamllint
 
 RUN mkdir -p /home/carranca && chmod 0777 /home/carranca
 
 # ──────────────────────────────────────────────
 # Add your agent and project dependencies below:
 # OpenAI Codex CLI
-RUN apk add --no-cache bubblewrap nodejs npm && \
-    npm install -g @openai/codex
+RUN npm install -g @openai/codex
 # ──────────────────────────────────────────────
 
 

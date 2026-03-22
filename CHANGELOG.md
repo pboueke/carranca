@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0] - 2026-03-22
+
+- feat: add `carranca config` to launch the bound agent, apply `confiskill`, and propose `.carranca.yml` and `.carranca/Containerfile` updates
+- feat: run `carranca config` with the same interactive TTY flow as `carranca run` so cached agent auth/session state is reused
+- feat: mount Carranca-managed and user-managed skills separately inside the agent container
+- fix: keep `carranca config` propose-only by sourcing built-in skills from the Carranca install instead of mutating the workspace before confirmation
+- fix: validate unsupported `agent.adapter` values early and require a detected stack summary in generated proposals
+- docs: document the `config` workflow, skill mounts, and interactive adapter behavior
+- test: add integration, failure-mode, and unit coverage for `carranca config` and adapter resolution
+- test: 132 tests, 10 suites, 100% function coverage (18/18)
+
 ## [0.3.0] - 2026-03-22
 
 - feat: switch the default agent command and project scaffold to Codex

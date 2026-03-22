@@ -84,6 +84,31 @@ carranca_config_get_list() {
   ' "$file"
 }
 
+carranca_config_agent_driver() {
+  local file="${1:-$CARRANCA_CONFIG_FILE}"
+  local adapter agent_command cmd
+
+  adapter="$(carranca_config_get agent.adapter "$file")"
+  agent_command="$(carranca_config_get agent.command "$file")"
+  cmd="${agent_command%% *}"
+
+  case "$adapter" in
+    ""|default)
+      case "$cmd" in
+        claude) printf '%s' "claude" ;;
+        codex) printf '%s' "codex" ;;
+        *) printf '%s' "stdin" ;;
+      esac
+      ;;
+    claude|codex|stdin)
+      printf '%s' "$adapter"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # Validate required config fields. Exit with error if any are missing.
 carranca_config_validate() {
   local file="${1:-$CARRANCA_CONFIG_FILE}"
@@ -101,6 +126,8 @@ carranca_config_validate() {
   adapter="$(carranca_config_get agent.adapter "$file")"
   if [ -z "$adapter" ]; then
     carranca_log warn "No agent.adapter set in $file, using 'default'"
+  elif ! carranca_config_agent_driver "$file" >/dev/null 2>&1; then
+    carranca_die "Unsupported agent.adapter in $file: $adapter (expected default, claude, codex, or stdin)"
   fi
 
   local network
