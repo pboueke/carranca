@@ -246,21 +246,27 @@ fi
 # --- Resource consumption sampler (background, best-effort) ---
 
 RESOURCE_INTERVAL="${RESOURCE_INTERVAL:-10}"
-AGENT_CONTAINER_ID="${AGENT_CONTAINER_ID:-}"
+AGENT_CONTAINER_NAME="${AGENT_CONTAINER_NAME:-}"
 
 _find_agent_cgroup() {
-  local container_id="$1"
+  local search_key="$1"
   local base="/hostcgroup"
   local dir
 
   [ -d "$base" ] || return 1
 
-  for dir in "$base"/*"$container_id"*; do
+  # Search top level (cgroup v2 unified: /hostcgroup/<hash>)
+  for dir in "$base"/*"$search_key"*; do
     [ -d "$dir" ] && printf '%s' "$dir" && return 0
   done
 
   # Search one level deeper (e.g., /hostcgroup/system.slice/docker-<id>.scope)
-  for dir in "$base"/*/"*$container_id"*; do
+  for dir in "$base"/*/*"$search_key"*; do
+    [ -d "$dir" ] && printf '%s' "$dir" && return 0
+  done
+
+  # Search two levels deep (e.g., /hostcgroup/system.slice/docker-.../libpod-<id>)
+  for dir in "$base"/*/*/*"$search_key"*; do
     [ -d "$dir" ] && printf '%s' "$dir" && return 0
   done
 
@@ -276,7 +282,7 @@ _read_cgroup_stats() {
     local cpu_usec
     cpu_usec="$(awk '$1 == "usage_usec" { print $2 }' "$cgroup_dir/cpu.stat" 2>/dev/null)"
     if [ -n "$cpu_usec" ]; then
-      stats="$stats,\"cpu_usec\":$cpu_usec"
+      stats="$stats,\"cpu_usage_us\":$cpu_usec"
     fi
   fi
 
@@ -303,14 +309,31 @@ _read_cgroup_stats() {
 
 _start_resource_sampler() {
   local interval="$1"
-  local container_id="$2"
+  local container_name="$2"
+  local cgroup_dir=""
 
-  local cgroup_dir
-  cgroup_dir="$(_find_agent_cgroup "$container_id")" || {
+  # Wait up to 15s for the resolved container ID file from run.sh
+  local id_file="/state/agent-container-id"
+  local attempts=0
+  while [ "$attempts" -lt 15 ]; do
+    if [ -f "$id_file" ]; then
+      local resolved_id
+      resolved_id="$(cat "$id_file" 2>/dev/null)"
+      if [ -n "$resolved_id" ]; then
+        cgroup_dir="$(_find_agent_cgroup "$resolved_id")" && break
+      fi
+    fi
+    # Fallback: try container name directly
+    cgroup_dir="$(_find_agent_cgroup "$container_name")" && break
+    sleep 1
+    attempts=$((attempts + 1))
+  done
+
+  if [ -z "$cgroup_dir" ]; then
     DEG_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"degraded\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"reason\":\"cgroup_not_found\"}"
     write_log "$DEG_EVENT"
     return
-  }
+  fi
 
   while true; do
     sleep "$interval"
@@ -324,8 +347,8 @@ _start_resource_sampler() {
 }
 
 SAMPLER_PID=""
-if [ -n "$AGENT_CONTAINER_ID" ] && [ "${RESOURCE_INTERVAL:-0}" != "0" ] && [ -n "${RESOURCE_INTERVAL:-}" ]; then
-  _start_resource_sampler "$RESOURCE_INTERVAL" "$AGENT_CONTAINER_ID" &
+if [ -n "$AGENT_CONTAINER_NAME" ] && [ "${RESOURCE_INTERVAL:-0}" != "0" ] && [ -n "${RESOURCE_INTERVAL:-}" ]; then
+  _start_resource_sampler "$RESOURCE_INTERVAL" "$AGENT_CONTAINER_NAME" &
   SAMPLER_PID=$!
 fi
 

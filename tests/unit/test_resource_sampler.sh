@@ -119,7 +119,7 @@ echo "52428800" > "$CGROUP_DIR/memory.current"
 echo "12" > "$CGROUP_DIR/pids.current"
 
 result="$(_read_cgroup_stats "$CGROUP_DIR")"
-assert_contains "_read_cgroup_stats includes cpu_usec" '"cpu_usec":1234567' "$result"
+assert_contains "_read_cgroup_stats includes cpu_usage_us" '"cpu_usage_us":1234567' "$result"
 assert_contains "_read_cgroup_stats includes memory_bytes" '"memory_bytes":52428800' "$result"
 assert_contains "_read_cgroup_stats includes pids" '"pids":12' "$result"
 
@@ -130,11 +130,11 @@ echo "99999999" > "$CGROUP_PARTIAL/memory.current"
 
 result="$(_read_cgroup_stats "$CGROUP_PARTIAL")"
 assert_contains "_read_cgroup_stats with partial files includes memory" '"memory_bytes":99999999' "$result"
-if echo "$result" | grep -Fq '"cpu_usec"'; then
-  echo "  FAIL: _read_cgroup_stats should omit cpu_usec when cpu.stat missing"
+if echo "$result" | grep -Fq '"cpu_usage_us"'; then
+  echo "  FAIL: _read_cgroup_stats should omit cpu_usage_us when cpu.stat missing"
   FAIL=$((FAIL + 1))
 else
-  echo "  PASS: _read_cgroup_stats omits cpu_usec when cpu.stat missing"
+  echo "  PASS: _read_cgroup_stats omits cpu_usage_us when cpu.stat missing"
   PASS=$((PASS + 1))
 fi
 if echo "$result" | grep -Fq '"pids"'; then
@@ -160,8 +160,8 @@ echo "--- stats collection for new event types ---"
 STATS_LOG="$TMPDIR/stats-test.jsonl"
 cat > "$STATS_LOG" <<'EOF'
 {"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T00:00:00Z","session_id":"test1234","repo_id":"abc","repo_name":"test","repo_path":"/workspace","agent":"claude","adapter":"claude","engine":"podman"}
-{"type":"resource_event","source":"carranca","ts":"2026-03-22T00:00:10Z","session_id":"test1234","cpu_usec":1234567,"memory_bytes":52428800,"pids":12}
-{"type":"resource_event","source":"carranca","ts":"2026-03-22T00:00:20Z","session_id":"test1234","cpu_usec":2345678,"memory_bytes":62914560,"pids":14}
+{"type":"resource_event","source":"carranca","ts":"2026-03-22T00:00:10Z","session_id":"test1234","cpu_usage_us":1234567,"memory_bytes":52428800,"pids":12}
+{"type":"resource_event","source":"carranca","ts":"2026-03-22T00:00:20Z","session_id":"test1234","cpu_usage_us":2345678,"memory_bytes":62914560,"pids":14}
 {"type":"execve_event","source":"strace","ts":"2026-03-22T00:00:05Z","session_id":"test1234","pid":42,"binary":"/usr/bin/ls","argv":"[\"ls\",\"-la\"]"}
 {"type":"network_event","source":"carranca","ts":"2026-03-22T00:00:06Z","session_id":"test1234","dest":"1.2.3.4","port":443}
 {"type":"file_access_event","source":"carranca","ts":"2026-03-22T00:00:07Z","session_id":"test1234","path":"/etc/passwd"}

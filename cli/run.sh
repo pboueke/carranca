@@ -243,7 +243,7 @@ carranca_runtime_run -d --rm \
   -e "EXECVE_TRACING=${EXECVE_TRACING:-}" \
   -v /sys/fs/cgroup:/hostcgroup:ro \
   -e "RESOURCE_INTERVAL=${RESOURCE_INTERVAL:-}" \
-  -e "AGENT_CONTAINER_ID=$AGENT_CONTAINER_NAME" \
+  -e "AGENT_CONTAINER_NAME=$AGENT_CONTAINER_NAME" \
   -e "SECRET_MONITORING=${SECRET_MONITORING:-}" \
   -e "NETWORK_LOGGING=${NETWORK_LOGGING:-}" \
   -e "NETWORK_INTERVAL=${NETWORK_INTERVAL:-}" \
@@ -282,6 +282,22 @@ TTY_FLAGS="-i"
 if [ -t 0 ]; then
   TTY_FLAGS="-it"
 fi
+
+# Resolve agent container ID in background for resource sampler cgroup lookup.
+# The logger polls /state/agent-container-id for the resolved full ID.
+_resolve_agent_container_id() {
+  local attempts=0
+  while [ "$attempts" -lt 30 ]; do
+    local cid
+    cid="$(carranca_runtime_call inspect --format '{{.Id}}' "$AGENT_CONTAINER_NAME" 2>/dev/null || true)"
+    if [ -n "$cid" ]; then
+      printf '%s' "$cid" > "$STATE_DIR/agent-container-id"
+      return 0
+    fi
+    sleep 1
+    attempts=$((attempts + 1))
+  done
+} &
 
 # shellcheck disable=SC2086
 AGENT_EXIT_CODE=0
