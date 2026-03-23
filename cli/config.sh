@@ -110,6 +110,14 @@ carranca_log info "Config agent driver: ${AGENT_ADAPTER:-default} -> $AGENT_DRIV
 CACHE_FLAGS=""
 if [ "$CACHE_ENABLED" = "true" ]; then
   mkdir -p "$CACHE_DIR/home"
+  _misowned="$(find "$CACHE_DIR/home" -maxdepth 1 -not -user "$HOST_UID" -print -quit 2>/dev/null || true)"
+  if [ -n "$_misowned" ]; then
+    if ! chown -R "$HOST_UID:$HOST_GID" "$CACHE_DIR/home" 2>/dev/null; then
+      carranca_log warn "Cache has files owned by a different runtime (e.g. Docker)."
+      carranca_log warn "To fix: sudo chown -R \$(id -u):\$(id -g) $CACHE_DIR/home"
+      carranca_log warn "Or to reset: rm -rf $CACHE_DIR/home && mkdir -p $CACHE_DIR/home"
+    fi
+  fi
   CACHE_FLAGS="-v $CACHE_DIR/home:$AGENT_HOME"
 fi
 

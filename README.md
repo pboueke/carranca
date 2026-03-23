@@ -26,7 +26,7 @@ export PATH="$HOME/.local/share/carranca/cli:$PATH"
 cd your-project
 carranca init --agent codex
 
-# Ask carranca to propose runtime updates for this repo
+# Ask carranca to propose container/runtime setup updates for this repo
 carranca config --prompt "install claude"
 
 # Run an agent session
@@ -47,8 +47,15 @@ carranca help run
 
 ## How it works
 
-Two containers share a FIFO on a tmpfs volume. The agent gets an interactive TTY. The logger writes a structured JSONL session log that the agent cannot access.
-On Linux, the agent container runs as the invoking host UID:GID, so edits to the bind-mounted workspace keep host ownership instead of becoming `root`-owned.
+Carranca uses a container runtime CLI directly. Today that means Podman or
+Docker, selected by `CARRANCA_CONTAINER_RUNTIME` or `runtime.engine`; `auto`
+prefers Podman and falls back to Docker.
+
+Two runtime-managed containers share a FIFO on a tmpfs volume. The agent gets an
+interactive TTY. The logger writes a structured JSONL session log that the agent
+cannot access. On Linux, the agent container runs as the invoking host UID:GID,
+or with `--userns keep-id` on rootless Podman, so workspace writes keep usable
+host ownership.
 
 ```
   carranca run
@@ -57,24 +64,38 @@ On Linux, the agent container runs as the invoking host UID:GID, so edits to the
        └── <runtime> run -it (agent: shell-wrapper → FIFO)
 ```
 
-`<runtime>` is selected from `runtime.engine` or `CARRANCA_CONTAINER_RUNTIME`; `auto` prefers Podman, then Docker.
-
 See [doc/architecture.md](doc/architecture.md) for the full picture.
 
 ## Commands
 
-- `carranca init`: scaffold `.carranca.yml`, `.carranca/Containerfile`, and default skills
+- `carranca init`: scaffold `.carranca.yml`, `.carranca/Containerfile`, and repo-local skill directories under `.carranca/skills/`
 - `carranca kill`: stop one active session by exact id or all active sessions globally after confirmation
-- `carranca config`: launch the selected configured agent in its normal TUI, ask it to use Carranca `confiskill`, and propose updates to `.carranca.yml` and `.carranca/Containerfile`
+- `carranca config`: launch the selected configured agent, require it to use Carranca `confiskill`, and propose updates to `.carranca.yml` and `.carranca/Containerfile`
 - `carranca log`: pretty-print the latest session for the current repo, or a selected session via `--session <exact-id>`
 - `carranca run`: start an interactive session with the default first agent or a named agent via `--agent <name>`
 - `carranca status`: show active sessions and the 5 most recent session logs for the current repo, or inspect a specific session via `--session <exact-id>`
 
 Each command also exposes command-specific help through either `carranca help <command>` or `carranca <command> help`.
 
-Carranca config is forward-only on the `agents:` format. `carranca init` scaffolds a supported agent (`codex` or `claude`) as the first/default entry, `carranca run --agent <name>` selects any configured agent, and `carranca config --agent <name> --prompt "..."` chooses which configured agent executes the config workflow while passing free-form operator intent into the prompt.
+Carranca currently reads per-project config from `.carranca.yml`. There is no
+implemented global config file yet. Runtime selection precedence is:
+`CARRANCA_CONTAINER_RUNTIME`, then `.carranca.yml` `runtime.engine`, then
+auto-detection.
 
-`carranca config` mounts Carranca-managed skills and user skills into separate directories inside the agent container, launches the selected configured agent with the same interactive TTY behavior as `carranca run`, asks it to use `confiskill`, then shows its rationale and diff before applying changes. Use `--dangerously-skip-confirmation` only when you want to bypass the confirmation prompt and accept the proposal immediately.
+Carranca config is forward-only on the `agents:` format. `carranca init`
+scaffolds a supported starter agent (`codex` or `claude`) as the first/default
+entry, `carranca run --agent <name>` selects any configured agent, and
+`carranca config --agent <name> --prompt "..."` chooses which configured agent
+executes the config workflow while passing free-form operator intent into the
+prompt.
+
+`carranca run` mounts repo-local Carranca skills from
+`.carranca/skills/carranca/` and user skills from `.carranca/skills/user/` when
+those directories exist. `carranca config` always mounts install-managed
+Carranca skills from the Carranca installation plus repo-local user skills, then
+shows rationale and a diff before applying any proposal. Use
+`--dangerously-skip-confirmation` only when you want to bypass the confirmation
+prompt and accept the proposal immediately.
 
 `carranca log` reports the latest or selected session in a developer-readable summary: duration, unique touched paths, file-event totals, top touched paths, command counts, and the ordered command list when shell-wrapper command capture exists.
 
@@ -90,8 +111,10 @@ Carranca config is forward-only on the `agents:` format. `carranca init` scaffol
 
 ## Platform support
 
-- **Linux**: Full support (shell logging + file events)
-- **macOS/Windows**: Experimental (shell logging only)
+- **Linux**: Full support for current logging model, including `inotifywait`
+  file mutation events.
+- **macOS/Windows**: Experimental. Container runtime behavior varies, and file
+  mutation logging is Linux-only today.
 
 ## License
 

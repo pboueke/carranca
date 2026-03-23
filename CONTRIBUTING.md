@@ -1,64 +1,163 @@
-# Carranca — Project Instructions
+# Contributing to Carranca
 
-## What is this
+Thanks for contributing.
 
-Carranca is a containerized agent runtime with session logging. It runs coding agents inside Docker containers with host isolation and structured JSONL session logs.
+Carranca is a Bash-based CLI for running coding agents inside container
+runtimes with structured session logging. This guide covers how to propose
+changes, run the project locally, and keep contributions aligned with the
+current scope of the tool.
 
-## Architecture
+## Before you start
 
-```
-carranca/
-├── cli/              # CLI entry point and commands (bash)
-│   ├── carranca      # Main dispatcher
-│   ├── init.sh       # carranca init
-│   ├── run.sh        # carranca run
-│   └── lib/          # Shared libraries (common, config, identity)
-├── runtime/          # Container definitions
-│   ├── Containerfile.logger  # Logger container image
-│   ├── shell-wrapper.sh     # Runs inside agent container
-│   └── logger.sh         # Runs inside logger container
-├── skills/           # Default SKILL.md policy files
-├── templates/        # Config templates for carranca init
-└── tests/            # Unit, integration, and failure tests
-```
+- Read the README and the docs under `doc/` first.
+- Check existing issues or open one before starting larger changes.
+- Keep the trust model honest. Carranca is a transparency tool with isolation
+  and logging, not a complete security boundary against adversarial agents.
+- Prefer focused pull requests. Small, reviewable changes move faster.
 
-Two containers connected by a FIFO:
-- **Agent container**: runs the coding agent with repo mounted read-write
-- **Logger container**: reads FIFO events + inotifywait, writes JSONL session log
+## What we accept
 
-## Commands
+Contributions are welcome for:
+
+- bug fixes
+- docs improvements
+- tests
+- runtime compatibility work for supported container engines
+- new CLI behavior that fits the current product direction
+- internal refactors that simplify the Bash code without changing behavior
+
+If you want to add a larger feature or change the trust model, open an issue
+first so the design can be discussed before implementation.
+
+## Development setup
+
+Carranca is intentionally lightweight. You only need a shell environment plus a
+supported container runtime for integration coverage.
+
+Recommended local dependencies:
+
+- `bash`
+- `git`
+- `shellcheck`
+- `yamllint`
+- `hadolint`
+- either `podman` or `docker`
+
+Install the CLI locally:
 
 ```bash
-make help        # List all targets
-make lint        # shellcheck + hadolint + yamllint
-make test        # Unit tests only (fast, no Docker)
-make test-all    # All tests (requires Docker)
-make check       # Lint + unit tests (what pre-commit runs)
-make build       # Build logger image
-make version     # Print current version from CHANGELOG.md
-make hooks       # Set up git pre-commit hooks
-make install     # Symlink CLI to ~/.local/bin/
+make install
 ```
+
+That creates `~/.local/bin/carranca` pointing at this checkout.
+
+## Project layout
+
+```text
+carranca/
+├── cli/          # Main CLI entry point, commands, and shared Bash libraries
+├── runtime/      # Logger image, shell wrapper, config runner
+├── templates/    # Files scaffolded by carranca init
+├── skills/       # Built-in Carranca skills shipped with the install
+├── doc/          # User-facing documentation
+└── tests/        # Unit, integration, and failure-mode coverage
+```
+
+## Workflow
+
+1. Fork the repo and create a feature branch.
+2. Make the smallest change that fully solves the problem.
+3. Update tests and docs when behavior changes.
+4. Run the relevant checks locally.
+5. Open a pull request with a clear description of the change and why it is
+   needed.
+
+## Running checks
+
+Fast local checks:
+
+```bash
+make lint
+make test
+make check
+```
+
+Full test run:
+
+```bash
+bash tests/run_tests.sh
+```
+
+Notes:
+
+- `make test` runs unit tests only.
+- `bash tests/run_tests.sh` auto-detects `podman` first, then `docker`, for
+  integration and failure suites.
+- `make test-all` currently delegates to `tests/run_tests.sh`, but its help text
+  still says "requires Docker". In practice, either supported runtime works.
+- `make build` and `make clean` are still Docker-specific helper targets.
+
+If you only changed docs, say so in the PR. You do not need to invent code
+changes or unrelated test edits.
+
+## Coding conventions
+
+- All project code is Bash.
+- Use `set -euo pipefail` in scripts.
+- Prefer small, composable `carranca_*` functions in shared libraries.
+- Keep scripts portable and readable over clever shell tricks.
+- Use 2-space indentation in shell and YAML files.
+- Use tabs only where Make requires them.
+- Keep comments brief and factual.
+
+When touching runtime behavior:
+
+- keep Podman and Docker support in mind
+- avoid hard-coding Docker-only terminology unless a path is truly Docker-only
+- preserve fail-closed behavior around session logging
+- do not overstate what the logger or trust model can prove
+
+## Tests and docs
+
+Behavior changes should usually include:
+
+- unit coverage for library helpers
+- integration or failure coverage when CLI/runtime behavior changes
+- README and `doc/` updates when user-visible behavior changes
+
+Doc updates should describe what the code does today, including any current
+limitations. Do not document TODOs as if they already shipped.
+
+## Pull requests
+
+A good pull request includes:
+
+- the user-visible problem
+- the chosen fix
+- any behavior or compatibility tradeoffs
+- the tests you ran
+- doc updates, if applicable
+
+If a change is intentionally incomplete or leaves follow-up work, call that out
+explicitly in the PR description.
 
 ## Versioning
 
-Version is derived from the first `## [X.Y.Z]` header in `CHANGELOG.md`. This is the single source of truth. Use `make version` to read it. When bumping version, update CHANGELOG.md only.
+Versioning is driven by `CHANGELOG.md`.
+The first `## [X.Y.Z]` entry is the current version, and `make version` reads it
+from there. If a contribution changes shipped behavior, update the changelog in
+the same pull request.
 
-## Testing
+## Reporting bugs and proposing features
 
-Three test layers:
-1. **Unit** (`tests/unit/`): test pure functions, no Docker needed
-2. **Integration** (`tests/integration/`): full `init` + `run` lifecycle, requires Docker
-3. **Failure** (`tests/failure/`): precondition checks, degraded mode, fail-closed behavior
+When opening an issue, include:
 
-Run with: `bash tests/run_tests.sh` or `make test-all`
+- your OS
+- whether you are using Podman or Docker
+- the Carranca version or commit
+- the command you ran
+- the relevant `.carranca.yml` snippet if configuration matters
+- the observed error or unexpected behavior
 
-## Conventions
-
-- All source code is bash (no Python, no Node)
-- Use `set -euo pipefail` in all scripts
-- Functions prefixed with `carranca_` in library files
-- 2-space indentation for shell scripts
-- Tab indentation in Makefile only
-- YAML uses 2-space indentation
-- Keep the trust model honest — don't overclaim security properties
+For feature requests, describe the problem first. Proposed solutions are useful,
+but the motivating use case matters more.

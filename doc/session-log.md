@@ -8,6 +8,9 @@ Each carranca session produces a single JSONL file at:
 ```
 
 One JSON object per line. Events are ordered by `seq` (monotonic integer).
+Carranca writes these logs for `run` sessions. The separate `config` workflow
+also writes audit events, but those live under `~/.local/state/carranca/config/`
+instead of the session log directory.
 
 ## Event types
 
@@ -23,7 +26,11 @@ Session lifecycle events produced by carranca itself.
 {"type":"session_event","source":"carranca","event":"logger_stop","ts":"2026-03-22T09:57:35Z","session_id":"abc12345","seq":11}
 ```
 
-Events: `start`, `degraded`, `agent_start`, `agent_stop`, `logger_stop`
+Events currently emitted here: `start`, `degraded`, `agent_start`,
+`agent_stop`, `logger_stop`
+
+Note: the logger's `start` event currently records `"adapter":"default"` for all
+sessions. It does not yet persist the effective selected adapter or driver.
 
 Typical lifecycle patterns:
 
@@ -57,8 +64,8 @@ File mutations detected by `inotifywait` (Linux only, best-effort).
 
 Events: `CREATE`, `MODIFY`, `DELETE`
 
-**Limitation:** No attribution — `inotifywait` sees the event but cannot
-identify which process caused it. Reads are not captured.
+**Limitation:** No attribution. `inotifywait` sees that a path changed, but it
+cannot identify which process caused it. Reads are not captured.
 
 ### `heartbeat`
 
@@ -135,6 +142,23 @@ increase the event count without increasing the unique-path count.
 If a session shows file activity but `Commands run: 0`, that usually means the
 agent changed files through native tool APIs or edits that bypassed shell-wrapper
 command capture.
+
+## `carranca config` audit log
+
+The configurator has its own audit trail:
+
+```text
+~/.local/state/carranca/config/<repo-id>/history.jsonl
+```
+
+Current event types include:
+
+- `no_changes`
+- `proposal_rejected`
+- `confirmation_bypassed`
+- `applied`
+
+Those records are not mixed into per-session `run` logs.
 
 ## `carranca status` and `carranca kill`
 

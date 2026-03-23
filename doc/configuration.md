@@ -1,65 +1,101 @@
 # Configuration
 
+## What Carranca reads today
+
+Carranca currently reads configuration from:
+
+- `.carranca.yml` in the project root
+- `.carranca/Containerfile` in the project root
+- `CARRANCA_CONTAINER_RUNTIME` as an environment override for runtime selection
+
+The CLI help still prints `~/.config/carranca/config.yml`, but that file is not
+currently read by the implementation.
+
 ## `.carranca.yml`
 
-Per-project configuration file created by `carranca init`. Lives in the project root.
-Carranca now supports only the `agents:` format for project config.
+Carranca supports only the ordered `agents:` format for project config.
 
 ```yaml
-# Agent settings
 agents:
   - name: codex
-    adapter: codex              # Agent adapter: default, claude, codex, or stdin
-    command: codex              # CLI command to run inside the container
+    adapter: codex
+    command: codex
 
-# Container runtime settings
 runtime:
-  engine: auto                  # auto prefers podman, then docker
-  network: true                 # Container network access (false = --network=none)
-  # extra_flags: --gpus all     # Extra runtime flags for the agent
-  # logger_extra_flags:         # Extra runtime flags for the logger
+  engine: auto
+  network: true
+  # extra_flags: --gpus all
+  # logger_extra_flags:
 
-# Persistent volumes for the agent container
 volumes:
-  cache: true                   # Cache agent memory, config, session across runs
-  # extra:                      # Custom volume mounts (host:container[:mode])
+  cache: true
+  # extra:
   #   - ~/.ssh:/home/carranca/.ssh:ro
   #   - ~/docs:/reference:ro
 
-# Policy guidance levels ("warn" or "off")
 policy:
-  docs_before_code: warn        # Suggest docs-first workflow via skills
-  tests_before_impl: warn       # Suggest test-first workflow via skills
+  docs_before_code: warn
+  tests_before_impl: warn
 
-# Paths to flag in the session log when mutated
-# NOTE: only mutations (CREATE, MODIFY, DELETE) are captured, not reads
 watched_paths:
   - .env
   - secrets/
   - "*.key"
 ```
 
-### Required fields
+### Field reference
 
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `agents` | Yes | — | Ordered list of configured agents; the first entry is the default |
-| `agents[].name` | Yes | — | Stable agent name used by `--agent <name>` |
-| `agents[].command` | Yes | — | The CLI command to run as the agent |
-| `agents[].adapter` | No | `default` | Agent adapter type (`default`, `claude`, `codex`, or `stdin`) |
-| `runtime.engine` | No | `auto` | Container runtime to use (`auto`, `docker`, or `podman`) |
-| `runtime.network` | No | `true` | Enable/disable container networking |
-| `runtime.extra_flags` | No | — | Additional runtime `run` flags for agent |
-| `runtime.logger_extra_flags` | No | — | Additional runtime `run` flags for logger |
-| `volumes.cache` | No | `true` | Persistent cache for agent memory/config/session |
-| `volumes.extra` | No | — | Custom volume mounts (`host:container[:mode]`) |
+| Field | Required | Default | Current behavior |
+|-------|----------|---------|------------------|
+| `agents` | Yes | — | Ordered configured agents; the first entry is the default for `run` and `config` |
+| `agents[].name` | Yes | — | Stable selector used by `--agent <name>` |
+| `agents[].command` | Yes | — | Command executed inside the agent container |
+| `agents[].adapter` | No | `default` | Adapter selection: `default`, `claude`, `codex`, or `stdin` |
+| `runtime.engine` | No | `auto` | Runtime engine: `auto`, `docker`, or `podman` |
+| `runtime.network` | No | `true` | `false` adds `--network=none` to the agent and config-agent container |
+| `runtime.extra_flags` | No | — | Extra flags appended to the agent container `run` command |
+| `runtime.logger_extra_flags` | No | — | Extra flags appended to the logger container `run` command |
+| `volumes.cache` | No | `true` | Persists `/home/carranca` under `~/.local/state/carranca/cache/<repo-id>/home/` |
+| `volumes.extra` | No | — | Extra bind mounts added only to the agent container |
+| `policy.docs_before_code` | No | — | Parsed and scaffolded, but not enforced by the current CLI |
+| `policy.tests_before_impl` | No | — | Parsed and scaffolded, but not enforced by the current CLI |
+| `watched_paths` | No | — | Parsed and scaffolded, but not currently used by logging or enforcement |
 
-`carranca init --agent <name>` accepts only supported starter agents. Today those
-are `codex` and `claude`.
+### Runtime resolution
+
+Runtime selection precedence is:
+
+1. `CARRANCA_CONTAINER_RUNTIME`, if set
+2. `.carranca.yml` `runtime.engine`, if set
+3. `auto`, which detects a local runtime and prefers Podman before Docker
+
+If `runtime.engine` or `CARRANCA_CONTAINER_RUNTIME` is set to an unsupported
+value, Carranca fails fast.
+
+### Agent adapters
+
+Carranca resolves the effective driver for an agent like this:
+
+- `adapter: claude` uses the configured command in Claude-style interactive mode
+- `adapter: codex` uses the configured command in Codex-style interactive mode
+- `adapter: stdin` pipes the generated prompt to the command on stdin
+- `adapter: default` infers `claude` or `codex` only when the command itself
+  starts with `claude` or `codex`; otherwise it falls back to `stdin`
+
+### Starter agents
+
+`carranca init --agent <name>` only scaffolds supported starters:
+
+- `codex`
+- `claude`
+
+The generated config still uses the general `agents:` format, so you can add or
+rename agents afterward.
 
 ### Examples
 
-**Claude Code:**
+Claude:
+
 ```yaml
 agents:
   - name: claude
@@ -67,7 +103,8 @@ agents:
     command: claude
 ```
 
-**Codex CLI:**
+Codex:
+
 ```yaml
 agents:
   - name: codex
@@ -75,7 +112,17 @@ agents:
     command: codex
 ```
 
-**GPU-enabled agent:**
+Custom stdin-driven agent:
+
+```yaml
+agents:
+  - name: shell
+    adapter: stdin
+    command: bash /usr/local/bin/my-agent.sh
+```
+
+Podman plus GPU flags:
+
 ```yaml
 agents:
   - name: gpu-agent
@@ -86,20 +133,19 @@ runtime:
   extra_flags: --gpus all
 ```
 
-`runtime.engine: auto` checks `CARRANCA_CONTAINER_RUNTIME` first, then the config value,
-then auto-detects a local runtime. Auto-detection prefers Podman and falls back to Docker.
+No network:
 
-**Fully isolated (no network):**
 ```yaml
 agents:
-  - name: claude
-    adapter: claude
-    command: claude
+  - name: codex
+    adapter: codex
+    command: codex
 runtime:
   network: false
 ```
 
-**Multiple agents with SSH keys and extra reference code:**
+Multiple agents and extra mounts:
+
 ```yaml
 agents:
   - name: codex
@@ -109,175 +155,142 @@ agents:
     adapter: claude
     command: claude
 volumes:
-  cache: true
   extra:
     - ~/.ssh:/home/carranca/.ssh:ro
     - ~/projects/shared-lib:/reference/shared-lib:ro
-    - ~/docs/api-specs:/reference/api-specs:ro
 ```
 
-**Disable cache (ephemeral sessions only):**
+Ephemeral home directory:
+
 ```yaml
 agents:
-  - name: claude
-    adapter: claude
-    command: claude
+  - name: codex
+    adapter: codex
+    command: codex
 volumes:
   cache: false
 ```
 
 ## `carranca config`
 
-`carranca config` runs the selected configured agent inside the sandboxed Carranca container and
-asks it to use Carranca's `confiskill` before proposing updates to both
-`.carranca.yml` and `.carranca/Containerfile`.
+`carranca config` uses the selected configured agent to inspect the workspace and
+propose updates to:
 
-The command mounts skills into the agent container in two separate locations:
+- `.carranca.yml`
+- `.carranca/Containerfile`
 
-- Carranca-managed skills: `/carranca-skills`
-- User-managed skills: `/user-skills`
+It does not let the agent edit the workspace directly. Instead it requires the
+agent to write complete proposed files into a proposal directory under:
 
-The proposal prompt explicitly requires the agent to:
+```text
+~/.local/state/carranca/config/<repo-id>/<session-id>/proposal/
+```
 
-- read and follow `/carranca-skills/confiskill/SKILL.md`
-- inspect any user-provided skills under `/user-skills/`
-- write complete proposed files to `/proposal` instead of editing the workspace directly
+The config prompt requires the agent to:
 
-`carranca config` allocates a TTY exactly like `carranca run` when stdin is a
-terminal, so the selected agent can reuse the same interactive auth/session flow.
+- read `/carranca-skills/confiskill/SKILL.md`
+- inspect user skills under `/user-skills/`
+- write rationale and detected stack summaries alongside the proposal
 
-Agent selection and prompts are explicit:
+Mount behavior differs from `carranca run`:
 
-- `carranca run` uses the first configured agent by default, or `--agent <name>` to choose a different configured agent
-- `carranca config` uses the first configured agent by default, or `--agent <name>` to choose a different configured agent as the executor
-- `carranca config --prompt "..."` passes arbitrary operator intent into the config prompt; it does not select an agent
+- Carranca-managed skills come from the Carranca install and are mounted at
+  `/carranca-skills`
+- user-managed skills come from `.carranca/skills/user/` when present and are
+  mounted at `/user-skills`
+- the workspace is mounted read-only
 
-Adapter handling remains explicit:
+`carranca config` uses the same TTY rule as `run`: `-it` when stdin is a TTY,
+`-i` otherwise.
 
-- `agents[].adapter: claude` runs the configured Claude command in its normal interactive mode with the config prompt as the initial request
-- `agents[].adapter: codex` runs the configured Codex command in its normal interactive mode with the config prompt as the initial request
-- `agents[].adapter: stdin` pipes the generated config prompt to the command on stdin
-- `agents[].adapter: default` infers `claude` or `codex` only when the command itself starts with `claude` or `codex`; otherwise it falls back to `stdin`
-
-By default, `carranca config` is propose-only until you confirm:
+Useful commands:
 
 ```bash
 carranca config
-```
-
-It prints:
-
-- detected workspace profile
-- rationale for each proposed change
-- unified diff for `.carranca.yml` and `.carranca/Containerfile`
-
-To bypass the prompt and apply immediately, use:
-
-```bash
+carranca config --agent claude
+carranca config --prompt "install repo dev tools"
 carranca config --dangerously-skip-confirmation
 ```
 
-This still prints the rationale and diff first, emits a strict warning, and records
-that confirmation was bypassed in the config audit log under
-`~/.local/state/carranca/config/<repo-id>/history.jsonl`.
+By default, `config` is propose-only until you confirm. It prints:
 
-## Command help
+- detected workspace profile
+- rationale for the proposal
+- unified diffs for `.carranca.yml` and `.carranca/Containerfile`
 
-Each command exposes its own help output in three equivalent forms:
+Audit events for proposal rejection, bypassed confirmation, and applied changes
+are recorded in:
 
-```bash
-carranca help run
-carranca run help
-carranca run --help
+```text
+~/.local/state/carranca/config/<repo-id>/history.jsonl
 ```
 
-The same pattern works for `init`, `config`, and `log`.
+## Cache volume
 
-Session-management commands follow the same help shape:
-
-```bash
-carranca help status
-carranca status help
-carranca status --help
-
-carranca help kill
-carranca kill help
-carranca kill --help
-```
-
-Operationally:
-
-- `carranca status` inspects active sessions for the current repo and recent logs
-- `carranca kill --session <id>` stops one exact session after confirmation
-- `carranca kill` stops all active Carranca sessions globally after confirmation
-
-### Cache volume
-
-When `volumes.cache` is `true` (the default), carranca persists the agent container's
-home directory (`/home/carranca`) across sessions by bind-mounting a host directory:
+When `volumes.cache` is `true`, Carranca bind-mounts a repo-scoped home
+directory into the agent container:
 
 | Host path | Container path | Purpose |
 |-----------|---------------|---------|
-| `~/.local/state/carranca/cache/<repo-id>/home/` | `/home/carranca` | Agent home directory (auth, config, session history) |
+| `~/.local/state/carranca/cache/<repo-id>/home/` | `/home/carranca` | Agent auth, config, history, and other CLI home-state |
 
-This means agent-specific data — credentials (`~/.claude/.credentials.json`),
-session history, configuration — survives container teardown and is reused on
-subsequent `carranca run` invocations for the same repo. Each repo gets its own
-isolated cache. On Linux, the agent container runs as the invoking host UID:GID so
-files created on bind-mounted paths keep host ownership instead of becoming `root`-owned.
+This cache is used by both `run` and `config` when enabled.
 
-### Custom volumes
+## Custom volumes
 
-The `volumes.extra` list accepts entries in Docker bind-mount format: `host:container[:mode]`.
-The `~` prefix in host paths is expanded to `$HOME`. Common use cases:
+`volumes.extra` accepts bind mount entries in `host:container[:mode]` form. The
+host path expands `~` to `$HOME`.
 
-- **Git SSH keys**: `~/.ssh:/home/carranca/.ssh:ro` — lets the agent push/pull via SSH
-- **Reference docs**: `~/docs:/reference:ro` — give the agent read access to specs, docs, or other repos
-- **Shared data**: `~/data:/data:rw` — bidirectional data exchange
+Examples:
 
-Custom volumes are only mounted in the agent container, not the logger.
+- `~/.ssh:/home/carranca/.ssh:ro`
+- `~/docs:/reference:ro`
+- `~/data:/data:rw`
+
+These extra mounts are added only to the agent container used by `run`. They are
+not mounted into the logger, and `config` currently uses its own fixed mount set.
 
 ## `.carranca/Containerfile`
 
-User-configurable Containerfile for the agent container. Created by `carranca init`,
-customized by the user. The last lines (shell wrapper injection) must not be removed.
+`carranca init` creates `.carranca/Containerfile`. You own the dependency and
+tool installation steps above the shell-wrapper block; Carranca depends on the
+shell-wrapper block remaining intact.
 
-```
+```Dockerfile
 FROM alpine:3.21
 
 RUN apk add --no-cache bash coreutils curl git ca-certificates
 
-# Your dependencies here:
-RUN apk add --no-cache nodejs npm && \
-    npm install -g @anthropic-ai/claude-code
+# Your agent and project dependencies here
+RUN apk add --no-cache nodejs npm
 
-# Do not remove below this line
 COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
 RUN chmod +x /usr/local/bin/shell-wrapper.sh
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
 ```
 
-### Quick-start with `--agent`
+`carranca config` validates that proposed Containerfiles still contain:
 
-```bash
-carranca init --agent claude   # Pre-configures Claude Code
-carranca init --agent codex    # Pre-configures Codex CLI
-carranca init                  # Defaults to codex
-```
+- `COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh`
+- `ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]`
 
 ## `.carranca/skills/`
 
-Carranca separates toolkit-managed skills from user-managed skills inside the repo:
+`carranca init` scaffolds two repo-local skill directories:
 
-- `.carranca/skills/carranca/` — skills copied from the Carranca install, such as `plan` and `confiskill`
-- `.carranca/skills/user/` — user-authored project-specific skills
+- `.carranca/skills/carranca/`
+- `.carranca/skills/user/`
 
-Both directories are mounted into the agent container during `carranca run` and
-`carranca config`:
+Current behavior:
 
-- `.carranca/skills/carranca/` → `/carranca-skills`
-- `.carranca/skills/user/` → `/user-skills`
+- `carranca run` mounts `.carranca/skills/carranca/` to `/carranca-skills` when
+  present
+- `carranca run` mounts `.carranca/skills/user/` to `/user-skills` when present
+- `carranca config` mounts install-managed Carranca skills from
+  `~/.local/share/carranca/skills/` to `/carranca-skills`
+- `carranca config` mounts `.carranca/skills/user/` to `/user-skills` when
+  present
 
-This keeps Carranca's built-in workflow skills separate from repo-local user guidance
-while still making both available to the agent.
+That split lets `config` reliably use the shipped `confiskill` while still
+honoring repo-local user skills.

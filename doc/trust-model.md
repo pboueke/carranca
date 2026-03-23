@@ -10,7 +10,7 @@ structure, not through verified guarantees.
 
 | Property | Strength | Mechanism |
 |----------|----------|-----------|
-| Host isolation | Hard boundary | Docker container — agent cannot access host beyond mounted repo |
+| Host isolation | Hard boundary | Container runtime boundary through Podman or Docker; the agent only sees mounted paths |
 | Session logging | Transparency tool | Shell wrapper writes events to FIFO, logger writes JSONL |
 | Fail-closed logging | Hard boundary | Broken FIFO pipe kills the shell wrapper → agent stops |
 | Append-only log | Best-effort | `chattr +a` when `CAP_LINUX_IMMUTABLE` is available |

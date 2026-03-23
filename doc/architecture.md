@@ -2,8 +2,20 @@
 
 ## Overview
 
-Carranca runs coding agents inside OCI-style containers with host isolation and
-structured session logging. No compose layer — just direct runtime commands.
+Carranca runs coding agents inside containers with host isolation and structured
+session logging. There is no compose layer; the CLI talks directly to a
+supported container runtime command.
+
+Today the supported runtime engines are:
+
+- `podman`
+- `docker`
+
+Runtime selection precedence is:
+
+1. `CARRANCA_CONTAINER_RUNTIME`
+2. `.carranca.yml` `runtime.engine`
+3. `auto` detection, which prefers Podman and falls back to Docker
 
 Projects are configured through `.carranca.yml` using an ordered `agents:` list.
 The first configured agent is the default execution target for `run` and
@@ -31,9 +43,6 @@ transient images.
              ├── heartbeat every 30s
              └── runs agent command interactively
 ```
-
-`<runtime>` comes from `runtime.engine` or `CARRANCA_CONTAINER_RUNTIME`. `auto`
-prefers Podman and falls back to Docker.
 
 ## Session lifecycle
 
@@ -78,14 +87,15 @@ Two containers share a tmpfs volume containing a Unix FIFO:
 - Managed by carranca, not user-configurable
 - Alpine-based, minimal (~7MB)
 - Mounts: FIFO volume (rw), workspace (ro), state dir (rw)
-- Capabilities: `CAP_LINUX_IMMUTABLE` for `chattr +a`
+- Capabilities: requests `CAP_LINUX_IMMUTABLE` for `chattr +a`; rootless Podman
+  degrades to `--userns keep-id`, so append-only is best-effort there too
 
 **Agent** (`.carranca/Containerfile`):
 - User-configurable per project
 - Copied to `.carranca/` on `carranca init`
 - The user installs their agent CLI, language runtimes, tools
-- Mounts: FIFO volume (rw), workspace (rw), cache dirs (rw), custom volumes, Carranca skills (ro), user skills (ro)
-- Runs as the invoking host UID:GID on Linux so bind-mounted workspace writes keep host ownership
+- Mounts: FIFO volume (rw), workspace (rw), optional cache dir (rw), optional custom volumes, repo-local Carranca skills during `run`, repo-local user skills, and install-managed Carranca skills during `config`
+- Runs as the invoking host UID:GID on Linux, or `--userns keep-id` on rootless Podman, so bind-mounted workspace writes keep usable host ownership
 - The shell wrapper is always injected as the entrypoint
 
 ## Data flow
@@ -107,15 +117,17 @@ Two containers share a tmpfs volume containing a Unix FIFO:
 
 | Path | Mutable | Owner | Purpose |
 |------|---------|-------|---------|
-| `~/.local/share/carranca/` | No | Install | CLI, runtime images, templates, default skills |
+| `~/.local/share/carranca/` | No | Install | CLI, runtime assets, templates, and shipped skills |
 | `~/.local/state/carranca/sessions/<repo-id>/` | Yes | Carranca | Session JSONL logs |
 | `~/.local/state/carranca/cache/<repo-id>/home/` | Yes | Agent | Persistent agent home dir mounted at `/home/carranca` (auth, config, history) |
-| `~/.config/carranca/config.yml` | Yes | User | Global settings (future) |
 | `.carranca.yml` | Yes | User | Per-project configuration, including the ordered `agents:` list |
 | `.carranca/Containerfile` | Yes | User | Agent container definition |
 | `.carranca/shell-wrapper.sh` | No | Carranca | Injected into agent image at build |
-| `.carranca/skills/carranca/` | No | Carranca | Carranca-managed project skills copied on init |
+| `.carranca/skills/carranca/` | Yes | User/Repo | Repo-local Carranca workflow skills scaffolded by `init` and mounted by `run` when present |
 | `.carranca/skills/user/` | Yes | User | Per-project user-authored skills |
+
+Carranca's CLI help still prints `~/.config/carranca/config.yml`, but that file
+is not currently read by the implementation.
 
 ## Repo identity
 

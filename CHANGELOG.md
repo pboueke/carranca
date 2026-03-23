@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.0] - 2026-03-22
+
+- fix: detect and warn on cache ownership mismatch when switching between Docker and rootless Podman
+- docs: rewrite CONTRIBUTING.md, README, architecture, configuration, session-log, and trust-model docs for accuracy and Podman-era terminology
+
 ## [0.9.0] - 2026-03-22
 
 - feat: add Podman and OCI runtime support with auto-detection (prefers Podman, falls back to Docker)
