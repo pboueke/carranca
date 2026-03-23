@@ -26,9 +26,9 @@ File events matching `watched_paths` patterns are tagged with
 Session start events now include `agent`, `adapter`, and `engine` fields.
 `carranca log` and `carranca status` display them in the summary.
 
-### 1.4 Log command filters
-Add `--files-only`, `--commands-only`, and `--top <n>` flags to
-`carranca log` for focused inspection.
+### ~~1.4 Log command filters~~ ✓
+`carranca log` supports `--files-only`, `--commands-only`, and `--top N`
+flags for focused inspection.
 
 ### 1.5 Cross-platform file events
 Add a `fswatch` adapter behind `runtime/file-watcher.sh` so macOS (and

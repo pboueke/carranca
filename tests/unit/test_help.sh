@@ -48,6 +48,9 @@ assert_eq "run help matches --help form" "$run_help_from_root" "$run_help_flag"
 log_help_from_root="$(bash "$CLI" help log 2>&1)"
 assert_contains "root help routes to log help" "Usage: carranca log [--session <exact-id>]" "$log_help_from_root"
 assert_contains "log help documents session option" "--session <id>" "$log_help_from_root"
+assert_contains "log help documents --files-only flag" "--files-only" "$log_help_from_root"
+assert_contains "log help documents --commands-only flag" "--commands-only" "$log_help_from_root"
+assert_contains "log help documents --top flag" "--top <n>" "$log_help_from_root"
 
 log_help_from_subcommand="$(bash "$CLI" log help 2>&1)"
 assert_eq "log help matches between root and subcommand forms" "$log_help_from_root" "$log_help_from_subcommand"
@@ -96,6 +99,14 @@ assert_contains "log without session value reports error" "Missing value for --s
 log_unknown_arg_output="$(bash "$CLI" log --bogus 2>&1)" && log_unknown_arg_rc=0 || log_unknown_arg_rc=$?
 assert_eq "log with unknown argument exits non-zero" "1" "$log_unknown_arg_rc"
 assert_contains "log with unknown argument reports error" "Unknown argument: --bogus" "$log_unknown_arg_output"
+
+log_missing_top_output="$(bash "$CLI" log --top 2>&1)" && log_missing_top_rc=0 || log_missing_top_rc=$?
+assert_eq "log without --top value exits non-zero" "1" "$log_missing_top_rc"
+assert_contains "log without --top value reports error" "Missing value for --top" "$log_missing_top_output"
+
+log_mutex_output="$(bash "$CLI" log --files-only --commands-only 2>&1)" && log_mutex_rc=0 || log_mutex_rc=$?
+assert_eq "log with --files-only and --commands-only exits non-zero" "1" "$log_mutex_rc"
+assert_contains "log with --files-only and --commands-only reports error" "--files-only and --commands-only are mutually exclusive" "$log_mutex_output"
 
 status_unknown_arg_output="$(bash "$CLI" status --bogus 2>&1)" && status_unknown_arg_rc=0 || status_unknown_arg_rc=$?
 assert_eq "status with unknown argument exits non-zero" "1" "$status_unknown_arg_rc"

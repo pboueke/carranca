@@ -9,17 +9,23 @@ source "$SCRIPT_DIR/lib/log.sh"
 
 STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
 SESSION_ID=""
+FILES_ONLY=false
+COMMANDS_ONLY=false
+TOP_N=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     help)
-      echo "Usage: carranca log [--session <exact-id>]"
+      echo "Usage: carranca log [--session <exact-id>] [--files-only] [--commands-only] [--top <n>]"
       echo ""
       echo "  Pretty-print the latest session log for the current repository."
       echo "  Use --session to print a specific session by exact id."
       echo ""
       echo "Options:"
-      echo "  --session <id>  Show a specific session log by exact id"
+      echo "  --session <id>    Show a specific session log by exact id"
+      echo "  --files-only      Show only the touched file paths"
+      echo "  --commands-only   Show only the executed commands"
+      echo "  --top <n>         Limit top touched paths to n entries"
       exit 0
       ;;
     --session)
@@ -27,14 +33,28 @@ while [ "$#" -gt 0 ]; do
       [ "$#" -gt 0 ] || carranca_die "Missing value for --session"
       SESSION_ID="$1"
       ;;
+    --files-only)
+      FILES_ONLY=true
+      ;;
+    --commands-only)
+      COMMANDS_ONLY=true
+      ;;
+    --top)
+      shift
+      [ "$#" -gt 0 ] || carranca_die "Missing value for --top"
+      TOP_N="$1"
+      ;;
     -h|--help)
-      echo "Usage: carranca log [--session <exact-id>]"
+      echo "Usage: carranca log [--session <exact-id>] [--files-only] [--commands-only] [--top <n>]"
       echo ""
       echo "  Pretty-print the latest session log for the current repository."
       echo "  Use --session to print a specific session by exact id."
       echo ""
       echo "Options:"
-      echo "  --session <id>  Show a specific session log by exact id"
+      echo "  --session <id>    Show a specific session log by exact id"
+      echo "  --files-only      Show only the touched file paths"
+      echo "  --commands-only   Show only the executed commands"
+      echo "  --top <n>         Limit top touched paths to n entries"
       exit 0
       ;;
     *)
@@ -43,6 +63,10 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
+
+if [ "$FILES_ONLY" = true ] && [ "$COMMANDS_ONLY" = true ]; then
+  carranca_die "--files-only and --commands-only are mutually exclusive"
+fi
 
 REPO_ID="$(carranca_repo_id)"
 REPO_NAME="$(carranca_repo_name)"
@@ -58,11 +82,17 @@ fi
 
 carranca_session_collect_stats "$LOG_FILE"
 
-echo "Session: $CARRANCA_LOG_SESSION_ID"
-echo "Repo: $REPO_NAME ($REPO_ID)"
-echo ""
-carranca_session_print_summary "$LOG_FILE"
-echo ""
-carranca_session_print_top_paths
-echo ""
-carranca_session_print_commands
+if [ "$FILES_ONLY" = true ]; then
+  carranca_session_print_top_paths "${TOP_N:-0}"
+elif [ "$COMMANDS_ONLY" = true ]; then
+  carranca_session_print_commands
+else
+  echo "Session: $CARRANCA_LOG_SESSION_ID"
+  echo "Repo: $REPO_NAME ($REPO_ID)"
+  echo ""
+  carranca_session_print_summary "$LOG_FILE"
+  echo ""
+  carranca_session_print_top_paths "${TOP_N:-10}"
+  echo ""
+  carranca_session_print_commands
+fi

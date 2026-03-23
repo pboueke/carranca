@@ -244,6 +244,12 @@ carranca_session_print_top_paths() {
     lines="${lines}${CARRANCA_LOG_PATH_COUNTS[$path]}"$'\t'"$path"$'\n'
   done
 
+  local sorted_lines
+  sorted_lines="$(printf '%s' "$lines" | sort -t $'\t' -k1,1nr -k2,2)"
+  if [ "$limit" -gt 0 ] 2>/dev/null; then
+    sorted_lines="$(printf '%s\n' "$sorted_lines" | head -n "$limit")"
+  fi
+
   while IFS=$'\t' read -r count path; do
     [ -z "$path" ] && continue
     create_count="${CARRANCA_LOG_PATH_CREATE_COUNTS[$path]:-0}"
@@ -251,5 +257,5 @@ carranca_session_print_top_paths() {
     delete_count="${CARRANCA_LOG_PATH_DELETE_COUNTS[$path]:-0}"
     printf '  %s (%s events: %s create, %s modify, %s delete)\n' \
       "$path" "$count" "$create_count" "$modify_count" "$delete_count"
-  done < <(printf '%s' "$lines" | sort -t $'\t' -k1,1nr -k2,2 | head -n "$limit")
+  done <<< "$sorted_lines"
 }
