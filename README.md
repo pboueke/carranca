@@ -6,8 +6,8 @@
 
   <p>
     <img src="https://img.shields.io/badge/version-0.11.0-blue" alt="version: 0.11.0" />
-    <img src="https://img.shields.io/badge/tests-316%2F316_passed-brightgreen" alt="tests: 316/316 passed" />
-    <img src="https://img.shields.io/badge/coverage-100%25_(69%2F69_functions)-brightgreen" alt="coverage: 100%" />
+    <img src="https://img.shields.io/badge/tests-333%2F333_passed-brightgreen" alt="tests: 333/333 passed" />
+    <img src="https://img.shields.io/badge/coverage-100%25_(70%2F70_functions)-brightgreen" alt="coverage: 100%" />
   </p>
 
   <p><strong>Containerized multi-agent runtime with session logging.</strong> Named after the carved figureheads on boats in Brazil's São Francisco river, believed to protect sailors. Carranca protects engineers from coding agents by running them in isolated containers with structured session logging.

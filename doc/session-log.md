@@ -64,6 +64,13 @@ File mutations detected by `inotifywait` (Linux only, best-effort).
 
 Events: `CREATE`, `MODIFY`, `DELETE`
 
+When a file event matches a `watched_paths` pattern from `.carranca.yml`, the
+event includes `"watched":true`:
+
+```json
+{"type":"file_event","source":"inotifywait","ts":"2026-03-22T09:45:03Z","event":"CREATE","path":"/workspace/.env","session_id":"abc12345","watched":true,"seq":6}
+```
+
 **Limitation:** No attribution. `inotifywait` sees that a path changed, but it
 cannot identify which process caused it. Reads are not captured.
 

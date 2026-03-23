@@ -18,11 +18,9 @@ existing architecture is solid before adding new subsystems.
 `runtime.cap_add` list is parsed and passed as `--cap-add` flags to the
 agent container in both `run` and `config` commands.
 
-### 1.2 Wire up `watched_paths` config
-Use the `watched_paths` list to filter inotifywait output and emit
-`watched_path_event` entries in session logs. Alert on mutations to
-sensitive files (`.env`, `*.key`, `secrets/`). No blocking yet — observe
-and record.
+### ~~1.2 Wire up `watched_paths` config~~ ✓
+File events matching `watched_paths` patterns are tagged with
+`"watched":true` in session logs. Summary displays watched event count.
 
 ### 1.3 Agent/engine metadata in logs
 Record `agent`, `adapter`, and `engine` in `session_start` events so

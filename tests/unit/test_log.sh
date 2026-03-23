@@ -64,10 +64,19 @@ cat > "$LOG_DIR/44444444.jsonl" <<'EOF'
 {"type":"session_event","event":"agent_stop","ts":"2026-03-22T00:00:31Z","session_id":"44444444","exit_code":0}
 EOF
 
+cat > "$LOG_DIR/55555555.jsonl" <<'EOF'
+{"type":"session_event","event":"agent_start","ts":"2026-03-22T00:00:40Z","session_id":"55555555"}
+{"type":"file_event","event":"MODIFY","ts":"2026-03-22T00:00:41Z","session_id":"55555555","path":"/workspace/.env","watched":true}
+{"type":"file_event","event":"CREATE","ts":"2026-03-22T00:00:42Z","session_id":"55555555","path":"/workspace/secrets/api.key","watched":true}
+{"type":"file_event","event":"MODIFY","ts":"2026-03-22T00:00:43Z","session_id":"55555555","path":"/workspace/src/app.js"}
+{"type":"session_event","event":"agent_stop","ts":"2026-03-22T00:00:44Z","session_id":"55555555","exit_code":0}
+EOF
+
 touch -d '2026-03-22T00:00:03Z' "$LOG_DIR/11111111.jsonl"
 touch -d '2026-03-22T00:00:13Z' "$LOG_DIR/22222222.jsonl"
 touch -d '2026-03-22T00:00:12Z' "$LOG_DIR/33333333.jsonl"
 touch -d '2026-03-22T00:00:11Z' "$LOG_DIR/44444444.jsonl"
+touch -d '2026-03-22T00:00:09Z' "$LOG_DIR/55555555.jsonl"
 
 latest="$(carranca_session_latest_log "$REPO_ID" "$TMPSTATE")"
 assert_eq "latest log lookup returns newest file" "$LOG_DIR/22222222.jsonl" "$latest"
@@ -124,6 +133,24 @@ assert_contains "tool-only summary explains missing command capture" "Command ca
 carranca_session_collect_stats "$LOG_DIR/44444444.jsonl"
 no_path_top_output="$(carranca_session_print_top_paths)"
 assert_contains "top touched paths handles sessions without file events" "  (none)" "$no_path_top_output"
+
+carranca_session_collect_stats "$LOG_DIR/55555555.jsonl"
+assert_eq "watched events count is correct" "2" "$CARRANCA_LOG_WATCHED_EVENTS"
+assert_eq "total file events with watched" "3" "$CARRANCA_LOG_FILE_EVENTS_TOTAL"
+
+watched_summary="$(carranca_session_print_summary "$LOG_DIR/55555555.jsonl")"
+assert_contains "summary includes watched path events" "Watched path events: 2" "$watched_summary"
+
+carranca_session_collect_stats "$LOG_DIR/22222222.jsonl"
+assert_eq "no watched events in normal session" "0" "$CARRANCA_LOG_WATCHED_EVENTS"
+no_watched_summary="$(carranca_session_print_summary "$LOG_DIR/22222222.jsonl")"
+if echo "$no_watched_summary" | grep -Fq "Watched path events"; then
+  echo "  FAIL: summary should not show watched line when no watched events"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: summary hides watched line when no watched events"
+  PASS=$((PASS + 1))
+fi
 
 rm -rf "$TMPSTATE"
 

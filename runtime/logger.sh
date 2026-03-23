@@ -41,6 +41,47 @@ write_log() {
   } 9>"$SEQ_LOCK"
 }
 
+# Check if a file path matches any watched_paths pattern.
+# WATCHED_PATHS is colon-separated (e.g., ".env:secrets/:*.key").
+# Matching rules:
+#   - If pattern ends with "/" → prefix match (path starts with /workspace/<pattern>)
+#   - If pattern starts with "*." → suffix match (path ends with the extension)
+#   - Otherwise → exact basename or path-suffix match
+path_is_watched() {
+  local filepath="$1"
+  local pattern
+  local IFS=':'
+
+  [ -z "${WATCHED_PATHS:-}" ] && return 1
+
+  for pattern in $WATCHED_PATHS; do
+    [ -z "$pattern" ] && continue
+    case "$pattern" in
+      */)
+        # Directory prefix: check if path is under /workspace/<pattern>
+        case "$filepath" in
+          /workspace/"$pattern"*) return 0 ;;
+        esac
+        ;;
+      \*.*)
+        # Extension glob: check if path ends with the suffix
+        local suffix="${pattern#\*}"
+        case "$filepath" in
+          *"$suffix") return 0 ;;
+        esac
+        ;;
+      *)
+        # Exact basename or path suffix match
+        local basename="${filepath##*/}"
+        if [ "$basename" = "$pattern" ] || [[ "$filepath" == */"$pattern" ]]; then
+          return 0
+        fi
+        ;;
+    esac
+  done
+  return 1
+}
+
 # --- Setup ---
 
 # Initialize seq counter
@@ -76,6 +117,13 @@ if command -v inotifywait >/dev/null 2>&1; then
     --format '{"type":"file_event","source":"inotifywait","ts":"%T","event":"%e","path":"%w%f","session_id":"'"$SESSION_ID"'"}' \
     --timefmt '%Y-%m-%dT%H:%M:%SZ' \
     /workspace 2>/dev/null | while IFS= read -r line; do
+      # Tag watched-path events
+      if [ -n "${WATCHED_PATHS:-}" ]; then
+        local_path="$(printf '%s' "$line" | grep -o '"path":"[^"]*"' | head -1 | cut -d'"' -f4)"
+        if [ -n "$local_path" ] && path_is_watched "$local_path"; then
+          line="${line%\}},\"watched\":true}"
+        fi
+      fi
       write_log "$line"
     done &
   INOTIFY_PID=$!

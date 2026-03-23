@@ -112,6 +112,7 @@ carranca_session_collect_stats() {
   CARRANCA_LOG_FILES_MODIFIED=0
   CARRANCA_LOG_FILES_DELETED=0
   CARRANCA_LOG_FILE_EVENTS_TOTAL=0
+  CARRANCA_LOG_WATCHED_EVENTS=0
   CARRANCA_LOG_UNIQUE_PATHS=0
   CARRANCA_LOG_FIRST_TS=""
   CARRANCA_LOG_LAST_TS=""
@@ -133,6 +134,10 @@ carranca_session_collect_stats() {
         ;;
       file_event)
         CARRANCA_LOG_FILE_EVENTS_TOTAL=$((CARRANCA_LOG_FILE_EVENTS_TOTAL + 1))
+        # Count watched-path events
+        if [[ "$line" == *'"watched":true'* ]]; then
+          CARRANCA_LOG_WATCHED_EVENTS=$((CARRANCA_LOG_WATCHED_EVENTS + 1))
+        fi
         event="$(carranca_json_get_string "$line" "event")"
         path="$(carranca_json_get_string "$line" "path")"
         if [ -n "$path" ] && [ -z "${CARRANCA_LOG_PATH_COUNTS[$path]+x}" ]; then
@@ -180,6 +185,9 @@ carranca_session_print_summary() {
   echo "  Duration: $CARRANCA_LOG_FIRST_TS → $CARRANCA_LOG_LAST_TS"
   echo "  Unique paths touched: $CARRANCA_LOG_UNIQUE_PATHS"
   echo "  File events: $CARRANCA_LOG_FILE_EVENTS_TOTAL ($CARRANCA_LOG_FILES_CREATED create, $CARRANCA_LOG_FILES_MODIFIED modify, $CARRANCA_LOG_FILES_DELETED delete)"
+  if [ "$CARRANCA_LOG_WATCHED_EVENTS" -gt 0 ]; then
+    echo "  Watched path events: $CARRANCA_LOG_WATCHED_EVENTS"
+  fi
   echo "  Commands run: $CARRANCA_LOG_TOTAL_CMDS ($CARRANCA_LOG_SUCCEEDED_CMDS succeeded, $CARRANCA_LOG_FAILED_CMDS failed)"
   echo "  Action log: $log_file"
   if [ "$CARRANCA_LOG_TOTAL_CMDS" -eq 0 ] && [ "$CARRANCA_LOG_FILE_EVENTS_TOTAL" -gt 0 ]; then

@@ -108,6 +108,17 @@ while IFS= read -r mount; do
   CUSTOM_VOLUME_FLAGS="$CUSTOM_VOLUME_FLAGS -v $mount"
 done < <(carranca_config_get_list volumes.extra 2>/dev/null || true)
 
+# Build watched_paths env for the logger
+WATCHED_PATHS_ENV=""
+while IFS= read -r wp; do
+  [ -z "$wp" ] && continue
+  if [ -z "$WATCHED_PATHS_ENV" ]; then
+    WATCHED_PATHS_ENV="$wp"
+  else
+    WATCHED_PATHS_ENV="$WATCHED_PATHS_ENV:$wp"
+  fi
+done < <(carranca_config_get_list watched_paths 2>/dev/null || true)
+
 # --- Naming ---
 
 PREFIX="$(carranca_session_prefix "$SESSION_ID")"
@@ -202,6 +213,7 @@ carranca_runtime_run -d --rm \
   -e "REPO_ID=$REPO_ID" \
   -e "REPO_NAME=$REPO_NAME" \
   -e "REPO_PATH=$WORKSPACE" \
+  -e "WATCHED_PATHS=$WATCHED_PATHS_ENV" \
   $LOGGER_EXTRA_FLAGS \
   "$LOGGER_IMAGE" >/dev/null
 

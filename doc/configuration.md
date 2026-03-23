@@ -60,7 +60,7 @@ watched_paths:
 | `volumes.extra` | No | — | Extra bind mounts added only to the agent container |
 | `policy.docs_before_code` | No | — | Parsed and scaffolded, but not enforced by the current CLI |
 | `policy.tests_before_impl` | No | — | Parsed and scaffolded, but not enforced by the current CLI |
-| `watched_paths` | No | — | Parsed and scaffolded, but not currently used by logging or enforcement |
+| `watched_paths` | No | — | File events matching watched patterns are tagged with `"watched":true` in session logs |
 
 ### Runtime resolution
 
