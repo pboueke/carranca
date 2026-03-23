@@ -85,8 +85,8 @@ HOST_GID="$(id -g)"
 HOST_GROUPS="$(id -G)"
 AGENT_HOME="/home/carranca"
 AGENT_IDENTITY_FLAGS="$(carranca_runtime_agent_identity_flags "$HOST_UID" "$HOST_GID")"
-NETWORK="$(carranca_config_get runtime.network)"
-CACHE_ENABLED="$(carranca_config_get volumes.cache)"
+NETWORK="$(carranca_config_get_with_global runtime.network)"
+CACHE_ENABLED="$(carranca_config_get_with_global volumes.cache)"
 CACHE_DIR="$STATE_BASE/cache/$REPO_ID"
 USER_SKILLS_DIR="$CONFIG_STATE_DIR/user-skills"
 CARRANCA_SKILLS_DIR="$CARRANCA_HOME/skills"
@@ -132,7 +132,7 @@ CAP_ADD_FLAGS=""
 while IFS= read -r cap; do
   [ -z "$cap" ] && continue
   CAP_ADD_FLAGS="$CAP_ADD_FLAGS --cap-add $cap"
-done < <(carranca_config_get_list runtime.cap_add 2>/dev/null || true)
+done < <(carranca_config_get_list_with_global runtime.cap_add 2>/dev/null || true)
 
 NETWORK_FLAG=""
 if [ "$NETWORK" = "false" ]; then

@@ -7,6 +7,7 @@
 - feat: add agent, adapter, and engine metadata to session start events and log/status summary
 - feat: add `--files-only`, `--commands-only`, and `--top N` filters to `carranca log`
 - feat: add fswatch fallback for cross-platform file event monitoring
+- feat: add global config at `~/.config/carranca/config.yml` for user-wide runtime and volume defaults
 - chore: replace TODOS.md with doc/roadmap.md for phased feature planning
 
 ## [0.10.0] - 2026-03-22

@@ -7,9 +7,37 @@ Carranca currently reads configuration from:
 - `.carranca.yml` in the project root
 - `.carranca/Containerfile` in the project root
 - `CARRANCA_CONTAINER_RUNTIME` as an environment override for runtime selection
+- `~/.config/carranca/config.yml` for user-wide runtime and volume defaults (overridden by project config)
 
-The CLI help still prints `~/.config/carranca/config.yml`, but that file is not
-currently read by the implementation.
+## Global config
+
+Carranca reads user-wide defaults from:
+
+```text
+~/.config/carranca/config.yml
+```
+
+Override the directory with `CARRANCA_CONFIG_DIR`.
+
+Only `runtime.*` and `volumes.*` settings are read from global config.
+Project-level `.carranca.yml` always takes precedence. Lists (like
+`runtime.cap_add` and `volumes.extra`) are not merged — the project list
+replaces the global list entirely when present.
+
+Example global config:
+
+```yaml
+runtime:
+  engine: podman
+  network: false
+  cap_add:
+    - SYS_PTRACE
+
+volumes:
+  cache: true
+  extra:
+    - ~/.ssh:/home/carranca/.ssh:ro
+```
 
 ## `.carranca.yml`
 

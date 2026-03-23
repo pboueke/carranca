@@ -76,17 +76,17 @@ SELECTED_AGENT_NAME="$(carranca_config_resolve_agent_name "$SELECTED_AGENT")" ||
   carranca_die "Configured agent not found in .carranca.yml: ${SELECTED_AGENT:-<default>}"
 AGENT_COMMAND="$(carranca_config_agent_field "$SELECTED_AGENT_NAME" command)"
 AGENT_ADAPTER="$(carranca_config_agent_driver_for "$SELECTED_AGENT_NAME")"
-NETWORK="$(carranca_config_get runtime.network)"
+NETWORK="$(carranca_config_get_with_global runtime.network)"
 [ -z "$NETWORK" ] && NETWORK="true"
-EXTRA_FLAGS="$(carranca_config_get runtime.extra_flags)"
-LOGGER_EXTRA_FLAGS="$(carranca_config_get runtime.logger_extra_flags)"
+EXTRA_FLAGS="$(carranca_config_get_with_global runtime.extra_flags)"
+LOGGER_EXTRA_FLAGS="$(carranca_config_get_with_global runtime.logger_extra_flags)"
 
 # Parse capability additions for the agent container
 CAP_ADD_FLAGS=""
 while IFS= read -r cap; do
   [ -z "$cap" ] && continue
   CAP_ADD_FLAGS="$CAP_ADD_FLAGS --cap-add $cap"
-done < <(carranca_config_get_list runtime.cap_add 2>/dev/null || true)
+done < <(carranca_config_get_list_with_global runtime.cap_add 2>/dev/null || true)
 
 CONTAINER_RUNTIME="$(carranca_runtime_cmd)"
 LOGGER_CAP_FLAGS="$(carranca_runtime_logger_cap_flags)"
@@ -94,7 +94,7 @@ AGENT_IDENTITY_FLAGS="$(carranca_runtime_agent_identity_flags "$HOST_UID" "$HOST
 
 # --- Volume config ---
 
-CACHE_ENABLED="$(carranca_config_get volumes.cache)"
+CACHE_ENABLED="$(carranca_config_get_with_global volumes.cache)"
 [ -z "$CACHE_ENABLED" ] && CACHE_ENABLED="true"
 
 CACHE_VOLUME="carranca-cache-${REPO_ID}"
@@ -107,7 +107,7 @@ while IFS= read -r mount; do
   # Expand ~ to $HOME in host path
   mount="${mount/#\~/$HOME}"
   CUSTOM_VOLUME_FLAGS="$CUSTOM_VOLUME_FLAGS -v $mount"
-done < <(carranca_config_get_list volumes.extra 2>/dev/null || true)
+done < <(carranca_config_get_list_with_global volumes.extra 2>/dev/null || true)
 
 # Build watched_paths env for the logger
 WATCHED_PATHS_ENV=""

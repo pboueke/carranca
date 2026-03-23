@@ -35,9 +35,10 @@ Logger auto-detects inotifywait (Linux) or fswatch (macOS) at startup.
 Both produce the same `file_event` JSON schema with `source` identifying
 which watcher was used.
 
-### 1.6 Global config
-Implement `~/.config/carranca/config.yml` for user-wide defaults (default
-agent, network policy, cache behavior). Project config overrides global.
+### ~~1.6 Global config~~ ✓
+`~/.config/carranca/config.yml` provides user-wide defaults for `runtime.*`
+and `volumes.*` keys. Project config always overrides. Lists are replaced,
+not merged.
 
 ### 1.7 Robust YAML parser
 Replace the awk parser in `config.sh` with a minimal dependency that

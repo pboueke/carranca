@@ -240,6 +240,85 @@ else
   PASS=$((PASS + 1))
 fi
 
+# --- Global config fallback tests ---
+
+GLOBAL_CONFIG="$TMPDIR/global-config.yml"
+cat > "$GLOBAL_CONFIG" <<'EOF'
+runtime:
+  engine: podman
+  network: false
+  cap_add:
+    - SYS_PTRACE
+volumes:
+  cache: false
+  extra:
+    - ~/global-mount:/data:ro
+EOF
+
+# Project config without runtime settings
+PROJECT_CONFIG="$TMPDIR/project-no-runtime.yml"
+cat > "$PROJECT_CONFIG" <<'EOF'
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+EOF
+
+# Override global config path for testing
+CARRANCA_GLOBAL_CONFIG="$GLOBAL_CONFIG"
+CARRANCA_CONFIG_FILE="$PROJECT_CONFIG"
+
+val="$(carranca_config_get_with_global runtime.network)"
+assert_eq "global fallback: runtime.network from global" "false" "$val"
+
+val="$(carranca_config_get_with_global runtime.engine)"
+assert_eq "global fallback: runtime.engine from global" "podman" "$val"
+
+val="$(carranca_config_get_with_global volumes.cache)"
+assert_eq "global fallback: volumes.cache from global" "false" "$val"
+
+mapfile -t items < <(carranca_config_get_list_with_global runtime.cap_add)
+assert_eq "global fallback: cap_add list from global" "1" "${#items[@]}"
+assert_eq "global fallback: cap_add[0] from global" "SYS_PTRACE" "${items[0]}"
+
+mapfile -t items < <(carranca_config_get_list_with_global volumes.extra)
+assert_eq "global fallback: volumes.extra from global" "1" "${#items[@]}"
+
+# Project config overrides global
+PROJECT_WITH_RUNTIME="$TMPDIR/project-with-runtime.yml"
+cat > "$PROJECT_WITH_RUNTIME" <<'EOF'
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+runtime:
+  network: true
+  cap_add:
+    - NET_ADMIN
+volumes:
+  cache: true
+EOF
+
+CARRANCA_CONFIG_FILE="$PROJECT_WITH_RUNTIME"
+
+val="$(carranca_config_get_with_global runtime.network)"
+assert_eq "project overrides global: runtime.network" "true" "$val"
+
+mapfile -t items < <(carranca_config_get_list_with_global runtime.cap_add)
+assert_eq "project overrides global: cap_add uses project list" "1" "${#items[@]}"
+assert_eq "project overrides global: cap_add[0]" "NET_ADMIN" "${items[0]}"
+
+val="$(carranca_config_get_with_global volumes.cache)"
+assert_eq "project overrides global: volumes.cache" "true" "$val"
+
+# Non-runtime keys don't fall back to global
+val="$(carranca_config_get_with_global policy.docs_before_code)"
+assert_eq "non-runtime key returns empty (no global fallback)" "" "$val"
+
+# Restore defaults for any subsequent tests
+CARRANCA_CONFIG_FILE=".carranca.yml"
+CARRANCA_GLOBAL_CONFIG="${CARRANCA_CONFIG_DIR:-$HOME/.config/carranca}/config.yml"
+
 rm -rf "$TMPDIR"
 
 echo ""

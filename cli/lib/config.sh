@@ -2,6 +2,7 @@
 # carranca/cli/lib/config.sh — YAML config parsing and validation
 
 CARRANCA_CONFIG_FILE=".carranca.yml"
+CARRANCA_GLOBAL_CONFIG="${CARRANCA_CONFIG_DIR:-$HOME/.config/carranca}/config.yml"
 
 carranca_config_strip_value() {
   local val="$1"
@@ -83,6 +84,61 @@ carranca_config_get_list() {
       print
     }
   ' "$file"
+}
+
+# Read a config value with global fallback.
+# Project config (.carranca.yml) takes precedence over global config.
+# Only runtime.* and volumes.* keys are eligible for global fallback.
+carranca_config_get_with_global() {
+  local key="$1"
+  local val
+
+  # Always try project config first
+  val="$(carranca_config_get "$key" "$CARRANCA_CONFIG_FILE" 2>/dev/null || true)"
+  if [ -n "$val" ]; then
+    printf '%s' "$val"
+    return 0
+  fi
+
+  # Fall back to global only for runtime.* and volumes.* keys
+  case "$key" in
+    runtime.*|volumes.*)
+      val="$(carranca_config_get "$key" "$CARRANCA_GLOBAL_CONFIG" 2>/dev/null || true)"
+      if [ -n "$val" ]; then
+        printf '%s' "$val"
+        return 0
+      fi
+      ;;
+  esac
+
+  return 0
+}
+
+# Read a config list with global fallback.
+# If the project config has the list, use it entirely. Otherwise fall back to global.
+carranca_config_get_list_with_global() {
+  local key="$1"
+  local items
+
+  # Try project config first
+  items="$(carranca_config_get_list "$key" "$CARRANCA_CONFIG_FILE" 2>/dev/null || true)"
+  if [ -n "$items" ]; then
+    printf '%s\n' "$items"
+    return 0
+  fi
+
+  # Fall back to global only for runtime.* and volumes.* keys
+  case "$key" in
+    runtime.*|volumes.*)
+      items="$(carranca_config_get_list "$key" "$CARRANCA_GLOBAL_CONFIG" 2>/dev/null || true)"
+      if [ -n "$items" ]; then
+        printf '%s\n' "$items"
+        return 0
+      fi
+      ;;
+  esac
+
+  return 0
 }
 
 carranca_config_agent_names() {
