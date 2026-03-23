@@ -55,6 +55,7 @@ exit 0
 EOF
 chmod +x "$FAKEBIN/docker"
 export DOCKER_LOG
+export CARRANCA_CONTAINER_RUNTIME="docker"
 export PATH="$FAKEBIN:$PATH"
 
 HELP_OUTPUT="$(bash "$CLI" help 2>&1)"
@@ -63,7 +64,7 @@ assert_contains "help output includes usage" "Usage: carranca kill" "$HELP_OUTPU
 CANCEL_OUTPUT="$(printf 'n\n' | bash "$CLI" --session deadbeef 2>&1)" || true
 assert_contains "kill prompts for specific session confirmation" "Stop session deadbeef?" "$CANCEL_OUTPUT"
 assert_contains "kill cancel reports cancellation" "Cancelled" "$CANCEL_OUTPUT"
-assert_eq "kill cancel does not invoke docker stop commands" "0" "$(wc -l < "$DOCKER_LOG" | tr -d '[:space:]')"
+assert_eq "kill cancel does not invoke runtime stop commands" "0" "$(wc -l < "$DOCKER_LOG" | tr -d '[:space:]')"
 
 WARN_OUTPUT="$(printf 'y\n' | bash "$CLI" --session deadbeef 2>&1)" || true
 assert_contains "kill warns for inactive session" "Session deadbeef is not active or was not found" "$WARN_OUTPUT"

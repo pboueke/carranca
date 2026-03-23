@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # carranca run — start an agent session in a containerized runtime
-# No docker-compose — uses docker run directly for both logger and agent.
+# No compose layer — uses the selected container runtime directly for logger and agent.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/config.sh"
 source "$SCRIPT_DIR/lib/identity.sh"
 source "$SCRIPT_DIR/lib/log.sh"
+source "$SCRIPT_DIR/lib/runtime.sh"
 source "$SCRIPT_DIR/lib/session.sh"
 
 CARRANCA_HOME="${CARRANCA_HOME:-$HOME/.local/share/carranca}"
@@ -50,11 +51,10 @@ done
 
 # --- Precondition checks ---
 
-carranca_require_cmd docker
-docker info >/dev/null 2>&1 || carranca_die "Docker is not running. Start Docker and try again."
 [ -f ".carranca.yml" ] || carranca_die "No .carranca.yml found. Run 'carranca init' first."
 [ -f ".carranca/Containerfile" ] || carranca_die "No .carranca/Containerfile found. Run 'carranca init' to create one."
 carranca_config_validate
+carranca_runtime_require
 
 # --- Compute identifiers ---
 
@@ -79,6 +79,9 @@ NETWORK="$(carranca_config_get runtime.network)"
 [ -z "$NETWORK" ] && NETWORK="true"
 EXTRA_FLAGS="$(carranca_config_get runtime.extra_flags)"
 LOGGER_EXTRA_FLAGS="$(carranca_config_get runtime.logger_extra_flags)"
+CONTAINER_RUNTIME="$(carranca_runtime_cmd)"
+LOGGER_CAP_FLAGS="$(carranca_runtime_logger_cap_flags)"
+AGENT_IDENTITY_FLAGS="$(carranca_runtime_agent_identity_flags "$HOST_UID" "$HOST_GID")"
 
 # --- Volume config ---
 
@@ -109,17 +112,18 @@ AGENT_IMAGE="$(carranca_session_agent_image "$SESSION_ID")"
 carranca_log info "Starting carranca session $SESSION_ID"
 carranca_log info "Repo: $REPO_NAME ($REPO_ID)"
 carranca_log info "Agent: $SELECTED_AGENT_NAME ($AGENT_COMMAND)"
+carranca_log info "Runtime: $CONTAINER_RUNTIME"
 carranca_log info "Log: $STATE_DIR/$SESSION_ID.jsonl"
 
 # --- Build images ---
 
 carranca_log info "Building images..."
-docker build -q -t "$LOGGER_IMAGE" -f "$CARRANCA_HOME/runtime/Containerfile.logger" "$CARRANCA_HOME/runtime" >/dev/null
-docker build -q -t "$AGENT_IMAGE" -f ".carranca/Containerfile" ".carranca" >/dev/null
+carranca_runtime_build -q -t "$LOGGER_IMAGE" -f "$CARRANCA_HOME/runtime/Containerfile.logger" "$CARRANCA_HOME/runtime" >/dev/null
+carranca_runtime_build -q -t "$AGENT_IMAGE" -f ".carranca/Containerfile" ".carranca" >/dev/null
 
 # --- Create shared FIFO volume ---
 
-docker volume create "$FIFO_VOLUME" --driver local --opt type=tmpfs --opt device=tmpfs >/dev/null
+carranca_runtime_volume create "$FIFO_VOLUME" --driver local --opt type=tmpfs --opt device=tmpfs >/dev/null
 
 # --- Create persistent cache (survives across sessions) ---
 #
@@ -167,9 +171,9 @@ trap _cleanup SIGINT SIGTERM EXIT
 
 carranca_log info "Starting logger..."
 # shellcheck disable=SC2086
-docker run -d --rm \
+carranca_runtime_run -d --rm \
   --name "$LOGGER_NAME" \
-  --cap-add LINUX_IMMUTABLE \
+  $LOGGER_CAP_FLAGS \
   -v "$FIFO_VOLUME:/fifo" \
   -v "$WORKSPACE:/workspace:ro" \
   -v "$STATE_DIR:/state" \
@@ -185,7 +189,7 @@ docker run -d --rm \
 WAIT=0
 while [ "$WAIT" -lt 30 ]; do
   # Check if FIFO exists by running test -p inside the logger container
-  if docker exec "$LOGGER_NAME" test -p /fifo/events 2>/dev/null; then
+  if carranca_runtime_exec "$LOGGER_NAME" test -p /fifo/events 2>/dev/null; then
     break
   fi
   sleep 0.5
@@ -207,16 +211,16 @@ carranca_log ok "Agent ready — entering interactive session"
 echo ""
 
 # Use -it when stdin is a TTY, -i only otherwise (e.g. in tests/CI)
-DOCKER_TTY_FLAGS="-i"
+TTY_FLAGS="-i"
 if [ -t 0 ]; then
-  DOCKER_TTY_FLAGS="-it"
+  TTY_FLAGS="-it"
 fi
 
 # shellcheck disable=SC2086
 AGENT_EXIT_CODE=0
-docker run $DOCKER_TTY_FLAGS --rm \
+carranca_runtime_run $TTY_FLAGS --rm \
   --name "$AGENT_CONTAINER_NAME" \
-  --user "$HOST_UID:$HOST_GID" \
+  $AGENT_IDENTITY_FLAGS \
   -v "$FIFO_VOLUME:/fifo" \
   -v "$WORKSPACE:/workspace:rw" \
   -e "HOME=$AGENT_HOME" \

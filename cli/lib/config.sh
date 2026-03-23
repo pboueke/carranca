@@ -242,7 +242,7 @@ carranca_config_agent_driver_for() {
 
 carranca_config_validate() {
   local file="${1:-$CARRANCA_CONFIG_FILE}"
-  local count name command adapter network
+  local count name command adapter network engine
   declare -A seen_names=()
 
   [ -f "$file" ] || carranca_die "Config file not found: $file"
@@ -275,5 +275,10 @@ carranca_config_validate() {
   network="$(carranca_config_get runtime.network "$file")"
   if [ -z "$network" ]; then
     carranca_log warn "No runtime.network setting in $file, defaulting to 'true'"
+  fi
+
+  engine="$(carranca_config_get runtime.engine "$file")"
+  if [ -n "$engine" ] && ! carranca_runtime_validate_engine "$engine"; then
+    carranca_die "Unsupported runtime.engine in $file: $engine (expected auto, docker, or podman)"
   fi
 }

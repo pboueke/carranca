@@ -2,8 +2,8 @@
 
 ## Overview
 
-Carranca runs coding agents inside Docker containers with host isolation and
-structured session logging. No docker-compose — just `docker run`.
+Carranca runs coding agents inside OCI-style containers with host isolation and
+structured session logging. No compose layer — just direct runtime commands.
 
 Projects are configured through `.carranca.yml` using an ordered `agents:` list.
 The first configured agent is the default execution target for `run` and
@@ -15,22 +15,25 @@ transient images.
 ```
   carranca run
        │
-       ├── docker build (logger image from runtime/Containerfile.logger)
-       ├── docker build (agent image from .carranca/Containerfile)
-       ├── docker volume create (shared tmpfs for FIFO)
+       ├── <runtime> build (logger image from runtime/Containerfile.logger)
+       ├── <runtime> build (agent image from .carranca/Containerfile)
+       ├── <runtime> volume create (shared tmpfs for FIFO)
        │
-       ├── docker run -d (logger)
+       ├── <runtime> run -d (logger)
        │     ├── creates FIFO on shared volume
        │     ├── starts inotifywait on /workspace (read-only)
        │     ├── reads FIFO events
        │     └── writes JSONL to /state/{session}.jsonl
        │
-       └── docker run -it (agent)
+       └── <runtime> run -it (agent)
              ├── shell-wrapper opens FIFO
              ├── writes shell events to FIFO
              ├── heartbeat every 30s
              └── runs agent command interactively
 ```
+
+`<runtime>` comes from `runtime.engine` or `CARRANCA_CONTAINER_RUNTIME`. `auto`
+prefers Podman and falls back to Docker.
 
 ## Session lifecycle
 

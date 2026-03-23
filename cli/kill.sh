@@ -4,6 +4,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
+source "$SCRIPT_DIR/lib/config.sh"
+source "$SCRIPT_DIR/lib/runtime.sh"
 source "$SCRIPT_DIR/lib/session.sh"
 
 SESSION_ID=""
@@ -44,8 +46,7 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
-carranca_require_cmd docker
-docker info >/dev/null 2>&1 || carranca_die "Docker is not running. Start Docker and try again."
+carranca_runtime_require
 
 if [ -n "$SESSION_ID" ]; then
   if ! confirm_kill "Stop session $SESSION_ID?"; then

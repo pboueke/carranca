@@ -8,10 +8,11 @@ agents:
 
 # Container runtime settings
 runtime:
+  engine: auto
   network: true
-  # Extra docker run flags for the agent container (e.g. --gpus all)
+  # Extra container runtime flags for the agent container (e.g. --gpus all)
   # extra_flags: --gpus all
-  # Extra docker run flags for the logger container
+  # Extra container runtime flags for the logger container
   # logger_extra_flags:
 
 # Persistent volumes for the agent container

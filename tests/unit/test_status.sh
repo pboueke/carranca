@@ -39,6 +39,9 @@ export CARRANCA_STATE="$TMPSTATE"
 
 cat > "$FAKEBIN/docker" <<'EOF'
 #!/usr/bin/env bash
+if [ "$1" = "info" ]; then
+  exit 0
+fi
 if [ "$1" = "ps" ] && [ "$2" = "--format" ]; then
   printf '%s\n' "carranca-a1b2c3d4-logger" "carranca-ffffffff-agent" "unrelated-container"
   exit 0
@@ -46,11 +49,14 @@ fi
 exit 1
 EOF
 chmod +x "$FAKEBIN/docker"
+export CARRANCA_CONTAINER_RUNTIME="docker"
 export PATH="$FAKEBIN:$PATH"
 
 cd "$TMPDIR"
 git init --quiet
 
+source "$SCRIPT_DIR/cli/lib/common.sh"
+source "$SCRIPT_DIR/cli/lib/runtime.sh"
 REPO_ID="$(source "$SCRIPT_DIR/cli/lib/identity.sh" && carranca_repo_id)"
 LOG_DIR="$TMPSTATE/sessions/$REPO_ID"
 mkdir -p "$LOG_DIR"

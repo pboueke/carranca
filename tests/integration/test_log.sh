@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Integration tests for carranca log (requires Docker)
+# Integration tests for carranca log (requires a supported container runtime)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export CARRANCA_HOME="$SCRIPT_DIR"
+RUNTIME="${CARRANCA_CONTAINER_RUNTIME:-podman}"
 
 PASS=0
 FAIL=0
@@ -30,10 +31,10 @@ assert_eq() {
   fi
 }
 
-echo "=== test_log.sh (requires Docker) ==="
+echo "=== test_log.sh (requires $RUNTIME) ==="
 
-if ! docker info >/dev/null 2>&1; then
-  echo "  SKIP: Docker not available"
+if ! "$RUNTIME" info >/dev/null 2>&1; then
+  echo "  SKIP: $RUNTIME not available"
   exit 0
 fi
 
@@ -52,6 +53,7 @@ agents:
     adapter: stdin
     command: bash -c "echo hello-log && touch /workspace/log-test.txt && printf updated >> /workspace/log-test.txt && exit 0"
 runtime:
+  engine: auto
   network: true
 policy:
   docs_before_code: warn
@@ -80,8 +82,9 @@ EXACT_OUTPUT="$(bash "$CARRANCA_HOME/cli/log.sh" --session "$SESSION_ID" 2>&1)"
 assert_contains "exact session output prints same session id" "Session: $SESSION_ID" "$EXACT_OUTPUT"
 assert_eq "latest and exact session views match" "$LATEST_OUTPUT" "$EXACT_OUTPUT"
 
-docker run --rm --cap-add LINUX_IMMUTABLE -v "$TMPSTATE:/state" ubuntu:24.04 \
-  bash -c 'find /state -type f -exec chattr -a {} \; 2>/dev/null; rm -rf /state/*' 2>/dev/null || true
+"$RUNTIME" run --rm --cap-add LINUX_IMMUTABLE -v "$TMPSTATE:/state" ubuntu:24.04 \
+  bash -c 'find /state -type f -exec chattr -a {} \; 2>/dev/null; rm -rf /state/*' 2>/dev/null \
+  || rm -rf "$TMPSTATE"/* 2>/dev/null || true
 rm -rf "$TMPDIR" "$TMPSTATE" 2>/dev/null || true
 
 echo ""

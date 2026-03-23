@@ -4,6 +4,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+TEST_RUNTIME="${CARRANCA_TEST_RUNTIME:-}"
 SUITES_PASS=0
 SUITES_FAIL=0
 SUITES_SKIP=0
@@ -46,21 +47,33 @@ echo "╔═══════════════════════�
 echo "║   carranca test suite            ║"
 echo "╚══════════════════════════════════╝"
 
+if [ -z "$TEST_RUNTIME" ]; then
+  if podman info >/dev/null 2>&1; then
+    TEST_RUNTIME="podman"
+  elif docker info >/dev/null 2>&1; then
+    TEST_RUNTIME="docker"
+  fi
+fi
+
+if [ -n "$TEST_RUNTIME" ]; then
+  export CARRANCA_CONTAINER_RUNTIME="$TEST_RUNTIME"
+fi
+
 # Unit tests (no Docker required)
 run_suite "Unit Tests" "$SCRIPT_DIR/unit"
 
-# Check for Docker before running integration/failure tests
-if docker info >/dev/null 2>&1; then
+# Check for a supported container runtime before running integration/failure tests
+if [ -n "$TEST_RUNTIME" ]; then
   run_suite "Integration Tests" "$SCRIPT_DIR/integration"
   run_suite "Failure Mode Tests" "$SCRIPT_DIR/failure"
 else
   echo ""
   echo "━━━ Integration Tests ━━━"
-  echo "  SKIP: Docker not available"
+  echo "  SKIP: Podman or Docker not available"
   SUITES_SKIP=$((SUITES_SKIP + 1))
   echo ""
   echo "━━━ Failure Mode Tests ━━━"
-  echo "  SKIP: Docker not available"
+  echo "  SKIP: Podman or Docker not available"
   SUITES_SKIP=$((SUITES_SKIP + 1))
 fi
 

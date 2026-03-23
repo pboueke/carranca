@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# Failure mode tests: degraded mode behavior (requires Docker)
+# Failure mode tests: degraded mode behavior (requires a supported container runtime)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export CARRANCA_HOME="$SCRIPT_DIR"
+RUNTIME="${CARRANCA_CONTAINER_RUNTIME:-podman}"
 
 PASS=0
 FAIL=0
 
-echo "=== test_degraded.sh (requires Docker) ==="
+echo "=== test_degraded.sh (requires $RUNTIME) ==="
 
-# Check Docker is available
-if ! docker info >/dev/null 2>&1; then
-  echo "  SKIP: Docker not available"
+# Check runtime is available
+if ! "$RUNTIME" info >/dev/null 2>&1; then
+  echo "  SKIP: $RUNTIME not available"
   exit 0
 fi
 
@@ -35,6 +36,7 @@ agents:
     adapter: stdin
     command: bash -c "echo degraded-test && exit 0"
 runtime:
+  engine: auto
   network: true
 EOF
 
@@ -68,9 +70,10 @@ else
   fi
 fi
 
-# Cleanup (chattr +a files need special handling)
-docker run --rm --cap-add LINUX_IMMUTABLE -v "$TMPSTATE:/state" ubuntu:24.04 \
-  bash -c 'find /state -type f -exec chattr -a {} \; 2>/dev/null; rm -rf /state/*' 2>/dev/null || true
+# Cleanup (chattr +a files need special handling on rootful runtimes)
+"$RUNTIME" run --rm --cap-add LINUX_IMMUTABLE -v "$TMPSTATE:/state" ubuntu:24.04 \
+  bash -c 'find /state -type f -exec chattr -a {} \; 2>/dev/null; rm -rf /state/*' 2>/dev/null \
+  || rm -rf "$TMPSTATE"/* 2>/dev/null || true
 rm -rf "$TMPDIR" "$TMPSTATE" 2>/dev/null || true
 
 echo ""

@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/config.sh"
 source "$SCRIPT_DIR/lib/identity.sh"
+source "$SCRIPT_DIR/lib/runtime.sh"
 
 CARRANCA_HOME="${CARRANCA_HOME:-$HOME/.local/share/carranca}"
 STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
@@ -59,11 +60,10 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
-carranca_require_cmd docker
-docker info >/dev/null 2>&1 || carranca_die "Docker is not running. Start Docker and try again."
 [ -f ".carranca.yml" ] || carranca_die "No .carranca.yml found. Run 'carranca init' first."
 [ -f ".carranca/Containerfile" ] || carranca_die "No .carranca/Containerfile found. Run 'carranca init' first."
 carranca_config_validate
+carranca_runtime_require
 
 REPO_ID="$(carranca_repo_id)"
 REPO_NAME="$(carranca_repo_name)"
@@ -79,10 +79,12 @@ AGENT_NAME="$(carranca_config_resolve_agent_name "$SELECTED_AGENT")" || \
 AGENT_COMMAND="$(carranca_config_agent_field "$AGENT_NAME" command)"
 AGENT_ADAPTER="$(carranca_config_agent_field "$AGENT_NAME" adapter)"
 AGENT_DRIVER="$(carranca_config_agent_driver_for "$AGENT_NAME")"
+CONTAINER_RUNTIME="$(carranca_runtime_cmd)"
 HOST_UID="$(id -u)"
 HOST_GID="$(id -g)"
 HOST_GROUPS="$(id -G)"
 AGENT_HOME="/home/carranca"
+AGENT_IDENTITY_FLAGS="$(carranca_runtime_agent_identity_flags "$HOST_UID" "$HOST_GID")"
 NETWORK="$(carranca_config_get runtime.network)"
 CACHE_ENABLED="$(carranca_config_get volumes.cache)"
 CACHE_DIR="$STATE_BASE/cache/$REPO_ID"
@@ -93,11 +95,12 @@ mkdir -p "$PROPOSAL_DIR"
 mkdir -p "$USER_SKILLS_DIR"
 mkdir -p "$(dirname "$AUDIT_LOG")"
 
-trap 'docker rmi "$CONFIG_IMAGE" 2>/dev/null || true' EXIT
+trap 'carranca_runtime_rmi "$CONFIG_IMAGE" 2>/dev/null || true' EXIT
 
 carranca_log info "Inspecting workspace for carranca config updates"
 carranca_log info "Repo: $REPO_NAME ($REPO_ID)"
 carranca_log info "Proposal dir: $PROPOSAL_DIR"
+carranca_log info "Runtime: $CONTAINER_RUNTIME"
 carranca_log info "Config agent: $AGENT_NAME"
 carranca_log info "Config agent driver: ${AGENT_ADAPTER:-default} -> $AGENT_DRIVER"
 
@@ -126,9 +129,9 @@ if [ -d "$WORKSPACE/.carranca/skills/user" ]; then
   USER_SKILLS_MOUNT="$WORKSPACE/.carranca/skills/user"
 fi
 
-DOCKER_TTY_FLAGS="-i"
+TTY_FLAGS="-i"
 if [ -t 0 ]; then
-  DOCKER_TTY_FLAGS="-it"
+  TTY_FLAGS="-it"
 fi
 
 cat > "$PROMPT_FILE" <<'EOF'
@@ -171,13 +174,13 @@ if [ -n "$USER_PROMPT" ]; then
 fi
 
 carranca_log info "Building agent image..."
-docker build -q -t "$CONFIG_IMAGE" -f ".carranca/Containerfile" ".carranca" >/dev/null
+carranca_runtime_build -q -t "$CONFIG_IMAGE" -f ".carranca/Containerfile" ".carranca" >/dev/null
 
 carranca_log info "Generating proposal with the bound agent and confiskill..."
 # shellcheck disable=SC2086
-docker run $DOCKER_TTY_FLAGS --rm \
+carranca_runtime_run $TTY_FLAGS --rm \
   --name "carranca-config-${SESSION_ID}" \
-  --user "$HOST_UID:$HOST_GID" \
+  $AGENT_IDENTITY_FLAGS \
   -v "$WORKSPACE:/workspace:ro" \
   -v "$PROPOSAL_DIR:/proposal:rw" \
   -v "$PROMPT_FILE:/carranca-config/prompt.txt:ro" \

@@ -14,9 +14,10 @@ agents:
 
 # Container runtime settings
 runtime:
+  engine: auto                  # auto prefers podman, then docker
   network: true                 # Container network access (false = --network=none)
-  # extra_flags: --gpus all     # Extra docker run flags for the agent
-  # logger_extra_flags:         # Extra docker run flags for the logger
+  # extra_flags: --gpus all     # Extra runtime flags for the agent
+  # logger_extra_flags:         # Extra runtime flags for the logger
 
 # Persistent volumes for the agent container
 volumes:
@@ -46,9 +47,10 @@ watched_paths:
 | `agents[].name` | Yes | — | Stable agent name used by `--agent <name>` |
 | `agents[].command` | Yes | — | The CLI command to run as the agent |
 | `agents[].adapter` | No | `default` | Agent adapter type (`default`, `claude`, `codex`, or `stdin`) |
+| `runtime.engine` | No | `auto` | Container runtime to use (`auto`, `docker`, or `podman`) |
 | `runtime.network` | No | `true` | Enable/disable container networking |
-| `runtime.extra_flags` | No | — | Additional `docker run` flags for agent |
-| `runtime.logger_extra_flags` | No | — | Additional `docker run` flags for logger |
+| `runtime.extra_flags` | No | — | Additional runtime `run` flags for agent |
+| `runtime.logger_extra_flags` | No | — | Additional runtime `run` flags for logger |
 | `volumes.cache` | No | `true` | Persistent cache for agent memory/config/session |
 | `volumes.extra` | No | — | Custom volume mounts (`host:container[:mode]`) |
 
@@ -80,8 +82,12 @@ agents:
     adapter: stdin
     command: my-agent
 runtime:
+  engine: podman
   extra_flags: --gpus all
 ```
+
+`runtime.engine: auto` checks `CARRANCA_CONTAINER_RUNTIME` first, then the config value,
+then auto-detects a local runtime. Auto-detection prefers Podman and falls back to Docker.
 
 **Fully isolated (no network):**
 ```yaml

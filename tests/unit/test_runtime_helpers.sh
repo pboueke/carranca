@@ -170,6 +170,153 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+if grep -q '^_fifo_watchdog_loop()' "$SCRIPT_DIR/runtime/shell-wrapper.sh"; then
+  echo "  PASS: _fifo_watchdog_loop defined in shell-wrapper.sh"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: _fifo_watchdog_loop not found in shell-wrapper.sh"
+  FAIL=$((FAIL + 1))
+fi
+
+if grep -q '^fail_closed()' "$SCRIPT_DIR/runtime/shell-wrapper.sh"; then
+  echo "  PASS: fail_closed defined in shell-wrapper.sh"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: fail_closed not found in shell-wrapper.sh"
+  FAIL=$((FAIL + 1))
+fi
+
+if grep -q '^fifo_is_healthy()' "$SCRIPT_DIR/runtime/shell-wrapper.sh"; then
+  echo "  PASS: fifo_is_healthy defined in shell-wrapper.sh"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: fifo_is_healthy not found in shell-wrapper.sh"
+  FAIL=$((FAIL + 1))
+fi
+
+# Test fifo_is_healthy behavior
+FIFO_TEST_DIR="$(mktemp -d)"
+FIFO_PATH="$FIFO_TEST_DIR/events"
+mkfifo "$FIFO_PATH"
+chmod 0666 "$FIFO_PATH"
+
+source /dev/stdin <<FIFO_FUNC
+$(grep -A3 '^fifo_is_healthy()' "$SCRIPT_DIR/runtime/shell-wrapper.sh")
+FIFO_FUNC
+
+if FIFO_PATH="$FIFO_PATH" fifo_is_healthy; then
+  echo "  PASS: fifo_is_healthy returns true for valid FIFO"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: fifo_is_healthy should return true for valid FIFO"
+  FAIL=$((FAIL + 1))
+fi
+
+rm -f "$FIFO_PATH"
+if ! FIFO_PATH="$FIFO_PATH" fifo_is_healthy; then
+  echo "  PASS: fifo_is_healthy returns false for missing FIFO"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: fifo_is_healthy should return false for missing FIFO"
+  FAIL=$((FAIL + 1))
+fi
+
+rm -rf "$FIFO_TEST_DIR"
+
+# --- cli/lib/runtime.sh helpers ---
+RUNTIME_FAKEBIN="$(mktemp -d)"
+RUNTIME_LOG="$(mktemp)"
+export RUNTIME_LOG
+export PATH="$RUNTIME_FAKEBIN:$PATH"
+
+cat > "$RUNTIME_FAKEBIN/podman" <<'EOF'
+#!/usr/bin/env bash
+if [ "$1" = "info" ]; then
+  if [ "${2:-}" = "--format" ]; then
+    printf '%s\n' "${PODMAN_ROOTLESS:-true}"
+    exit 0
+  fi
+  exit 0
+fi
+printf '%s\n' "$*" >> "${RUNTIME_LOG:?}"
+exit 0
+EOF
+chmod +x "$RUNTIME_FAKEBIN/podman"
+
+cat > "$RUNTIME_FAKEBIN/docker" <<'EOF'
+#!/usr/bin/env bash
+if [ "$1" = "info" ]; then
+  if [ "${2:-}" = "--format" ]; then
+    printf '%s\n' "false"
+    exit 0
+  fi
+  exit 0
+fi
+printf '%s\n' "docker:$*" >> "${RUNTIME_LOG:?}"
+exit 0
+EOF
+chmod +x "$RUNTIME_FAKEBIN/docker"
+
+source "$SCRIPT_DIR/cli/lib/common.sh"
+source "$SCRIPT_DIR/cli/lib/runtime.sh"
+
+assert_eq "runtime validates auto engine" "0" "$(carranca_runtime_validate_engine auto; echo $?)"
+assert_eq "runtime rejects unsupported engine" "1" "$(carranca_runtime_validate_engine nerdctl; echo $?)"
+
+unset CARRANCA_CONTAINER_RUNTIME
+_CARRANCA_RESOLVED_RUNTIME=""
+_CARRANCA_RESOLVED_ROOTLESS=""
+assert_eq "runtime auto prefers podman" "podman" "$(carranca_runtime_cmd)"
+assert_eq "runtime detects rootless podman" "0" "$(carranca_runtime_is_rootless podman; echo $?)"
+assert_eq "runtime uses keep-id for rootless podman logger" "--userns keep-id" "$(carranca_runtime_logger_cap_flags)"
+
+export CARRANCA_CONTAINER_RUNTIME="docker"
+_CARRANCA_RESOLVED_RUNTIME=""
+_CARRANCA_RESOLVED_ROOTLESS=""
+assert_eq "runtime env override selects docker" "docker" "$(carranca_runtime_cmd)"
+assert_eq "runtime availability succeeds for docker" "0" "$(carranca_runtime_is_available docker; echo $?)"
+assert_eq "runtime engine setting returns env override" "docker" "$(carranca_runtime_engine_setting)"
+assert_eq "runtime configured engine is empty without config" "" "$(carranca_runtime_configured_engine /nonexistent)"
+assert_eq "runtime adds logger cap for docker" "--cap-add LINUX_IMMUTABLE" "$(carranca_runtime_logger_cap_flags)"
+assert_eq "runtime uses explicit docker user flags" "--user 1000:1000" "$(carranca_runtime_agent_identity_flags 1000 1000)"
+
+export PODMAN_ROOTLESS="false"
+unset CARRANCA_CONTAINER_RUNTIME
+_CARRANCA_RESOLVED_RUNTIME=""
+_CARRANCA_RESOLVED_ROOTLESS=""
+assert_eq "runtime detects rootful podman" "1" "$(carranca_runtime_is_rootless podman; echo $?)"
+assert_eq "runtime adds logger cap for rootful podman" "--cap-add LINUX_IMMUTABLE" "$(carranca_runtime_logger_cap_flags)"
+assert_eq "runtime uses explicit rootful podman user flags" "--user 1000:1000" "$(carranca_runtime_agent_identity_flags 1000 1000)"
+
+export CARRANCA_CONTAINER_RUNTIME="docker"
+_CARRANCA_RESOLVED_RUNTIME=""
+_CARRANCA_RESOLVED_ROOTLESS=""
+
+carranca_runtime_call images
+carranca_runtime_build -q test-image
+carranca_runtime_run --rm busybox true
+carranca_runtime_exec test-container true
+carranca_runtime_ps --format '{{.Names}}'
+carranca_runtime_rm -f test-container
+carranca_runtime_stop test-container
+carranca_runtime_rmi test-image
+carranca_runtime_volume ls
+carranca_runtime_require
+
+RUNTIME_CALLS="$(cat "$RUNTIME_LOG")"
+assert_match "runtime helper dispatch logs docker calls" 'docker:images' "$RUNTIME_CALLS"
+assert_match "runtime helper dispatch logs build call" 'docker:build -q test-image' "$RUNTIME_CALLS"
+assert_match "runtime helper dispatch logs volume call" 'docker:volume ls' "$RUNTIME_CALLS"
+
+export CARRANCA_CONTAINER_RUNTIME="podman"
+export PODMAN_ROOTLESS="true"
+_CARRANCA_RESOLVED_RUNTIME=""
+_CARRANCA_RESOLVED_ROOTLESS=""
+assert_eq "runtime uses keep-id for rootless podman agent identity" "--userns keep-id" "$(carranca_runtime_agent_identity_flags 1000 1000)"
+
+rm -rf "$RUNTIME_FAKEBIN"
+rm -f "$RUNTIME_LOG"
+
 # Cleanup
 rm -rf "$TMPDIR"
 

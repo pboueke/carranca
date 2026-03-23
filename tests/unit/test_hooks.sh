@@ -170,9 +170,113 @@ FAIL_README="$(cat "$TMPDIR/README.md")"
 assert_contains "failing tests badge is red" "tests-48%2F52_passed-red" "$FAIL_README"
 assert_contains "75% coverage badge is yellow" "coverage-75%25" "$FAIL_README"
 
-# --- Test update-badges.sh directly (end-to-end via script) ---
+# --- Test version badge with HTML format ---
 
-# Reset README
+cat > "$TMPDIR/README.md" <<'EOF'
+<div align="center">
+  <p>
+    <img src="https://img.shields.io/badge/version-0.1.0-blue" alt="version: 0.1.0" />
+    <img src="https://img.shields.io/badge/tests-0%2F0_passed-red" alt="tests: 0/0 passed" />
+    <img src="https://img.shields.io/badge/coverage-0%25-red" alt="coverage: 0%" />
+  </p>
+</div>
+EOF
+
+cat > "$TMPDIR/CHANGELOG.md" <<'EOF'
+# Changelog
+
+## [2.5.0] - 2026-03-22
+
+- feat: something new
+EOF
+
+cat > "$TMPDIR/tests/.results.json" <<'EOF'
+{"tests_passed":30,"tests_total":30,"tests_failed":0,"coverage_pct":100,"coverage_funcs":"10/10"}
+EOF
+
+mkdir -p "$TMPDIR/.githooks"
+cp "$SCRIPT_DIR/.githooks/update-badges.sh" "$TMPDIR/.githooks/update-badges.sh"
+chmod +x "$TMPDIR/.githooks/update-badges.sh"
+
+HTML_OUT="$(bash "$TMPDIR/.githooks/update-badges.sh" 2>&1)"
+HTML_README="$(cat "$TMPDIR/README.md")"
+assert_contains "html: version badge updated to 2.5.0" "version-2.5.0-blue" "$HTML_README"
+assert_contains "html: version alt text updated" 'alt="version: 2.5.0"' "$HTML_README"
+assert_contains "html: test badge updated" "tests-30%2F30_passed-brightgreen" "$HTML_README"
+assert_contains "html: coverage badge updated" "coverage-100" "$HTML_README"
+assert_contains "html: badges updated message" "badges updated" "$HTML_OUT"
+
+# Run again — should report already up to date
+HTML_OUT2="$(bash "$TMPDIR/.githooks/update-badges.sh" 2>&1)"
+assert_contains "html: badges already up to date on re-run" "already up to date" "$HTML_OUT2"
+
+# --- Test version badge with markdown format ---
+
+cat > "$TMPDIR/README.md" <<'EOF'
+# Test
+
+![version: 0.1.0](https://img.shields.io/badge/version-0.1.0-blue)
+![tests: 0/0 passed](https://img.shields.io/badge/tests-0%2F0_passed-red)
+![coverage: 0%](https://img.shields.io/badge/coverage-0%25-red)
+
+Content here.
+EOF
+
+MD_OUT="$(bash "$TMPDIR/.githooks/update-badges.sh" 2>&1)"
+MD_README="$(cat "$TMPDIR/README.md")"
+assert_contains "md: version badge updated to 2.5.0" "version-2.5.0-blue" "$MD_README"
+assert_contains "md: test badge updated" "tests-30%2F30_passed-brightgreen" "$MD_README"
+assert_contains "md: non-badge content preserved" "Content here." "$MD_README"
+
+# --- Test version-only update (no .results.json) ---
+
+rm -f "$TMPDIR/tests/.results.json"
+cat > "$TMPDIR/README.md" <<'EOF'
+<div align="center">
+  <p>
+    <img src="https://img.shields.io/badge/version-0.1.0-blue" alt="version: 0.1.0" />
+  </p>
+</div>
+EOF
+
+VONLY_OUT="$(bash "$TMPDIR/.githooks/update-badges.sh" 2>&1)"
+VONLY_README="$(cat "$TMPDIR/README.md")"
+assert_contains "version-only: badge updated" "version-2.5.0-blue" "$VONLY_README"
+assert_contains "version-only: badges updated message" "badges updated" "$VONLY_OUT"
+
+# --- Test version extracted from different changelog versions ---
+
+cat > "$TMPDIR/CHANGELOG.md" <<'EOF'
+# Changelog
+
+## [1.0.0] - 2026-01-01
+
+- first stable release
+
+## [0.9.0] - 2025-12-01
+
+- beta
+EOF
+
+cat > "$TMPDIR/README.md" <<'EOF'
+<div align="center">
+  <p>
+    <img src="https://img.shields.io/badge/version-0.9.0-blue" alt="version: 0.9.0" />
+  </p>
+</div>
+EOF
+
+bash "$TMPDIR/.githooks/update-badges.sh" >/dev/null 2>&1
+MULTI_README="$(cat "$TMPDIR/README.md")"
+assert_contains "multi-version: picks first (latest) version" "version-1.0.0-blue" "$MULTI_README"
+
+# --- Test no changelog — skips version, still updates test badges ---
+
+rm -f "$TMPDIR/CHANGELOG.md"
+cat > "$TMPDIR/tests/.results.json" <<'EOF'
+{"tests_passed":10,"tests_total":10,"tests_failed":0,"coverage_pct":100,"coverage_funcs":"5/5"}
+EOF
+
 cat > "$TMPDIR/README.md" <<'EOF'
 # Test
 
@@ -180,24 +284,16 @@ cat > "$TMPDIR/README.md" <<'EOF'
 ![coverage: 0%](https://img.shields.io/badge/coverage-0%25-red)
 EOF
 
-cat > "$TMPDIR/tests/.results.json" <<'EOF'
-{"tests_passed":10,"tests_total":10,"tests_failed":0,"coverage_pct":100,"coverage_funcs":"5/5"}
-EOF
+NOCL_OUT="$(bash "$TMPDIR/.githooks/update-badges.sh" 2>&1)"
+NOCL_README="$(cat "$TMPDIR/README.md")"
+assert_contains "no-changelog: test badge still updated" "10/10 passed" "$NOCL_README"
 
-# Create a symlink so the script finds files relative to itself
-mkdir -p "$TMPDIR/.githooks"
-cp "$SCRIPT_DIR/.githooks/update-badges.sh" "$TMPDIR/.githooks/update-badges.sh"
-chmod +x "$TMPDIR/.githooks/update-badges.sh"
+# --- Test no results and no changelog — skips entirely ---
 
-E2E_OUT="$(bash "$TMPDIR/.githooks/update-badges.sh" 2>&1)"
-E2E_README="$(cat "$TMPDIR/README.md")"
-assert_contains "e2e: badges updated message" "badges updated" "$E2E_OUT"
-assert_contains "e2e: test count in badge" "10/10 passed" "$E2E_README"
-assert_contains "e2e: coverage in badge" "100%" "$E2E_README"
-
-# Run again — should report already up to date
-E2E_OUT2="$(bash "$TMPDIR/.githooks/update-badges.sh" 2>&1)"
-assert_contains "e2e: badges already up to date on re-run" "already up to date" "$E2E_OUT2"
+rm -f "$TMPDIR/tests/.results.json"
+rm -f "$TMPDIR/CHANGELOG.md"
+SKIP_OUT="$(bash "$TMPDIR/.githooks/update-badges.sh" 2>&1)"
+assert_contains "no-data: skipping message" "skipping" "$SKIP_OUT"
 
 # Cleanup
 rm -rf "$TMPDIR"

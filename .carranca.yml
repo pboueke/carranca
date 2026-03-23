@@ -12,6 +12,7 @@ agents:
 
 # Container runtime settings
 runtime:
+  engine: podman
   network: true
   # Extra docker run flags for the agent container (e.g. --gpus all)
   # extra_flags: --gpus all

@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.9.0] - 2026-03-22
+
+- feat: add Podman and OCI runtime support with auto-detection (prefers Podman, falls back to Docker)
+- feat: add `runtime.engine` config (`auto`, `docker`, `podman`) and `CARRANCA_CONTAINER_RUNTIME` env override
+- feat: rootless Podman support with `--userns keep-id` for both logger and agent containers
+- feat: add FIFO watchdog in agent shell-wrapper to fail closed when the logger disappears mid-session
+- feat: version badge from CHANGELOG and HTML badge format in README
+- fix: logger FIFO read loop exited on first timeout due to `!` inverting `$?` — sessions now survive slow container startup
+- fix: logger and agent share the same user namespace on rootless Podman so the shared FIFO volume is accessible
+- fix: use portable `-t` flag for container stop (replaces `--timeout` which Podman rejects)
+- fix: test cleanup falls back to direct `rm` when `--cap-add LINUX_IMMUTABLE` is unavailable on rootless runtimes
+- fix: `init --force` confirmation in fail-closed test so the agent Containerfile is actually created
+- refactor: extract `cli/lib/runtime.sh` — all container commands go through runtime helpers with cached resolution
+- refactor: rename `DOCKER_TTY_FLAGS` to `TTY_FLAGS` across `run.sh` and `config.sh`
+- docs: update architecture, configuration, and README for runtime-agnostic terminology
+- test: add unit coverage for runtime resolution, rootless detection, engine validation, and `fifo_is_healthy`
+- test: update all integration and failure tests for runtime-agnostic container commands
+- test: 316 tests, 18 suites, 100% function coverage (69/69)
+
 ## [0.8.0] - 2026-03-22
 
 - feat: add `carranca kill` to stop one exact session or all active Carranca sessions after confirmation

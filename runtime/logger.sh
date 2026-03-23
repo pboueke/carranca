@@ -102,9 +102,10 @@ trap _cleanup SIGTERM SIGINT
 exec 3<>"$FIFO_PATH"
 
 while true; do
-  if ! IFS= read -t 2 -r line <&3; then
+  IFS= read -t 2 -r line <&3
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
     # read -t returns >128 on timeout, 1 on EOF/error
-    rc=$?
     if [ "$rc" -le 128 ]; then
       # EOF or error — FIFO closed, agent exited
       break

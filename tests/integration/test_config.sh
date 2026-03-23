@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Integration tests for carranca config (requires Docker)
+# Integration tests for carranca config (requires a supported container runtime)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export CARRANCA_HOME="$SCRIPT_DIR"
+RUNTIME="${CARRANCA_CONTAINER_RUNTIME:-podman}"
 
 PASS=0
 FAIL=0
@@ -30,10 +31,10 @@ assert_contains() {
   fi
 }
 
-echo "=== test_config.sh (requires Docker) ==="
+echo "=== test_config.sh (requires $RUNTIME) ==="
 
-if ! docker info >/dev/null 2>&1; then
-  echo "  SKIP: Docker not available"
+if ! "$RUNTIME" info >/dev/null 2>&1; then
+  echo "  SKIP: $RUNTIME not available"
   exit 0
 fi
 
@@ -139,6 +140,7 @@ agents:
     adapter: stdin
     command: bash /usr/local/bin/fake-config-agent.sh
 runtime:
+  engine: auto
   network: true
 volumes:
   cache: true

@@ -1,16 +1,19 @@
 <div align="center">
   <img src="doc/carranca.jpg" alt="Carranca" width="600" />
-  <p><em>Carranca photographed by Marcel Gautherot in 1946. Instituto Moreira Salles collection.</em></p>
+  <p><em>A Carranca photographed by Marcel Gautherot in 1946. Instituto Moreira Salles collection.</em></p>
+
+  <h1>Carranca</h1>
+
+  <p>
+    <img src="https://img.shields.io/badge/version-0.8.0-blue" alt="version: 0.8.0" />
+    <img src="https://img.shields.io/badge/tests-214%2F214_passed-brightgreen" alt="tests: 214/214 passed" />
+    <img src="https://img.shields.io/badge/coverage-100%25_(35%2F35_functions)-brightgreen" alt="coverage: 100%" />
+  </p>
+
+  <p><strong>Containerized multi-agent runtime with session logging.</strong> Named after the carved figureheads on boats in Brazil's São Francisco river, believed to protect sailors. Carranca protects engineers from coding agents by running them in isolated containers with structured session logging.
+</p>
 </div>
 
-# Carranca
-
-![tests: 214/214 passed](https://img.shields.io/badge/tests-214%2F214_passed-brightgreen)
-![coverage: 100%](https://img.shields.io/badge/coverage-100%25_(35%2F35_functions)-brightgreen)
-
-**Containerized agent runtime with session logging.**
-
-Named after the carved figureheads on boats in Brazil's São Francisco river, believed to protect sailors. Carranca protects engineers from coding agents — by running them in isolated containers with structured session logging.
 
 ## Quick start
 
@@ -50,9 +53,11 @@ On Linux, the agent container runs as the invoking host UID:GID, so edits to the
 ```
   carranca run
        │
-       ├── docker run -d  (logger: reads FIFO + inotifywait → JSONL)
-       └── docker run -it (agent: shell-wrapper → FIFO)
+       ├── <runtime> run -d  (logger: reads FIFO + inotifywait → JSONL)
+       └── <runtime> run -it (agent: shell-wrapper → FIFO)
 ```
+
+`<runtime>` is selected from `runtime.engine` or `CARRANCA_CONTAINER_RUNTIME`; `auto` prefers Podman, then Docker.
 
 See [doc/architecture.md](doc/architecture.md) for the full picture.
 

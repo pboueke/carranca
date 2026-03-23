@@ -4,8 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
+source "$SCRIPT_DIR/lib/config.sh"
 source "$SCRIPT_DIR/lib/identity.sh"
 source "$SCRIPT_DIR/lib/log.sh"
+source "$SCRIPT_DIR/lib/runtime.sh"
 source "$SCRIPT_DIR/lib/session.sh"
 
 STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
@@ -46,7 +48,7 @@ if [ -n "$SESSION_ID" ]; then
   LOG_FILE="$(carranca_session_log_for_id "$REPO_ID" "$SESSION_ID" "$STATE_BASE")"
   [ -f "$LOG_FILE" ] || carranca_die "No session log found for repo $REPO_NAME ($REPO_ID) with id: $SESSION_ID"
 
-  if command -v docker >/dev/null 2>&1 && carranca_session_is_active "$SESSION_ID"; then
+  if carranca_runtime_cmd >/dev/null 2>&1 && carranca_session_is_active "$SESSION_ID"; then
     SESSION_STATE="active"
   else
     SESSION_STATE="inactive"
@@ -66,7 +68,7 @@ else
   echo ""
   echo "Active sessions:"
 
-  if command -v docker >/dev/null 2>&1; then
+  if carranca_runtime_cmd >/dev/null 2>&1; then
     ACTIVE_IDS="$(carranca_session_active_ids "$REPO_ID" "$STATE_BASE")"
   else
     ACTIVE_IDS=""

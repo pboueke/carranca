@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$SCRIPT_DIR/cli/lib/common.sh"
 source "$SCRIPT_DIR/cli/lib/config.sh"
+source "$SCRIPT_DIR/cli/lib/runtime.sh"
 
 PASS=0
 FAIL=0
@@ -33,6 +34,7 @@ agents:
     adapter: default
     command: bash -c "echo test"
 runtime:
+  engine: auto
   network: true                 # allow network access
   extra_flags: ""
 policy:
@@ -65,6 +67,9 @@ assert_eq "nested key 'policy.tests_before_impl' reads correctly" "off" "$val"
 
 val="$(carranca_config_get runtime.network "$CONFIG")"
 assert_eq "nested key 'runtime.network' reads correctly" "true" "$val"
+
+val="$(carranca_config_get runtime.engine "$CONFIG")"
+assert_eq "nested key 'runtime.engine' reads correctly" "auto" "$val"
 
 val="$(carranca_config_get nonexistent "$CONFIG")"
 assert_eq "missing flat key returns empty" "" "$val"
@@ -130,6 +135,7 @@ agents:
   - name: codex
     adapter: codex
 runtime:
+  engine: auto
   network: true
 EOF
 
@@ -143,6 +149,7 @@ fi
 
 cat > ".carranca.yml" <<'EOF'
 runtime:
+  engine: auto
   network: true
 EOF
 
@@ -159,6 +166,8 @@ agents:
   - name: codex
     adapter: invalid
     command: codex
+runtime:
+  engine: auto
 EOF
 
 if (carranca_config_validate 2>/dev/null); then
@@ -177,6 +186,8 @@ agents:
   - name: codex
     adapter: codex
     command: codex --fast
+runtime:
+  engine: auto
 EOF
 
 if (carranca_config_validate 2>/dev/null); then
@@ -192,6 +203,23 @@ if carranca_config_resolve_agent_name missing ".carranca.yml" >/dev/null 2>&1; t
   FAIL=$((FAIL + 1))
 else
   echo "  PASS: resolving an unknown agent fails"
+  PASS=$((PASS + 1))
+fi
+
+cat > ".carranca.yml" <<'EOF'
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+runtime:
+  engine: nerdctl
+EOF
+
+if (carranca_config_validate 2>/dev/null); then
+  echo "  FAIL: validation should fail for unsupported runtime.engine"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: validation fails for unsupported runtime.engine"
   PASS=$((PASS + 1))
 fi
 

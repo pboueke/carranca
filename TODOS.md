@@ -1,14 +1,11 @@
 # TODOs
 
-## init and config updates for multi agent setup
-- multi agent setup. Carranca config file must support multiple agents, first is used by default during run and config executions
-- run command can receive extra --[claude|codex|etc] param that has it launch the selected agent instead of the default one
-- config command must allow for user request. When provided, agent focus on user request. For example: 'carranca config codex', has config agent run to update configs in order to add claude agent
-- init command must check for init status. If already inited, suggest use of config command. If --force is used, ask for confirmation of possibly ovewrite
+## log and status command info
+log and status commands should provide agent/engine information for that session
 
-## `carranca status` — Show active/recent sessions
-List running carranca sessions (via compose project listing) and 5 most recent
-JSONL files from the state directory. Depends on: core MVP.
+## Fine-grained network isolation
+`runtime.network` is a boolean (on/off). Add support for fine-grained network policies
+(e.g., allow only specific domains or ports).
 
 ## HMAC-signed events — Verified audit trail
 Session logs are currently transparency tools, not tamper-proof evidence. `chattr +a`
@@ -37,18 +34,6 @@ config for user-wide defaults (e.g., default agent, network policy).
 `docs_before_code` and `tests_before_impl` policies are prompt-level guidance via
 SKILL.md files, not technically enforced. Add optional technical enforcement (e.g.,
 pre-commit hooks, blocked paths). Phase 2.
-
-## Multi-session management
-No mechanism to list, stop, or manage concurrent sessions. Each `carranca run` is
-independent. Add session tracking and lifecycle management.
-
-## Podman / OCI runtime support
-Hardcoded `docker` commands throughout. Add support for Podman and other OCI-compliant
-container runtimes.
-
-## Fine-grained network isolation
-`runtime.network` is a boolean (on/off). Add support for fine-grained network policies
-(e.g., allow only specific domains or ports).
 
 ## Wire up `cap_add` config
 The `cap_add` config field is parsed but never passed to `docker run`. Implement

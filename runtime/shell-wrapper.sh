@@ -24,13 +24,26 @@ ms_now() {
   date +%s%3N 2>/dev/null || date +%s
 }
 
+fail_closed() {
+  local message="$1"
+  echo "[carranca] $message — exiting (fail closed)" >&2
+  kill 0 2>/dev/null
+  exit 1
+}
+
+fifo_is_healthy() {
+  [ -p "$FIFO_PATH" ] && [ -w "$FIFO_PATH" ]
+}
+
 write_event() {
+  if ! fifo_is_healthy; then
+    fail_closed "FIFO is unavailable"
+  fi
+
   printf '%s\n' "$1" > "$FIFO_PATH" 2>/dev/null
   local rc=$?
   if [ "$rc" -ne 0 ]; then
-    echo "[carranca] FIFO write failed — exiting (fail closed)" >&2
-    kill 0 2>/dev/null
-    exit 1
+    fail_closed "FIFO write failed"
   fi
 }
 
@@ -45,8 +58,7 @@ WAIT_COUNT=0
 while [ ! -p "$FIFO_PATH" ]; do
   WAIT_COUNT=$((WAIT_COUNT + 1))
   if [ "$WAIT_COUNT" -ge "$WAIT_LIMIT" ]; then
-    echo "[carranca] FIFO not found after ${WAIT_LIMIT}s — exiting (fail closed)" >&2
-    exit 1
+    fail_closed "FIFO not found after ${WAIT_LIMIT}s"
   fi
   sleep 0.5
 done
@@ -62,6 +74,16 @@ _heartbeat_loop() {
 
 _heartbeat_loop &
 HEARTBEAT_PID=$!
+
+_fifo_watchdog_loop() {
+  while true; do
+    sleep 1
+    fifo_is_healthy || fail_closed "FIFO disappeared"
+  done
+}
+
+_fifo_watchdog_loop &
+WATCHDOG_PID=$!
 
 # --- Session start event ---
 
@@ -88,4 +110,5 @@ write_event "{\"type\":\"session_event\",\"event\":\"agent_stop\",\"ts\":\"$(tim
 
 # Cleanup
 kill $HEARTBEAT_PID 2>/dev/null || true
+kill $WATCHDOG_PID 2>/dev/null || true
 exit $AGENT_EXIT

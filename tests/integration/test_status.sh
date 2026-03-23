@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Integration tests for carranca status (requires Docker)
+# Integration tests for carranca status (requires a supported container runtime)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export CARRANCA_HOME="$SCRIPT_DIR"
+RUNTIME="${CARRANCA_CONTAINER_RUNTIME:-podman}"
 
 PASS=0
 FAIL=0
@@ -19,10 +20,10 @@ assert_contains() {
   fi
 }
 
-echo "=== test_status.sh (requires Docker) ==="
+echo "=== test_status.sh (requires $RUNTIME) ==="
 
-if ! docker info >/dev/null 2>&1; then
-  echo "  SKIP: Docker not available"
+if ! "$RUNTIME" info >/dev/null 2>&1; then
+  echo "  SKIP: $RUNTIME not available"
   exit 0
 fi
 
@@ -31,8 +32,9 @@ TMPDIR="$(mktemp -d)"
 export CARRANCA_STATE="$TMPSTATE"
 
 cleanup() {
-  docker run --rm --cap-add LINUX_IMMUTABLE -v "$TMPSTATE:/state" ubuntu:24.04 \
-    bash -c 'find /state -type f -exec chattr -a {} \; 2>/dev/null; rm -rf /state/*' 2>/dev/null || true
+  "$RUNTIME" run --rm --cap-add LINUX_IMMUTABLE -v "$TMPSTATE:/state" ubuntu:24.04 \
+    bash -c 'find /state -type f -exec chattr -a {} \; 2>/dev/null; rm -rf /state/*' 2>/dev/null \
+    || rm -rf "$TMPSTATE"/* 2>/dev/null || true
   rm -rf "$TMPDIR" "$TMPSTATE" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -48,6 +50,7 @@ agents:
     adapter: stdin
     command: bash -c "echo status-run && touch /workspace/status-test.txt && sleep 5 && exit 0"
 runtime:
+  engine: auto
   network: true
 policy:
   docs_before_code: warn
@@ -65,7 +68,7 @@ for _ in $(seq 1 40); do
   LOG_FILE="$(find "$LOG_DIR" -maxdepth 1 -type f -name '*.jsonl' 2>/dev/null | head -n 1)"
   if [ -n "$LOG_FILE" ]; then
     SESSION_ID="$(basename "$LOG_FILE" .jsonl)"
-    if docker ps --format '{{.Names}}' | grep -Fq -- "carranca-$SESSION_ID-logger"; then
+    if "$RUNTIME" ps --format '{{.Names}}' | grep -Fq -- "carranca-$SESSION_ID-logger"; then
       break
     fi
   fi

@@ -24,6 +24,9 @@ SESSION_ID="a1b2c3d4"
 
 cat > "$FAKEBIN/docker" <<'EOF'
 #!/usr/bin/env bash
+if [ "$1" = "info" ]; then
+  exit 0
+fi
 if [ "$1" = "ps" ] && [ "$2" = "-a" ]; then
   printf '%s\n' "carranca-a1b2c3d4-logger" "carranca-deadbeef-agent"
   exit 0
@@ -38,8 +41,10 @@ EOF
 chmod +x "$FAKEBIN/docker"
 
 export TEST_DOCKER_LOG="$(mktemp)"
+export CARRANCA_CONTAINER_RUNTIME="docker"
 export PATH="$FAKEBIN:$PATH"
 
+source "$SCRIPT_DIR/cli/lib/common.sh"
 source "$SCRIPT_DIR/cli/lib/session.sh"
 
 assert_eq "session prefix uses carranca namespace" "carranca-$SESSION_ID" "$(carranca_session_prefix "$SESSION_ID")"
@@ -63,7 +68,7 @@ assert_eq "global active ids are unique and sorted" "$(printf '%s\n' a1b2c3d4 de
 carranca_session_stop "$SESSION_ID"
 STOP_LOG="$(cat "$TEST_DOCKER_LOG")"
 assert_eq "session stop removes agent first" "rm -f carranca-a1b2c3d4-agent
-stop --timeout 5 carranca-a1b2c3d4-logger
+stop -t 5 carranca-a1b2c3d4-logger
 rm -f carranca-a1b2c3d4-logger
 volume rm carranca-a1b2c3d4-fifo
 rmi carranca-a1b2c3d4-agent carranca-a1b2c3d4-logger" "$STOP_LOG"
