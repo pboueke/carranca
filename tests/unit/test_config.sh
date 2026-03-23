@@ -319,6 +319,101 @@ assert_eq "non-runtime key returns empty (no global fallback)" "" "$val"
 CARRANCA_CONFIG_FILE=".carranca.yml"
 CARRANCA_GLOBAL_CONFIG="${CARRANCA_CONFIG_DIR:-$HOME/.config/carranca}/config.yml"
 
+# --- Parser compatibility check tests ---
+
+COMPAT_CONFIG="$TMPDIR/compat-test.yml"
+cat > "$COMPAT_CONFIG" <<'EOF'
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+runtime:
+  network: true
+EOF
+
+# Save and force awk parser
+_save_has_yq="$_CARRANCA_HAS_YQ"
+_CARRANCA_HAS_YQ="no"
+
+# Simple config should produce no warnings
+compat_output="$(carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>&1)"
+assert_eq "simple config produces no parser warnings" "" "$compat_output"
+
+# Config with multi-line strings should warn
+cat > "$COMPAT_CONFIG" <<'EOF'
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+runtime:
+  extra_flags: |
+    --gpus all
+    --shm-size 2g
+EOF
+
+compat_output="$(carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>&1)"
+if echo "$compat_output" | grep -Fq "multi-line strings"; then
+  echo "  PASS: multi-line string warning emitted"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: multi-line string warning not emitted"
+  FAIL=$((FAIL + 1))
+fi
+
+# Restore
+_CARRANCA_HAS_YQ="$_save_has_yq"
+
+# --- Parser parity test (only runs when yq is available) ---
+
+if carranca_config_has_yq; then
+  PARITY_CONFIG="$TMPDIR/parity.yml"
+  cat > "$PARITY_CONFIG" <<'EOF'
+agents:
+  - name: codex
+    adapter: codex
+    command: codex --model gpt-5.4
+runtime:
+  engine: auto
+  network: true
+  cap_add:
+    - SYS_PTRACE
+    - NET_ADMIN
+volumes:
+  cache: true
+  extra:
+    - ~/.ssh:/home/carranca/.ssh:ro
+watched_paths:
+  - .env
+  - secrets/
+EOF
+
+  # Test scalar values
+  _CARRANCA_HAS_YQ="yes"
+  yq_val="$(_carranca_config_get_yq runtime.network "$PARITY_CONFIG")"
+  _CARRANCA_HAS_YQ="no"
+  awk_val="$(carranca_config_get runtime.network "$PARITY_CONFIG")"
+  assert_eq "parser parity: runtime.network" "$yq_val" "$awk_val"
+
+  _CARRANCA_HAS_YQ="yes"
+  yq_val="$(_carranca_config_get_yq runtime.engine "$PARITY_CONFIG")"
+  _CARRANCA_HAS_YQ="no"
+  awk_val="$(carranca_config_get runtime.engine "$PARITY_CONFIG")"
+  assert_eq "parser parity: runtime.engine" "$yq_val" "$awk_val"
+
+  # Test list values
+  _CARRANCA_HAS_YQ="yes"
+  mapfile -t yq_items < <(_carranca_config_get_list_yq runtime.cap_add "$PARITY_CONFIG")
+  _CARRANCA_HAS_YQ="no"
+  mapfile -t awk_items < <(carranca_config_get_list runtime.cap_add "$PARITY_CONFIG")
+  assert_eq "parser parity: cap_add count" "${#yq_items[@]}" "${#awk_items[@]}"
+  assert_eq "parser parity: cap_add[0]" "${yq_items[0]}" "${awk_items[0]}"
+  assert_eq "parser parity: cap_add[1]" "${yq_items[1]}" "${awk_items[1]}"
+
+  _CARRANCA_HAS_YQ="$_save_has_yq"
+else
+  echo "  SKIP: parser parity tests (yq not installed)"
+fi
+
 rm -rf "$TMPDIR"
 
 echo ""

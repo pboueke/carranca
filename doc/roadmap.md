@@ -40,11 +40,10 @@ which watcher was used.
 and `volumes.*` keys. Project config always overrides. Lists are replaced,
 not merged.
 
-### 1.7 Robust YAML parser
-Replace the awk parser in `config.sh` with a minimal dependency that
-handles nested lists, multi-line strings, and anchors. Options: `yq`
-(Go binary, no deps), a bundled Python one-liner, or a small C parser
-compiled into the install. Validate against a documented schema.
+### ~~1.7 Robust YAML parser~~ ✓
+`yq` is used as the primary YAML parser when available, with the awk
+parser as fallback. Schema validation warns about YAML features (multi-line
+strings, anchors, deep nesting) that the awk fallback cannot handle.
 
 ---
 

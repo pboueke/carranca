@@ -4,6 +4,19 @@
 CARRANCA_CONFIG_FILE=".carranca.yml"
 CARRANCA_GLOBAL_CONFIG="${CARRANCA_CONFIG_DIR:-$HOME/.config/carranca}/config.yml"
 
+_CARRANCA_HAS_YQ=""
+
+carranca_config_has_yq() {
+  if [ -z "$_CARRANCA_HAS_YQ" ]; then
+    if command -v yq >/dev/null 2>&1; then
+      _CARRANCA_HAS_YQ="yes"
+    else
+      _CARRANCA_HAS_YQ="no"
+    fi
+  fi
+  [ "$_CARRANCA_HAS_YQ" = "yes" ]
+}
+
 carranca_config_strip_value() {
   local val="$1"
 
@@ -15,15 +28,63 @@ carranca_config_strip_value() {
   printf '%s' "$val"
 }
 
-# Read a value from .carranca.yml using grep/awk.
-# Supports flat keys (network) and one-level nested keys (runtime.network).
-carranca_config_get() {
+# Read a value from YAML using yq.
+# Supports arbitrarily nested keys (e.g., runtime.network, policy.docs_before_code).
+_carranca_config_get_yq() {
   local key="$1"
   local file="${2:-$CARRANCA_CONFIG_FILE}"
-  local val
+  local yq_path val
 
   [ -f "$file" ] || return 1
 
+  # Convert dot-notation to yq path: runtime.network → .runtime.network
+  yq_path=".${key}"
+  val="$(yq eval "$yq_path // \"\"" "$file" 2>/dev/null)"
+
+  # yq returns "null" for missing keys
+  if [ "$val" = "null" ] || [ -z "$val" ]; then
+    return 0
+  fi
+
+  printf '%s' "$val"
+}
+
+# Read a YAML list using yq.
+_carranca_config_get_list_yq() {
+  local key="$1"
+  local file="${2:-$CARRANCA_CONFIG_FILE}"
+  local yq_path
+
+  [ -f "$file" ] || return 1
+
+  yq_path=".${key}"
+
+  # Check if the path exists and is an array
+  local node_type
+  node_type="$(yq eval "$yq_path | type" "$file" 2>/dev/null || true)"
+  if [ "$node_type" != "!!seq" ]; then
+    return 0
+  fi
+
+  yq eval "$yq_path | .[]" "$file" 2>/dev/null
+}
+
+# Read a value from .carranca.yml using grep/awk.
+# Supports flat keys (network) and one-level nested keys (runtime.network).
+# When yq is available, uses yq for full YAML support.
+carranca_config_get() {
+  local key="$1"
+  local file="${2:-$CARRANCA_CONFIG_FILE}"
+
+  [ -f "$file" ] || return 1
+
+  if carranca_config_has_yq; then
+    _carranca_config_get_yq "$key" "$file"
+    return
+  fi
+
+  # Fallback: awk parser (supports flat and one-level nested keys)
+  local val
   if [[ "$key" == *.* ]]; then
     local parent="${key%%.*}"
     local child="${key#*.}"
@@ -52,12 +113,19 @@ carranca_config_get() {
 # Read list items (lines starting with "- ") under a YAML section.
 # Supports one-level nested sections (e.g., volumes.extra).
 # Outputs one item per line, stripped of the "- " prefix and surrounding quotes.
+# When yq is available, uses yq for full YAML support.
 carranca_config_get_list() {
   local key="$1"
   local file="${2:-$CARRANCA_CONFIG_FILE}"
 
   [ -f "$file" ] || return 1
 
+  if carranca_config_has_yq; then
+    _carranca_config_get_list_yq "$key" "$file"
+    return
+  fi
+
+  # Fallback: awk parser
   local parent child
   if [[ "$key" == *.* ]]; then
     parent="${key%%.*}"
@@ -84,6 +152,39 @@ carranca_config_get_list() {
       print
     }
   ' "$file"
+}
+
+# Warn about YAML features that the awk fallback parser cannot handle.
+# Called during config validation when yq is not available.
+carranca_config_check_parser_compatibility() {
+  local file="${1:-$CARRANCA_CONFIG_FILE}"
+
+  # If yq is available, no compatibility concerns
+  carranca_config_has_yq && return 0
+
+  [ -f "$file" ] || return 0
+
+  local issues=0
+
+  # Check for multi-line strings (| or >)
+  if grep -qE '^[[:space:]]+[a-zA-Z_]+:[[:space:]]*[|>]' "$file" 2>/dev/null; then
+    carranca_log warn "Config uses multi-line strings (| or >) which the built-in parser cannot handle. Install yq for full YAML support."
+    issues=$((issues + 1))
+  fi
+
+  # Check for YAML anchors (&) and aliases (*)
+  if grep -qE '(&[a-zA-Z_]+|<<:[[:space:]]*\*[a-zA-Z_]+)' "$file" 2>/dev/null; then
+    carranca_log warn "Config uses YAML anchors/aliases which the built-in parser cannot handle. Install yq for full YAML support."
+    issues=$((issues + 1))
+  fi
+
+  # Check for deeply nested keys (3+ levels of indentation with values)
+  if grep -qE '^[[:space:]]{6,}[a-zA-Z_]+:' "$file" 2>/dev/null; then
+    carranca_log warn "Config uses deep nesting (3+ levels) which the built-in parser may not handle correctly. Install yq for full YAML support."
+    issues=$((issues + 1))
+  fi
+
+  return 0
 }
 
 # Read a config value with global fallback.
@@ -337,4 +438,6 @@ carranca_config_validate() {
   if [ -n "$engine" ] && ! carranca_runtime_validate_engine "$engine"; then
     carranca_die "Unsupported runtime.engine in $file: $engine (expected auto, docker, or podman)"
   fi
+
+  carranca_config_check_parser_compatibility "$file"
 }
