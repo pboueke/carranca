@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.0] - 2026-03-23
+
+- feat: add `runtime.cap_add` config — list of Linux capabilities passed as `--cap-add` flags to the agent container
+- chore: replace TODOS.md with doc/roadmap.md for phased feature planning
+
 ## [0.10.0] - 2026-03-22
 
 - fix: detect and warn on cache ownership mismatch when switching between Docker and rootless Podman

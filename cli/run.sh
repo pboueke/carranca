@@ -79,6 +79,14 @@ NETWORK="$(carranca_config_get runtime.network)"
 [ -z "$NETWORK" ] && NETWORK="true"
 EXTRA_FLAGS="$(carranca_config_get runtime.extra_flags)"
 LOGGER_EXTRA_FLAGS="$(carranca_config_get runtime.logger_extra_flags)"
+
+# Parse capability additions for the agent container
+CAP_ADD_FLAGS=""
+while IFS= read -r cap; do
+  [ -z "$cap" ] && continue
+  CAP_ADD_FLAGS="$CAP_ADD_FLAGS --cap-add $cap"
+done < <(carranca_config_get_list runtime.cap_add 2>/dev/null || true)
+
 CONTAINER_RUNTIME="$(carranca_runtime_cmd)"
 LOGGER_CAP_FLAGS="$(carranca_runtime_logger_cap_flags)"
 AGENT_IDENTITY_FLAGS="$(carranca_runtime_agent_identity_flags "$HOST_UID" "$HOST_GID")"
@@ -242,6 +250,7 @@ carranca_runtime_run $TTY_FLAGS --rm \
   $CUSTOM_VOLUME_FLAGS \
   $SKILL_MOUNT_FLAGS \
   $EXTRA_GROUP_FLAGS \
+  $CAP_ADD_FLAGS \
   -e "AGENT_COMMAND=$AGENT_COMMAND" \
   -e "SESSION_ID=$SESSION_ID" \
   $NETWORK_FLAG \

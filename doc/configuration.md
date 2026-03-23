@@ -55,6 +55,7 @@ watched_paths:
 | `runtime.network` | No | `true` | `false` adds `--network=none` to the agent and config-agent container |
 | `runtime.extra_flags` | No | — | Extra flags appended to the agent container `run` command |
 | `runtime.logger_extra_flags` | No | — | Extra flags appended to the logger container `run` command |
+| `runtime.cap_add` | No | — | List of Linux capabilities added to the agent container via `--cap-add` |
 | `volumes.cache` | No | `true` | Persists `/home/carranca` under `~/.local/state/carranca/cache/<repo-id>/home/` |
 | `volumes.extra` | No | — | Extra bind mounts added only to the agent container |
 | `policy.docs_before_code` | No | — | Parsed and scaffolded, but not enforced by the current CLI |
@@ -169,6 +170,18 @@ agents:
     command: codex
 volumes:
   cache: false
+```
+
+Agent with extra capabilities:
+
+```yaml
+agents:
+  - name: debugger
+    adapter: stdin
+    command: my-debugger
+runtime:
+  cap_add:
+    - SYS_PTRACE
 ```
 
 ## `carranca config`

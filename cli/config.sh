@@ -127,6 +127,13 @@ for gid in $HOST_GROUPS; do
   EXTRA_GROUP_FLAGS="$EXTRA_GROUP_FLAGS --group-add $gid"
 done
 
+# Parse capability additions for the agent container
+CAP_ADD_FLAGS=""
+while IFS= read -r cap; do
+  [ -z "$cap" ] && continue
+  CAP_ADD_FLAGS="$CAP_ADD_FLAGS --cap-add $cap"
+done < <(carranca_config_get_list runtime.cap_add 2>/dev/null || true)
+
 NETWORK_FLAG=""
 if [ "$NETWORK" = "false" ]; then
   NETWORK_FLAG="--network=none"
@@ -199,6 +206,7 @@ carranca_runtime_run $TTY_FLAGS --rm \
   -e "USER=carranca" \
   $CACHE_FLAGS \
   $EXTRA_GROUP_FLAGS \
+  $CAP_ADD_FLAGS \
   -e "CARRANCA_AGENT_COMMAND=$AGENT_COMMAND" \
   -e "CARRANCA_AGENT_DRIVER=$AGENT_DRIVER" \
   -e "CARRANCA_CONFIG_PROMPT_FILE=/carranca-config/prompt.txt" \

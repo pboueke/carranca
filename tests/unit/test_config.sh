@@ -37,6 +37,9 @@ runtime:
   engine: auto
   network: true                 # allow network access
   extra_flags: ""
+  cap_add:
+    - SYS_PTRACE
+    - NET_ADMIN
 policy:
   docs_before_code: warn
   tests_before_impl: off
@@ -120,6 +123,20 @@ mapfile -t items < <(carranca_config_get_list watched_paths "$CONFIG")
 assert_eq "watched_paths list has 2 items" "2" "${#items[@]}"
 assert_eq "watched_paths[0]" ".env" "${items[0]}"
 assert_eq "watched_paths[1]" "secrets/" "${items[1]}"
+
+mapfile -t items < <(carranca_config_get_list runtime.cap_add "$CONFIG")
+assert_eq "runtime.cap_add list has 2 items" "2" "${#items[@]}"
+assert_eq "runtime.cap_add[0]" "SYS_PTRACE" "${items[0]}"
+assert_eq "runtime.cap_add[1]" "NET_ADMIN" "${items[1]}"
+
+cat > "$TMPDIR/no-caps.yml" <<'EOF'
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+EOF
+mapfile -t items < <(carranca_config_get_list runtime.cap_add "$TMPDIR/no-caps.yml" 2>/dev/null || true)
+assert_eq "missing runtime.cap_add returns empty list" "0" "${#items[@]}"
 
 cd "$TMPDIR"
 if (carranca_config_validate 2>/dev/null); then
