@@ -51,6 +51,8 @@ assert_contains "log help documents session option" "--session <id>" "$log_help_
 assert_contains "log help documents --files-only flag" "--files-only" "$log_help_from_root"
 assert_contains "log help documents --commands-only flag" "--commands-only" "$log_help_from_root"
 assert_contains "log help documents --top flag" "--top <n>" "$log_help_from_root"
+assert_contains "log help documents --verify flag" "--verify" "$log_help_from_root"
+assert_contains "log help documents --export flag" "--export" "$log_help_from_root"
 
 log_help_from_subcommand="$(bash "$CLI" log help 2>&1)"
 assert_eq "log help matches between root and subcommand forms" "$log_help_from_root" "$log_help_from_subcommand"

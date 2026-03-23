@@ -2,13 +2,23 @@
 
 ## [0.12.0] - 2026-03-23
 
+- feat: add HMAC-signed event chain — per-session key signs each JSONL event with chained HMAC-SHA256; `carranca log --verify` validates the chain
+- feat: add parallel SHA-256 checksum file for tamper detection when `chattr +a` is unavailable (rootless Podman, macOS)
+- feat: add event provenance tagging — `source` field on all events distinguishes ground-truth observations from agent-reported data
+- feat: add `carranca log --export` to produce self-contained signed archive (tar + HMAC signature) for compliance, forensics, and external storage
 - feat: add `opencode` as a supported starter agent for `carranca init`
 - feat: accept `opencode` as an explicit adapter and infer it from `adapter: default` when the command starts with `opencode`
 - feat: run config agents with the `opencode` adapter through the argument-based prompt path
+- fix: `carranca log --verify` now resolves the session log before verification (previously used unset variable)
 - fix: install OpenCode from the official release binary instead of the broken npm wrapper package
+- docs: update trust model with verified audit evidence, HMAC chain, checksum hardening, and log export
+- docs: add event provenance trust table to session-log.md
+- docs: mark all Phase 2 roadmap items as complete
 - docs: document `opencode` starter and adapter support across README and configuration docs
 - docs: add `doc/vision.md` and link it from the README documentation index
+- test: add coverage for HMAC functions, checksum verification, export archive, and provenance tagging
 - test: add init, config, and help coverage for `opencode` starter and adapter flows
+- test: 294 tests, 12 suites, 100% function coverage
 
 ## [0.11.0] - 2026-03-23
 

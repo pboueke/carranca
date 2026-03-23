@@ -354,3 +354,49 @@ carranca_session_verify() {
     return 1
   fi
 }
+
+carranca_session_export() {
+  local log_file="$1"
+  local state_base="${2:-${CARRANCA_STATE:-$HOME/.local/state/carranca}}"
+  local session_id repo_id key_file checksum_file
+  local archive_dir archive_tar sig_file
+
+  session_id="$(basename "$log_file" .jsonl)"
+  repo_id="$(basename "$(dirname "$log_file")")"
+  key_file="$state_base/sessions/$repo_id/$session_id.hmac-key"
+  checksum_file="$state_base/sessions/$repo_id/$session_id.checksums"
+
+  # Build archive in a temp directory
+  archive_dir="$(mktemp -d)"
+  local bundle_dir="$archive_dir/$session_id"
+  mkdir -p "$bundle_dir"
+
+  # Copy session files into the bundle
+  cp "$log_file" "$bundle_dir/"
+  [ -f "$key_file" ] && cp "$key_file" "$bundle_dir/"
+  [ -f "$checksum_file" ] && cp "$checksum_file" "$bundle_dir/"
+
+  # Create tar archive
+  archive_tar="$state_base/sessions/$repo_id/$session_id.tar"
+  tar -cf "$archive_tar" -C "$archive_dir" "$session_id"
+
+  # Create detached HMAC signature
+  sig_file="${archive_tar}.sig"
+  if [ -f "$key_file" ]; then
+    local hmac_key
+    hmac_key="$(cat "$key_file")"
+    openssl dgst -sha256 -macopt "hexkey:$hmac_key" -hex "$archive_tar" 2>/dev/null \
+      | awk '{print $NF}' > "$sig_file"
+  else
+    # No HMAC key — write SHA-256 hash as unsigned digest
+    openssl dgst -sha256 -hex "$archive_tar" 2>/dev/null \
+      | awk '{print $NF}' > "$sig_file"
+    echo "WARN: No HMAC key found; signature is an unsigned SHA-256 digest"
+  fi
+
+  rm -rf "$archive_dir"
+
+  echo "Exported: $archive_tar"
+  echo "Signature: $sig_file"
+  return 0
+}

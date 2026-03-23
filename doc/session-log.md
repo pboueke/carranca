@@ -127,6 +127,39 @@ Checksum verification runs automatically during `carranca log --verify`.
 If the checksum file is missing (sessions predating this feature),
 verification proceeds using the HMAC chain only.
 
+## Log export and archival
+
+`carranca log --export` produces a self-contained signed archive for
+external storage, compliance review, or incident postmortem:
+
+```bash
+carranca log --export --session abc12345
+```
+
+This creates two files alongside the session log:
+
+```
+~/.local/state/carranca/sessions/<repo-id>/<session-id>.tar
+~/.local/state/carranca/sessions/<repo-id>/<session-id>.tar.sig
+```
+
+The tar archive bundles the `.jsonl`, `.hmac-key`, and `.checksums`
+files. The `.sig` file contains an HMAC-SHA256 signature of the tar
+computed with the session key. If the HMAC key is missing (pre-Phase 2
+sessions), the signature is an unsigned SHA-256 digest.
+
+To verify an exported archive independently:
+
+```bash
+# Extract and verify the HMAC chain
+tar xf <session-id>.tar
+carranca log --verify --session <session-id>
+
+# Verify the archive signature
+KEY=$(cat <session-id>/<session-id>.hmac-key)
+echo -n "$(openssl dgst -sha256 -macopt hexkey:$KEY -hex <session-id>.tar | awk '{print $NF}')" | diff - <session-id>.tar.sig
+```
+
 ### `heartbeat`
 
 Periodic liveness check from the shell wrapper (every 30s).

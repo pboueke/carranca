@@ -52,25 +52,25 @@ strings, anchors, deep nesting) that the awk fallback cannot handle.
 Move session logs from transparency tools to cryptographically verifiable
 evidence. This is the prerequisite for compliance and forensic use.
 
-### 2.1 HMAC-signed event chain
+### ~~2.1 HMAC-signed event chain~~ ✓
 Generate a per-session HMAC key (stored outside the agent container).
 Each JSONL event includes an `hmac` field computed over
 `previous_hmac || seq || timestamp || payload`. Verification:
 `carranca log --verify` walks the chain and reports breaks.
 
-### 2.2 Append-only enforcement hardening
+### ~~2.2 Append-only enforcement hardening~~ ✓
 On systems where `chattr +a` is not available (rootless Podman, macOS),
 fall back to a logger-side checksum file written in parallel. The
 checksum file lives outside the agent container and can detect
 post-session tampering even without kernel immutability.
 
-### 2.3 Event provenance tagging
+### ~~2.3 Event provenance tagging~~ ✓
 Tag each event with its source (`shell-wrapper`, `inotifywait`,
 `logger-internal`) so consumers can distinguish ground-truth events
 from agent-reported ones. This makes forgery analysis possible without
 changing the trust model.
 
-### 2.4 Log export and archival
+### ~~2.4 Log export and archival~~ ✓
 `carranca log --export <session>` produces a self-contained signed
 archive (tar + detached signature) suitable for external storage,
 compliance review, or incident postmortem.

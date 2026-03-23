@@ -383,6 +383,74 @@ fi
 
 rm -rf "$VERIFY_TMPDIR"
 
+# --- Test carranca_session_export ---
+
+echo ""
+echo "--- carranca_session_export ---"
+
+EXPORT_TMPDIR="$(mktemp -d)"
+mkdir -p "$EXPORT_TMPDIR/sessions/exportrepo"
+
+# Create a minimal session log and key
+echo '{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T00:00:00Z","session_id":"export01","seq":1,"hmac":"abc123"}' \
+  > "$EXPORT_TMPDIR/sessions/exportrepo/export01.jsonl"
+echo "deadbeef0123456789abcdef0123456789abcdef0123456789abcdef0123456789" \
+  > "$EXPORT_TMPDIR/sessions/exportrepo/export01.hmac-key"
+echo "somechecksum" \
+  > "$EXPORT_TMPDIR/sessions/exportrepo/export01.checksums"
+
+# Test: export creates tar and sig files
+output="$(carranca_session_export "$EXPORT_TMPDIR/sessions/exportrepo/export01.jsonl" "$EXPORT_TMPDIR" 2>&1)"
+if [ -f "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar" ]; then
+  echo "  PASS: export creates tar archive"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: export should create tar archive"
+  FAIL=$((FAIL + 1))
+fi
+
+if [ -f "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar.sig" ]; then
+  echo "  PASS: export creates signature file"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: export should create signature file"
+  FAIL=$((FAIL + 1))
+fi
+
+assert_contains "export output shows tar path" "export01.tar" "$output"
+assert_contains "export output shows sig path" "export01.tar.sig" "$output"
+
+# Test: tar contains session files
+tar_contents="$(tar -tf "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar")"
+assert_contains "tar contains jsonl" "export01.jsonl" "$tar_contents"
+assert_contains "tar contains hmac-key" "export01.hmac-key" "$tar_contents"
+assert_contains "tar contains checksums" "export01.checksums" "$tar_contents"
+
+# Test: signature file contains a hex hash
+sig_content="$(cat "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar.sig")"
+if echo "$sig_content" | grep -qE '^[0-9a-f]{64}$'; then
+  echo "  PASS: signature file contains 64-char hex hash"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: signature should be 64-char hex hash (got: $sig_content)"
+  FAIL=$((FAIL + 1))
+fi
+
+# Test: export without HMAC key produces unsigned digest with warning
+rm "$EXPORT_TMPDIR/sessions/exportrepo/export01.hmac-key"
+rm "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar" "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar.sig"
+output="$(carranca_session_export "$EXPORT_TMPDIR/sessions/exportrepo/export01.jsonl" "$EXPORT_TMPDIR" 2>&1)"
+assert_contains "export without key warns" "WARN" "$output"
+if [ -f "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar.sig" ]; then
+  echo "  PASS: export creates unsigned digest when key missing"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: export should create unsigned digest when key missing"
+  FAIL=$((FAIL + 1))
+fi
+
+rm -rf "$EXPORT_TMPDIR"
+
 rm -rf "$TMPSTATE"
 
 echo ""

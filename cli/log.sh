@@ -13,6 +13,7 @@ FILES_ONLY=false
 COMMANDS_ONLY=false
 TOP_N=""
 VERIFY=false
+EXPORT=false
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -28,6 +29,7 @@ while [ "$#" -gt 0 ]; do
       echo "  --commands-only   Show only the executed commands"
       echo "  --top <n>         Limit top touched paths to n entries"
       echo "  --verify          Verify HMAC chain integrity and detect log tampering"
+      echo "  --export          Export session as a signed archive (.tar + .sig)"
       exit 0
       ;;
     --session)
@@ -49,6 +51,9 @@ while [ "$#" -gt 0 ]; do
     --verify)
       VERIFY=true
       ;;
+    --export)
+      EXPORT=true
+      ;;
     -h|--help)
       echo "Usage: carranca log [--session <exact-id>] [--files-only] [--commands-only] [--top <n>]"
       echo ""
@@ -61,6 +66,7 @@ while [ "$#" -gt 0 ]; do
       echo "  --commands-only   Show only the executed commands"
       echo "  --top <n>         Limit top touched paths to n entries"
       echo "  --verify          Verify HMAC chain integrity and detect log tampering"
+      echo "  --export          Export session as a signed archive (.tar + .sig)"
       exit 0
       ;;
     *)
@@ -74,11 +80,6 @@ if [ "$FILES_ONLY" = true ] && [ "$COMMANDS_ONLY" = true ]; then
   carranca_die "--files-only and --commands-only are mutually exclusive"
 fi
 
-if [ "$VERIFY" = true ]; then
-  carranca_session_verify "$LOG_FILE" "$STATE_BASE"
-  exit $?
-fi
-
 REPO_ID="$(carranca_repo_id)"
 REPO_NAME="$(carranca_repo_name)"
 LOG_DIR="$(carranca_session_log_dir "$REPO_ID" "$STATE_BASE")"
@@ -89,6 +90,16 @@ if [ -n "$SESSION_ID" ]; then
 else
   LOG_FILE="$(carranca_session_latest_log "$REPO_ID" "$STATE_BASE")"
   [ -n "$LOG_FILE" ] || carranca_die "No session logs found for repo $REPO_NAME ($REPO_ID)"
+fi
+
+if [ "$VERIFY" = true ]; then
+  carranca_session_verify "$LOG_FILE" "$STATE_BASE"
+  exit $?
+fi
+
+if [ "$EXPORT" = true ]; then
+  carranca_session_export "$LOG_FILE" "$STATE_BASE"
+  exit $?
 fi
 
 carranca_session_collect_stats "$LOG_FILE"

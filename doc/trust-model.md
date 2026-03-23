@@ -15,16 +15,19 @@ structure, not through verified guarantees.
 | Event provenance | Transparency tool | Each event tagged with origin source for trust-level analysis |
 | Fail-closed logging | Hard boundary | Broken FIFO pipe kills the shell wrapper → agent stops |
 | Append-only log | Best-effort | `chattr +a` when `CAP_LINUX_IMMUTABLE` is available |
+| HMAC event chain | Verified evidence | Per-session HMAC key signs each event; chain detects tampering |
+| Checksum hardening | Verified evidence | Parallel SHA-256 checksum file for tamper detection without `chattr +a` |
+| Log export | Archival | Self-contained signed tar archive for compliance and forensics |
 
 ## What carranca does NOT provide
 
 | Property | Status | Path to resolution |
 |----------|--------|--------------------|
-| Verified audit evidence | Not provided | Phase 2: HMAC-signed events |
-| Complete operation capture | Not provided | Phase 2: `execve` tracing, adapter hooks |
-| Forgery resistance | Not provided | Agent can write fake events to FIFO |
+| Verified audit evidence | Provided | HMAC-signed event chain + checksum file (Phase 2) |
+| Complete operation capture | Not provided | Phase 3: `execve` tracing, adapter hooks |
+| Forgery resistance | Partially mitigated | Agent can forge FIFO events, but provenance tags and HMAC chain expose inconsistencies |
 | Secret read monitoring | Not provided | `inotifywait` captures mutations, not reads |
-| Technical policy enforcement | Not provided | Phase 2: pre-commit hooks, blocked paths |
+| Technical policy enforcement | Not provided | Phase 4: pre-commit hooks, blocked paths |
 | Cross-platform file events | Supported | inotifywait (Linux) with fswatch fallback |
 
 ## Threat table
@@ -38,7 +41,7 @@ structure, not through verified guarantees.
 | Agent reads secrets from repo | Not mitigated | `inotifywait` only captures mutations, not reads |
 | Agent exfiltrates over network | Possible | Set `runtime.network: false` to disable |
 | Agent writes malicious code | Allowed by design | Review via session log + git diff |
-| User tampers with log after session | Partially mitigated | `chattr +a` when available |
+| User tampers with log after session | Mitigated | HMAC chain + checksum file detect post-session tampering; `chattr +a` when available |
 
 ## Failure behavior
 
@@ -51,7 +54,10 @@ structure, not through verified guarantees.
 
 ## Summary
 
-Carranca is a transparency tool, not a security control. It makes agent sessions
-reviewable — not provably correct. An adversarial agent with arbitrary code execution
-inside the container can bypass most logging controls. The value proposition is:
-structured visibility is better than blind trust.
+Carranca is a transparency tool with verified audit capabilities. It makes agent
+sessions reviewable with cryptographic tamper detection. An adversarial agent with
+arbitrary code execution inside the container can forge events through the FIFO, but
+provenance tagging and the HMAC event chain make such forgery detectable through
+cross-referencing. Post-session log tampering is detectable via the HMAC chain and
+parallel checksum file. The value proposition is: structured visibility with
+verifiable integrity is better than blind trust.
