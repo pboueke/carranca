@@ -53,10 +53,10 @@ if [ -z "$LOG_FILE" ]; then
 else
   # Check for degraded event (append_only_unavailable is expected in most envs)
   if grep -q '"event":"degraded"' "$LOG_FILE"; then
-    echo "  PASS: degraded event logged (chattr +a or inotifywait unavailable)"
+    echo "  PASS: degraded event logged (chattr +a or file watcher unavailable)"
     PASS=$((PASS + 1))
   else
-    echo "  INFO: no degraded event (chattr +a and inotifywait both available — unusual in test env)"
+    echo "  INFO: no degraded event (chattr +a and file watcher both available — unusual in test env)"
     PASS=$((PASS + 1))
   fi
 

@@ -52,7 +52,10 @@ Agent-native operations (file writes, edits via tool APIs) bypass the wrapper.
 
 ### `file_event`
 
-File mutations detected by `inotifywait` (Linux only, best-effort).
+File mutations detected by `inotifywait` (Linux, best-effort) or `fswatch`
+(fallback for non-Alpine images where inotifywait is unavailable).
+
+The `source` field identifies which watcher produced the event.
 
 ```json
 {"type":"file_event","source":"inotifywait","ts":"2026-03-22T09:45:03Z","event":"MODIFY","path":"/workspace/src/index.ts","session_id":"abc12345","seq":5}
@@ -68,8 +71,8 @@ event includes `"watched":true`:
 {"type":"file_event","source":"inotifywait","ts":"2026-03-22T09:45:03Z","event":"CREATE","path":"/workspace/.env","session_id":"abc12345","watched":true,"seq":6}
 ```
 
-**Limitation:** No attribution. `inotifywait` sees that a path changed, but it
-cannot identify which process caused it. Reads are not captured.
+**Limitation:** No attribution. The file watcher sees that a path changed, but
+it cannot identify which process caused it. Reads are not captured.
 
 ### `heartbeat`
 

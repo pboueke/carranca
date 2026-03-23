@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# carranca logger — reads events from FIFO + inotifywait, writes JSONL session log
+# carranca logger — reads events from FIFO + file watcher, writes JSONL session log
 #
 # This script is the ENTRYPOINT of the logger container. It:
 # 1. Creates the FIFO on the shared tmpfs
 # 2. Sets chattr +a on the log file (degrades gracefully)
-# 3. Starts inotifywait in background (degrades gracefully)
+# 3. Starts inotifywait (or fswatch as fallback) in background (degrades gracefully)
 # 4. Reads FIFO events in foreground
 # 5. Merges all events with monotonic seq numbers into the JSONL log
 # 6. On SIGTERM: writes logger_stop event and exits
@@ -112,26 +112,60 @@ if [ "$APPEND_ONLY" = false ]; then
   write_log "$DEG_EVENT"
 fi
 
-# --- inotifywait (background, best-effort) ---
+# --- File event watcher (background, best-effort) ---
 
-INOTIFY_PID=""
-if command -v inotifywait >/dev/null 2>&1; then
+# Shared handler: tag watched paths and write to log
+_handle_file_event() {
+  local line="$1"
+  if [ -n "${WATCHED_PATHS:-}" ]; then
+    local local_path
+    local_path="$(printf '%s' "$line" | grep -o '"path":"[^"]*"' | head -1 | cut -d'"' -f4)"
+    if [ -n "$local_path" ] && path_is_watched "$local_path"; then
+      line="${line%\}},\"watched\":true}"
+    fi
+  fi
+  write_log "$line"
+}
+
+_start_inotifywait() {
   inotifywait -m -r -e create,modify,delete \
     --format '{"type":"file_event","source":"inotifywait","ts":"%T","event":"%e","path":"%w%f","session_id":"'"$SESSION_ID"'"}' \
     --timefmt '%Y-%m-%dT%H:%M:%SZ' \
     /workspace 2>/dev/null | while IFS= read -r line; do
-      # Tag watched-path events
-      if [ -n "${WATCHED_PATHS:-}" ]; then
-        local_path="$(printf '%s' "$line" | grep -o '"path":"[^"]*"' | head -1 | cut -d'"' -f4)"
-        if [ -n "$local_path" ] && path_is_watched "$local_path"; then
-          line="${line%\}},\"watched\":true}"
-        fi
+      _handle_file_event "$line"
+    done
+}
+
+_start_fswatch() {
+  # fswatch outputs one path per line on each event.
+  # We convert to the same JSON schema as inotifywait.
+  # fswatch flags: -r recursive, --event Created Modified Removed
+  fswatch -r --event Created --event Updated --event Removed \
+    /workspace 2>/dev/null | while IFS= read -r filepath; do
+      local event_type="MODIFY"
+      if [ ! -e "$filepath" ]; then
+        event_type="DELETE"
+      elif [ -e "$filepath" ]; then
+        # fswatch doesn't cleanly distinguish create vs modify;
+        # new files show as Updated too. We accept MODIFY as default.
+        event_type="MODIFY"
       fi
-      write_log "$line"
-    done &
-  INOTIFY_PID=$!
+      local ts
+      ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      local line="{\"type\":\"file_event\",\"source\":\"fswatch\",\"ts\":\"$ts\",\"event\":\"$event_type\",\"path\":\"$filepath\",\"session_id\":\"$SESSION_ID\"}"
+      _handle_file_event "$line"
+    done
+}
+
+WATCHER_PID=""
+if command -v inotifywait >/dev/null 2>&1; then
+  _start_inotifywait &
+  WATCHER_PID=$!
+elif command -v fswatch >/dev/null 2>&1; then
+  _start_fswatch &
+  WATCHER_PID=$!
 else
-  DEG_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"degraded\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"reason\":\"inotifywait_unavailable\"}"
+  DEG_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"degraded\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"reason\":\"file_watcher_unavailable\"}"
   write_log "$DEG_EVENT"
 fi
 
@@ -140,7 +174,7 @@ fi
 _cleanup() {
   STOP_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"logger_stop\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\"}"
   write_log "$STOP_EVENT"
-  [ -n "$INOTIFY_PID" ] && kill "$INOTIFY_PID" 2>/dev/null
+  [ -n "$WATCHER_PID" ] && kill "$WATCHER_PID" 2>/dev/null
   rm -f "$FIFO_PATH" "$SEQ_LOCK" "$SEQ_FILE"
   exit 0
 }

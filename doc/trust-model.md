@@ -24,7 +24,7 @@ structure, not through verified guarantees.
 | Forgery resistance | Not provided | Agent can write fake events to FIFO |
 | Secret read monitoring | Not provided | `inotifywait` captures mutations, not reads |
 | Technical policy enforcement | Not provided | Phase 2: pre-commit hooks, blocked paths |
-| Cross-platform file events | Linux only | Phase 2: `fswatch` adapter |
+| Cross-platform file events | Supported | inotifywait (Linux) with fswatch fallback |
 
 ## Threat table
 
@@ -44,7 +44,7 @@ structure, not through verified guarantees.
 | Scenario | Behavior |
 |----------|----------|
 | Shell logging unavailable (FIFO not created) | Fail closed — refuse to start agent |
-| File event logging unavailable (no inotifywait) | Degraded mode — shell logging continues |
+| File event logging unavailable (no file watcher) | Degraded mode — shell logging continues |
 | Logger dies mid-session | Fail closed — broken pipe kills agent |
 | `chattr +a` unavailable | Degraded mode — log still written, not append-only |
 

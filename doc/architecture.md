@@ -33,7 +33,7 @@ transient images.
        │
        ├── <runtime> run -d (logger)
        │     ├── creates FIFO on shared volume
-       │     ├── starts inotifywait on /workspace (read-only)
+       │     ├── starts inotifywait (or fswatch fallback) on /workspace (read-only)
        │     ├── reads FIFO events
        │     └── writes JSONL to /state/{session}.jsonl
        │
@@ -107,7 +107,7 @@ Two containers share a tmpfs volume containing a Unix FIFO:
   │   │              │              │   │              │
   │   ├─ agent cmd   │   FIFO      │   ├─ read FIFO ──┤──► session.jsonl
   │   ├─ heartbeat ──┼──────►──────┼───┤              │    (append-only)
-  │   └─ exit code   │  (tmpfs)    │   ├─ inotifywait─┤
+  │   └─ exit code   │  (tmpfs)    │   ├─ inotifywait─┤ (or fswatch)
   │                  │              │   │  /workspace  │
   │ /workspace (rw)  │              │ /workspace (ro)  │
   └──────────────────┘              └──────────────────┘

@@ -30,10 +30,10 @@ Session start events now include `agent`, `adapter`, and `engine` fields.
 `carranca log` supports `--files-only`, `--commands-only`, and `--top N`
 flags for focused inspection.
 
-### 1.5 Cross-platform file events
-Add a `fswatch` adapter behind `runtime/file-watcher.sh` so macOS (and
-optionally Windows/WSL) get file mutation tracking. Detect the platform
-at session start and pick inotifywait or fswatch automatically.
+### ~~1.5 Cross-platform file events~~ ✓
+Logger auto-detects inotifywait (Linux) or fswatch (macOS) at startup.
+Both produce the same `file_event` JSON schema with `source` identifying
+which watcher was used.
 
 ### 1.6 Global config
 Implement `~/.config/carranca/config.yml` for user-wide defaults (default
