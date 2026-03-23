@@ -158,6 +158,12 @@ else
   PASS=$((PASS + 1))
 fi
 
+# Test print_top_paths with limit=0 (show all)
+carranca_session_collect_stats "$LOG_DIR/22222222.jsonl"
+all_paths_output="$(carranca_session_print_top_paths 0)"
+assert_contains "top paths limit=0 shows all paths (b.txt)" "/workspace/b.txt" "$all_paths_output"
+assert_contains "top paths limit=0 shows all paths (c.txt)" "/workspace/c.txt" "$all_paths_output"
+
 rm -rf "$TMPSTATE"
 
 echo ""

@@ -414,6 +414,21 @@ else
   echo "  SKIP: parser parity tests (yq not installed)"
 fi
 
+# --- Edge case: both configs missing ---
+_save_config="$CARRANCA_CONFIG_FILE"
+_save_global="$CARRANCA_GLOBAL_CONFIG"
+CARRANCA_CONFIG_FILE="/tmp/nonexistent-project-$$.yml"
+CARRANCA_GLOBAL_CONFIG="/tmp/nonexistent-global-$$.yml"
+
+val="$(carranca_config_get_with_global runtime.network)"
+assert_eq "both configs missing: scalar returns empty" "" "$val"
+
+items="$(carranca_config_get_list_with_global runtime.cap_add 2>/dev/null || true)"
+assert_eq "both configs missing: list returns empty" "" "$items"
+
+CARRANCA_CONFIG_FILE="$_save_config"
+CARRANCA_GLOBAL_CONFIG="$_save_global"
+
 rm -rf "$TMPDIR"
 
 echo ""
