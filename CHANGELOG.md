@@ -4,6 +4,7 @@
 
 - feat: add `runtime.cap_add` config — list of Linux capabilities passed as `--cap-add` flags to the agent container
 - feat: wire up `watched_paths` — file events matching watched patterns are tagged with `"watched":true` in session logs
+- feat: add agent, adapter, and engine metadata to session start events and log/status summary
 - chore: replace TODOS.md with doc/roadmap.md for phased feature planning
 
 ## [0.10.0] - 2026-03-22

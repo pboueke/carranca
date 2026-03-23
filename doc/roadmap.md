@@ -22,10 +22,9 @@ agent container in both `run` and `config` commands.
 File events matching `watched_paths` patterns are tagged with
 `"watched":true` in session logs. Summary displays watched event count.
 
-### 1.3 Agent/engine metadata in logs
-Record `agent`, `adapter`, and `engine` in `session_start` events so
-`carranca log` and `carranca status` can display them. Currently hardcoded
-to "default".
+### ~~1.3 Agent/engine metadata in logs~~ ✓
+Session start events now include `agent`, `adapter`, and `engine` fields.
+`carranca log` and `carranca status` display them in the summary.
 
 ### 1.4 Log command filters
 Add `--files-only`, `--commands-only`, and `--top <n>` flags to

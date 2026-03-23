@@ -116,6 +116,9 @@ carranca_session_collect_stats() {
   CARRANCA_LOG_UNIQUE_PATHS=0
   CARRANCA_LOG_FIRST_TS=""
   CARRANCA_LOG_LAST_TS=""
+  CARRANCA_LOG_AGENT_NAME=""
+  CARRANCA_LOG_ADAPTER=""
+  CARRANCA_LOG_ENGINE=""
   CARRANCA_LOG_COMMAND_LINES=()
   declare -gA CARRANCA_LOG_PATH_COUNTS=()
   declare -gA CARRANCA_LOG_PATH_CREATE_COUNTS=()
@@ -169,6 +172,12 @@ carranca_session_collect_stats() {
         ts="$(carranca_json_get_string "$line" "ts")"
         [ -z "$CARRANCA_LOG_FIRST_TS" ] && CARRANCA_LOG_FIRST_TS="$ts"
         CARRANCA_LOG_LAST_TS="$ts"
+        event="$(carranca_json_get_string "$line" "event")"
+        if [ "$event" = "start" ]; then
+          CARRANCA_LOG_AGENT_NAME="$(carranca_json_get_string "$line" "agent")"
+          CARRANCA_LOG_ADAPTER="$(carranca_json_get_string "$line" "adapter")"
+          CARRANCA_LOG_ENGINE="$(carranca_json_get_string "$line" "engine")"
+        fi
         ;;
     esac
   done < "$log_file"
@@ -182,6 +191,9 @@ carranca_session_print_summary() {
 
   carranca_session_collect_stats "$log_file"
 
+  if [ -n "$CARRANCA_LOG_AGENT_NAME" ]; then
+    echo "  Agent: $CARRANCA_LOG_AGENT_NAME (adapter: $CARRANCA_LOG_ADAPTER, engine: $CARRANCA_LOG_ENGINE)"
+  fi
   echo "  Duration: $CARRANCA_LOG_FIRST_TS → $CARRANCA_LOG_LAST_TS"
   echo "  Unique paths touched: $CARRANCA_LOG_UNIQUE_PATHS"
   echo "  File events: $CARRANCA_LOG_FILE_EVENTS_TOTAL ($CARRANCA_LOG_FILES_CREATED create, $CARRANCA_LOG_FILES_MODIFIED modify, $CARRANCA_LOG_FILES_DELETED delete)"

@@ -19,7 +19,7 @@ instead of the session log directory.
 Session lifecycle events produced by carranca itself.
 
 ```json
-{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","repo_id":"a1b2c3d4e5f6","repo_name":"my-app","repo_path":"/home/user/my-app","adapter":"default","seq":1}
+{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","repo_id":"a1b2c3d4e5f6","repo_name":"my-app","repo_path":"/home/user/my-app","agent":"codex","adapter":"codex","engine":"podman","seq":1}
 {"type":"session_event","source":"carranca","event":"degraded","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","reason":"append_only_unavailable","seq":2}
 {"type":"session_event","event":"agent_start","ts":"2026-03-22T09:45:02Z","session_id":"abc12345","seq":3}
 {"type":"session_event","event":"agent_stop","ts":"2026-03-22T09:57:34Z","session_id":"abc12345","exit_code":0,"seq":10}
@@ -28,9 +28,6 @@ Session lifecycle events produced by carranca itself.
 
 Events currently emitted here: `start`, `degraded`, `agent_start`,
 `agent_stop`, `logger_stop`
-
-Note: the logger's `start` event currently records `"adapter":"default"` for all
-sessions. It does not yet persist the effective selected adapter or driver.
 
 Typical lifecycle patterns:
 

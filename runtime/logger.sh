@@ -15,6 +15,9 @@ SESSION_ID="${SESSION_ID:-unknown}"
 REPO_ID="${REPO_ID:-unknown}"
 REPO_NAME="${REPO_NAME:-unknown}"
 REPO_PATH="${REPO_PATH:-unknown}"
+AGENT_NAME="${AGENT_NAME:-unknown}"
+AGENT_ADAPTER="${AGENT_ADAPTER:-unknown}"
+ENGINE="${ENGINE:-unknown}"
 LOG_FILE="/state/${SESSION_ID}.jsonl"
 SEQ_FILE="/tmp/carranca-seq"
 SEQ_LOCK="/tmp/carranca-seq.lock"
@@ -100,7 +103,7 @@ else
 fi
 
 # Write session start event
-START_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"start\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"repo_id\":\"$REPO_ID\",\"repo_name\":\"$REPO_NAME\",\"repo_path\":\"$REPO_PATH\",\"adapter\":\"default\"}"
+START_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"start\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"repo_id\":\"$REPO_ID\",\"repo_name\":\"$REPO_NAME\",\"repo_path\":\"$REPO_PATH\",\"agent\":\"$AGENT_NAME\",\"adapter\":\"$AGENT_ADAPTER\",\"engine\":\"$ENGINE\"}"
 write_log "$START_EVENT"
 
 # Log degraded mode for append-only if needed

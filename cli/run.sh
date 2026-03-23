@@ -75,6 +75,7 @@ AGENT_HOME="/home/carranca"
 SELECTED_AGENT_NAME="$(carranca_config_resolve_agent_name "$SELECTED_AGENT")" || \
   carranca_die "Configured agent not found in .carranca.yml: ${SELECTED_AGENT:-<default>}"
 AGENT_COMMAND="$(carranca_config_agent_field "$SELECTED_AGENT_NAME" command)"
+AGENT_ADAPTER="$(carranca_config_agent_driver_for "$SELECTED_AGENT_NAME")"
 NETWORK="$(carranca_config_get runtime.network)"
 [ -z "$NETWORK" ] && NETWORK="true"
 EXTRA_FLAGS="$(carranca_config_get runtime.extra_flags)"
@@ -214,6 +215,9 @@ carranca_runtime_run -d --rm \
   -e "REPO_NAME=$REPO_NAME" \
   -e "REPO_PATH=$WORKSPACE" \
   -e "WATCHED_PATHS=$WATCHED_PATHS_ENV" \
+  -e "AGENT_NAME=$SELECTED_AGENT_NAME" \
+  -e "AGENT_ADAPTER=$AGENT_ADAPTER" \
+  -e "ENGINE=$CONTAINER_RUNTIME" \
   $LOGGER_EXTRA_FLAGS \
   "$LOGGER_IMAGE" >/dev/null
 

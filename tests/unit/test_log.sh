@@ -45,6 +45,7 @@ cat > "$LOG_DIR/11111111.jsonl" <<'EOF'
 EOF
 
 cat > "$LOG_DIR/22222222.jsonl" <<'EOF'
+{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T00:00:09Z","session_id":"22222222","repo_id":"abc123def456","repo_name":"test-repo","repo_path":"/workspace","agent":"codex","adapter":"codex","engine":"podman"}
 {"type":"session_event","event":"agent_start","ts":"2026-03-22T00:00:10Z","session_id":"22222222"}
 {"type":"file_event","event":"CREATE","ts":"2026-03-22T00:00:10Z","session_id":"22222222","path":"/workspace/b.txt"}
 {"type":"file_event","event":"MODIFY","ts":"2026-03-22T00:00:11Z","session_id":"22222222","path":"/workspace/b.txt"}
@@ -65,6 +66,7 @@ cat > "$LOG_DIR/44444444.jsonl" <<'EOF'
 EOF
 
 cat > "$LOG_DIR/55555555.jsonl" <<'EOF'
+{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T00:00:39Z","session_id":"55555555","repo_id":"abc123def456","repo_name":"test-repo","repo_path":"/workspace","agent":"claude","adapter":"claude","engine":"docker"}
 {"type":"session_event","event":"agent_start","ts":"2026-03-22T00:00:40Z","session_id":"55555555"}
 {"type":"file_event","event":"MODIFY","ts":"2026-03-22T00:00:41Z","session_id":"55555555","path":"/workspace/.env","watched":true}
 {"type":"file_event","event":"CREATE","ts":"2026-03-22T00:00:42Z","session_id":"55555555","path":"/workspace/secrets/api.key","watched":true}
@@ -100,11 +102,15 @@ assert_eq "session summary counts unique touched paths" "2" "$CARRANCA_LOG_UNIQU
 assert_eq "session summary counts created events" "1" "$CARRANCA_LOG_FILES_CREATED"
 assert_eq "session summary counts modified files" "1" "$CARRANCA_LOG_FILES_MODIFIED"
 assert_eq "session summary counts deleted files" "1" "$CARRANCA_LOG_FILES_DELETED"
-assert_eq "session summary start timestamp" "2026-03-22T00:00:10Z" "$CARRANCA_LOG_FIRST_TS"
+assert_eq "session summary start timestamp" "2026-03-22T00:00:09Z" "$CARRANCA_LOG_FIRST_TS"
 assert_eq "session summary end timestamp" "2026-03-22T00:00:13Z" "$CARRANCA_LOG_LAST_TS"
+assert_eq "session metadata agent name" "codex" "$CARRANCA_LOG_AGENT_NAME"
+assert_eq "session metadata adapter" "codex" "$CARRANCA_LOG_ADAPTER"
+assert_eq "session metadata engine" "podman" "$CARRANCA_LOG_ENGINE"
 
 summary_output="$(carranca_session_print_summary "$LOG_DIR/22222222.jsonl")"
-assert_contains "pretty summary includes duration" "Duration: 2026-03-22T00:00:10Z → 2026-03-22T00:00:13Z" "$summary_output"
+assert_contains "pretty summary includes duration" "Duration: 2026-03-22T00:00:09Z → 2026-03-22T00:00:13Z" "$summary_output"
+assert_contains "summary includes agent metadata" "Agent: codex (adapter: codex, engine: podman)" "$summary_output"
 assert_contains "pretty summary includes unique touched paths" "Unique paths touched: 2" "$summary_output"
 assert_contains "pretty summary includes file event totals" "File events: 3 (1 create, 1 modify, 1 delete)" "$summary_output"
 assert_contains "pretty summary includes command counts" "Commands run: 1 (0 succeeded, 1 failed)" "$summary_output"
