@@ -416,6 +416,10 @@ EOF
   awk_val="$(carranca_config_get runtime.engine "$PARITY_CONFIG")"
   assert_eq "parser parity: runtime.engine" "$yq_val" "$awk_val"
 
+  _CARRANCA_HAS_YQ="yes"
+  yq_val="$(_carranca_config_get_yq runtime.network "$GLOBAL_CONFIG")"
+  assert_eq "yq parser preserves boolean false values" "false" "$yq_val"
+
   # Test list values
   _CARRANCA_HAS_YQ="yes"
   mapfile -t yq_items < <(_carranca_config_get_list_yq runtime.cap_add "$PARITY_CONFIG")

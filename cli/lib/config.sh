@@ -39,7 +39,7 @@ _carranca_config_get_yq() {
 
   # Convert dot-notation to yq path: runtime.network → .runtime.network
   yq_path=".${key}"
-  val="$(yq eval "$yq_path // \"\"" "$file" 2>/dev/null)"
+  val="$(yq eval "$yq_path" "$file" 2>/dev/null)"
 
   # yq returns "null" for missing keys
   if [ "$val" = "null" ] || [ -z "$val" ]; then
