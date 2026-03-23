@@ -38,3 +38,11 @@ watched_paths:
   - .env
   - secrets/
   - "*.key"
+
+# Deep observability — all features opt-in, degrade gracefully
+observability:
+  resource_interval: 10           # Seconds between cgroup resource samples; 0 disables
+  execve_tracing: false           # strace-based process tracing; adds CAP_SYS_PTRACE to logger
+  network_logging: false          # /proc/net/tcp polling; requires PID namespace sharing
+  network_interval: 5             # Seconds between network polls
+  secret_monitoring: false        # fanotify file-read detection on watched_paths; adds CAP_SYS_ADMIN to logger

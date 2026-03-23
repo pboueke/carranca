@@ -24,13 +24,26 @@ ms_now() {
   date +%s%3N 2>/dev/null || date +%s
 }
 
+fail_closed() {
+  local message="$1"
+  echo "[carranca] $message — exiting (fail closed)" >&2
+  kill 0 2>/dev/null
+  exit 1
+}
+
+fifo_is_healthy() {
+  [ -p "$FIFO_PATH" ] && [ -w "$FIFO_PATH" ]
+}
+
 write_event() {
+  if ! fifo_is_healthy; then
+    fail_closed "FIFO is unavailable"
+  fi
+
   printf '%s\n' "$1" > "$FIFO_PATH" 2>/dev/null
   local rc=$?
   if [ "$rc" -ne 0 ]; then
-    echo "[carranca] FIFO write failed — exiting (fail closed)" >&2
-    kill 0 2>/dev/null
-    exit 1
+    fail_closed "FIFO write failed"
   fi
 }
 
@@ -45,8 +58,7 @@ WAIT_COUNT=0
 while [ ! -p "$FIFO_PATH" ]; do
   WAIT_COUNT=$((WAIT_COUNT + 1))
   if [ "$WAIT_COUNT" -ge "$WAIT_LIMIT" ]; then
-    echo "[carranca] FIFO not found after ${WAIT_LIMIT}s — exiting (fail closed)" >&2
-    exit 1
+    fail_closed "FIFO not found after ${WAIT_LIMIT}s"
   fi
   sleep 0.5
 done
@@ -56,22 +68,32 @@ done
 _heartbeat_loop() {
   while true; do
     sleep 30
-    printf '{"type":"heartbeat","ts":"%s","session_id":"%s"}\n' "$(timestamp)" "$SESSION_ID" > "$FIFO_PATH" 2>/dev/null || exit 1
+    printf '{"type":"heartbeat","source":"shell-wrapper","ts":"%s","session_id":"%s"}\n' "$(timestamp)" "$SESSION_ID" > "$FIFO_PATH" 2>/dev/null || exit 1
   done
 }
 
 _heartbeat_loop &
 HEARTBEAT_PID=$!
 
+_fifo_watchdog_loop() {
+  while true; do
+    sleep 1
+    fifo_is_healthy || fail_closed "FIFO disappeared"
+  done
+}
+
+_fifo_watchdog_loop &
+WATCHDOG_PID=$!
+
 # --- Session start event ---
 
-write_event "{\"type\":\"session_event\",\"event\":\"agent_start\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\"}"
+write_event "{\"type\":\"session_event\",\"source\":\"shell-wrapper\",\"event\":\"agent_start\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\"}"
 
 # --- Execute agent command ---
 # We log the overall agent command as a shell_command event.
 # The agent may run sub-commands internally — those are captured by
 # inotifywait (file mutations) but not individually logged as shell_command
-# events in MVP (that requires execve tracing, Phase 2).
+# events in MVP (that requires execve tracing, Phase 3).
 
 START_MS="$(ms_now)"
 eval "$AGENT_COMMAND"
@@ -84,8 +106,9 @@ write_event "{\"type\":\"shell_command\",\"source\":\"shell-wrapper\",\"ts\":\"$
 
 # --- Session stop event ---
 
-write_event "{\"type\":\"session_event\",\"event\":\"agent_stop\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"exit_code\":$AGENT_EXIT}"
+write_event "{\"type\":\"session_event\",\"source\":\"shell-wrapper\",\"event\":\"agent_stop\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"exit_code\":$AGENT_EXIT}"
 
 # Cleanup
 kill $HEARTBEAT_PID 2>/dev/null || true
+kill $WATCHDOG_PID 2>/dev/null || true
 exit $AGENT_EXIT
