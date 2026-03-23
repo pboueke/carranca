@@ -223,6 +223,41 @@ _carranca_session_verify_mock() {
     prev_hmac="$hmac_field"
   done < "$log_file"
 
+  # --- Checksum verification ---
+  local checksum_file="${log_file%.jsonl}.checksums"
+  if [ -f "$checksum_file" ]; then
+    echo "Verifying checksums..."
+    local checksum_line_no=0
+    local checksum_errors=0
+    local log_line expected_hash actual_hash
+
+    exec 8< "$checksum_file"
+    while IFS= read -r log_line; do
+      [ -z "$log_line" ] && continue
+      checksum_line_no=$((checksum_line_no + 1))
+      if IFS= read -r expected_hash <&8; then
+        # Mock hash: use line length
+        actual_hash="checksum-${#log_line}"
+        if [ "$actual_hash" != "$expected_hash" ]; then
+          echo "FAIL: Checksum mismatch at line $checksum_line_no (seq=$(carranca_json_get_number "$log_line" "seq"))"
+          echo "  expected: $expected_hash"
+          echo "  got:      $actual_hash"
+          checksum_errors=$((checksum_errors + 1))
+        fi
+      else
+        echo "WARN: Checksum file has fewer entries than log"
+        checksum_errors=$((checksum_errors + 1))
+      fi
+    done < "$log_file"
+    exec 8<&-
+
+    if [ "$checksum_errors" -gt 0 ]; then
+      errors=$((errors + checksum_errors))
+    fi
+  else
+    echo "No checksum file found (session predates checksum hardening)"
+  fi
+
   if [ "$errors" -eq 0 ]; then
     echo "OK: $line_no events verified, chain intact"
     return 0
@@ -251,7 +286,7 @@ write_event_with_hmac() {
 echo '01234567890abcdef01234567890abcdef01234567890abcdef01234567890abcdef' > "$VERIFY_KEY_FILE"
 {
   write_event_with_hmac '{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T00:00:00Z","session_id":"test123"}' 1 "0"
-  write_event_with_hmac '{"type":"heartbeat","source":"shell-wrapper","ts":"2026-03-22T00:00:01Z","session_id":"test123"}' 2 "hmac-145-0"
+  write_event_with_hmac '{"type":"heartbeat","source":"shell-wrapper","ts":"2026-03-22T00:00:01Z","session_id":"test123"}' 2 "hmac-144-0"
 } > "$VERIFY_LOG_FILE"
 
 # Create the repo/sessions directory structure
@@ -290,6 +325,58 @@ if echo "$output" | grep -q "HMAC mismatch"; then
   PASS=$((PASS + 1))
 else
   echo "  FAIL: verify should report HMAC mismatch"
+  echo "  Output: $output"
+  FAIL=$((FAIL + 1))
+fi
+
+# Test: verify with valid checksums
+echo '01234567890abcdef01234567890abcdef01234567890abcdef01234567890abcdef' > "$VERIFY_TMPDIR/sessions/testrepo/test.hmac-key"
+{
+  write_event_with_hmac '{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T00:00:00Z","session_id":"test123"}' 1 "0"
+  write_event_with_hmac '{"type":"heartbeat","source":"shell-wrapper","ts":"2026-03-22T00:00:01Z","session_id":"test123"}' 2 "hmac-144-0"
+} > "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl"
+# Mock checksums: checksum-{line_length}
+{
+  echo "checksum-139"
+  echo "checksum-124"
+} > "$VERIFY_TMPDIR/sessions/testrepo/test.checksums"
+
+output="$(_carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$VERIFY_TMPDIR" 2>&1 || true)"
+if echo "$output" | grep -q "OK: 2 events verified"; then
+  echo "  PASS: verify succeeds with valid checksums"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: verify should succeed with valid checksums"
+  echo "  Output: $output"
+  FAIL=$((FAIL + 1))
+fi
+
+# Test: verify fails with tampered checksum
+{
+  echo "checksum-139"
+  echo "wrong-hash"
+} > "$VERIFY_TMPDIR/sessions/testrepo/test.checksums"
+output="$(_carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$VERIFY_TMPDIR" 2>&1 || true)"
+if echo "$output" | grep -q "Checksum mismatch"; then
+  echo "  PASS: verify reports checksum mismatch"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: verify should report checksum mismatch"
+  echo "  Output: $output"
+  FAIL=$((FAIL + 1))
+fi
+
+# Test: verify succeeds with missing checksum file (backward compat)
+rm -f "$VERIFY_TMPDIR/sessions/testrepo/test.checksums"
+{
+  write_event_with_hmac '{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T00:00:00Z","session_id":"test123"}' 1 "0"
+} > "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl"
+output="$(_carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$VERIFY_TMPDIR" 2>&1 || true)"
+if echo "$output" | grep -q "No checksum file found"; then
+  echo "  PASS: verify reports missing checksum file"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: verify should report missing checksum file"
   echo "  Output: $output"
   FAIL=$((FAIL + 1))
 fi

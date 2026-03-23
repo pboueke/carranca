@@ -21,8 +21,8 @@ Session lifecycle events produced by carranca itself.
 ```json
 {"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","repo_id":"a1b2c3d4e5f6","repo_name":"my-app","repo_path":"/home/user/my-app","agent":"codex","adapter":"codex","engine":"podman","seq":1}
 {"type":"session_event","source":"carranca","event":"degraded","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","reason":"append_only_unavailable","seq":2}
-{"type":"session_event","event":"agent_start","ts":"2026-03-22T09:45:02Z","session_id":"abc12345","seq":3}
-{"type":"session_event","event":"agent_stop","ts":"2026-03-22T09:57:34Z","session_id":"abc12345","exit_code":0,"seq":10}
+{"type":"session_event","source":"shell-wrapper","event":"agent_start","ts":"2026-03-22T09:45:02Z","session_id":"abc12345","seq":3}
+{"type":"session_event","source":"shell-wrapper","event":"agent_stop","ts":"2026-03-22T09:57:34Z","session_id":"abc12345","exit_code":0,"seq":10}
 {"type":"session_event","source":"carranca","event":"logger_stop","ts":"2026-03-22T09:57:35Z","session_id":"abc12345","seq":11}
 ```
 
@@ -107,12 +107,32 @@ carranca log --verify --session <id>
 
 Any modification to the JSONL file after it was written breaks the HMAC chain.
 
+## Checksum file
+
+A parallel SHA-256 checksum file is written alongside each session log:
+
+```
+~/.local/state/carranca/sessions/<repo-id>/<session-id>.checksums
+```
+
+Each line contains the SHA-256 hash of the corresponding line in the
+`.jsonl` file. This provides tamper detection even when kernel-level
+append-only (`chattr +a`) is unavailable (e.g., rootless Podman,
+macOS).
+
+The checksum file is written by the logger container only and lives on the
+same `/state` volume that the agent container cannot access.
+
+Checksum verification runs automatically during `carranca log --verify`.
+If the checksum file is missing (sessions predating this feature),
+verification proceeds using the HMAC chain only.
+
 ### `heartbeat`
 
 Periodic liveness check from the shell wrapper (every 30s).
 
 ```json
-{"type":"heartbeat","ts":"2026-03-22T09:45:32Z","session_id":"abc12345","seq":7}
+{"type":"heartbeat","source":"shell-wrapper","ts":"2026-03-22T09:45:32Z","session_id":"abc12345","seq":7}
 ```
 
 ### `invalid_event`
@@ -122,6 +142,20 @@ Malformed data received on the FIFO.
 ```json
 {"type":"invalid_event","source":"fifo","ts":"2026-03-22T09:45:05Z","session_id":"abc12345","raw":"not valid json","seq":8}
 ```
+
+## Event provenance
+
+The `source` field identifies the component that produced each event. This
+enables consumers to distinguish ground-truth observations from agent-reported
+data.
+
+| Source value | Origin | Trust level |
+|-------------|--------|-------------|
+| `carranca` | Logger container (session lifecycle) | Ground truth — produced by carranca itself |
+| `inotifywait` | Linux file watcher | Ground truth — kernel-level observation |
+| `fswatch` | macOS file watcher | Ground truth — OS-level observation |
+| `shell-wrapper` | Agent container shell wrapper | Agent-reported — the agent can forge or suppress these |
+| `fifo` | Malformed data on the FIFO | Untrusted — raw data that failed validation |
 
 ## Schema fields
 

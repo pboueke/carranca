@@ -24,6 +24,7 @@ SEQ_LOCK="/tmp/carranca-seq.lock"
 HMAC_KEY_FILE="/state/${SESSION_ID}.hmac-key"
 HMAC_KEY=""
 PREV_HMAC="0"
+CHECKSUM_FILE="/state/${SESSION_ID}.checksums"
 
 # --- Helpers ---
 
@@ -53,7 +54,10 @@ write_log() {
     hmac_value="$(compute_hmac "$hmac_input")"
     PREV_HMAC="$hmac_value"
     # Inject hmac and write to log file
-    printf '%s\n' "${line_with_seq%\}},\"hmac\":\"$hmac_value\"}" >> "$LOG_FILE"
+    local final_line="${line_with_seq%\}},\"hmac\":\"$hmac_value\"}"
+    printf '%s\n' "$final_line" >> "$LOG_FILE"
+    # Write parallel checksum for tamper detection
+    write_checksum "$final_line"
   } 9>"$SEQ_LOCK"
 }
 
@@ -112,6 +116,15 @@ compute_hmac() {
   printf '%s' "$message" | openssl dgst -sha256 -macopt "hexkey:$HMAC_KEY" -hex 2>/dev/null | awk '{print $NF}'
 }
 
+# Write SHA-256 checksum of a log line to parallel checksum file.
+# This provides tamper detection even when chattr +a is unavailable.
+write_checksum() {
+  local line="$1"
+  local hash
+  hash="$(printf '%s' "$line" | openssl dgst -sha256 -hex 2>/dev/null | awk '{print $NF}')"
+  printf '%s\n' "$hash" >> "$CHECKSUM_FILE"
+}
+
 # --- Setup ---
 
 # Initialize seq counter
@@ -123,6 +136,7 @@ chmod 0666 "$FIFO_PATH"
 
 # Create log file and try to make it append-only
 touch "$LOG_FILE"
+touch "$CHECKSUM_FILE"
 if chattr +a "$LOG_FILE" 2>/dev/null; then
   APPEND_ONLY=true
 else

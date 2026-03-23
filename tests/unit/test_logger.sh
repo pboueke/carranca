@@ -39,6 +39,7 @@ TMPDIR="$(mktemp -d)"
 LOG_FILE="$TMPDIR/test.jsonl"
 SEQ_FILE="$TMPDIR/seq"
 SEQ_LOCK="$TMPDIR/seq.lock"
+CHECKSUM_FILE="$TMPDIR/test.checksums"
 echo "0" > "$SEQ_FILE"
 
 # Stub write_log from logger.sh (original version without HMAC for existing tests)
@@ -71,6 +72,13 @@ compute_hmac() {
     sum=$((sum + $(printf '%d' "'$char")))
   done
   printf '%s' "hmac-${sum}"
+}
+
+# Stub write_checksum for testing
+write_checksum() {
+  # Mock checksum that writes a predictable hash
+  local line="$1"
+  printf '%s\n' "checksum-${#line}" >> "$CHECKSUM_FILE"
 }
 
 # Extract path_is_watched from logger.sh
@@ -169,6 +177,34 @@ if [ "$hash1" = "$hash2" ]; then
 else
   echo "  PASS: compute_hmac differs for different inputs"
   PASS=$((PASS + 1))
+fi
+
+# --- Test write_checksum ---
+
+echo ""
+echo "--- write_checksum ---"
+
+> "$CHECKSUM_FILE"
+
+# Test: write_checksum writes a hash-like value
+write_checksum '{"type":"test"}'
+if grep -q "^checksum-" "$CHECKSUM_FILE"; then
+  echo "  PASS: write_checksum writes hash to file"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: write_checksum should write hash to file"
+  FAIL=$((FAIL + 1))
+fi
+
+# Test: write_checksum appends to file
+write_checksum '{"type":"test2"}'
+line_count=$(wc -l < "$CHECKSUM_FILE")
+if [ "$line_count" = "2" ]; then
+  echo "  PASS: write_checksum appends to file"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: write_checksum should append (got $line_count lines)"
+  FAIL=$((FAIL + 1))
 fi
 
 rm -rf "$TMPDIR"

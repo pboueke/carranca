@@ -308,6 +308,44 @@ carranca_session_verify() {
     prev_hmac="$hmac_field"
   done < "$log_file"
 
+  # --- Checksum verification ---
+  local checksum_file="${log_file%.jsonl}.checksums"
+  if [ -f "$checksum_file" ]; then
+    echo "Verifying checksums..."
+    local checksum_line_no=0
+    local checksum_errors=0
+    local log_line expected_hash actual_hash
+
+    exec 8< "$checksum_file"
+    while IFS= read -r log_line; do
+      [ -z "$log_line" ] && continue
+      checksum_line_no=$((checksum_line_no + 1))
+      if IFS= read -r expected_hash <&8; then
+        actual_hash="$(printf '%s' "$log_line" | openssl dgst -sha256 -hex 2>/dev/null | awk '{print $NF}')"
+        if [ "$actual_hash" != "$expected_hash" ]; then
+          echo "FAIL: Checksum mismatch at line $checksum_line_no (seq=$(carranca_json_get_number "$log_line" "seq"))"
+          echo "  expected: $expected_hash"
+          echo "  got:      $actual_hash"
+          checksum_errors=$((checksum_errors + 1))
+        fi
+      else
+        echo "WARN: Checksum file has fewer entries than log ($checksum_line_no < $line_no)"
+        checksum_errors=$((checksum_errors + 1))
+      fi
+    done < "$log_file"
+    exec 8<&-
+
+    if [ "$checksum_line_no" -ne "$line_no" ]; then
+      echo "WARN: Checksum file has $checksum_line_no entries, log has $line_no entries"
+    fi
+
+    if [ "$checksum_errors" -gt 0 ]; then
+      errors=$((errors + checksum_errors))
+    fi
+  else
+    echo "No checksum file found (session predates checksum hardening)"
+  fi
+
   if [ "$errors" -eq 0 ]; then
     echo "OK: $line_no events verified, chain intact"
     return 0
