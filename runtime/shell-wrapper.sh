@@ -93,7 +93,7 @@ write_event "{\"type\":\"session_event\",\"source\":\"shell-wrapper\",\"event\":
 # We log the overall agent command as a shell_command event.
 # The agent may run sub-commands internally — those are captured by
 # inotifywait (file mutations) but not individually logged as shell_command
-# events in MVP (that requires execve tracing, Phase 2).
+# events in MVP (that requires execve tracing, Phase 3).
 
 START_MS="$(ms_now)"
 eval "$AGENT_COMMAND"

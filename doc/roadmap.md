@@ -82,31 +82,30 @@ compliance review, or incident postmortem.
 Capture what the agent actually does at the kernel level, not just what
 it reports through the shell wrapper.
 
-### 3.1 `execve` tracing via eBPF/strace
-Run a lightweight tracer (eBPF where available, strace fallback) inside
-the logger container that attaches to the agent PID namespace. Log all
-`execve` calls with argv, cwd, uid, and parent PID. Merge into the
-session JSONL stream as `execve_event` entries.
+### ~~3.1 `execve` tracing via strace~~ ✓
+Run strace inside the logger container attached to the agent PID namespace
+via `--pid=container`. Log all `execve` calls with argv and PID. Merge
+into the session JSONL stream as `execve_event` entries.
 
-### 3.2 Network connection logging
-When `runtime.network: true`, log outbound connections (dest IP, port,
-protocol) via eBPF or conntrack. Emit `network_event` entries. This
-does not block traffic — it records it.
+### ~~3.2 Network connection logging~~ ✓
+When `runtime.network: true`, poll `/proc/net/tcp` to detect outbound
+connections (dest IP, port, protocol). Emit `network_event` entries.
+Records traffic without blocking it.
 
-### 3.3 Secret read monitoring
-Use `fanotify` (Linux) to capture file open events (not just mutations)
-on paths listed in `watched_paths`. Emit `file_access_event` for reads
-on sensitive files. Requires `CAP_SYS_ADMIN` in the logger container.
+### ~~3.3 Secret read monitoring~~ ✓
+Use `fanotify` (Linux) via a small C binary compiled against musl to
+capture file open events on `watched_paths`. Emit `file_access_event`
+for reads on sensitive files. Requires `CAP_SYS_ADMIN` in the logger.
 
-### 3.4 Resource consumption tracking
-Periodically sample agent container CPU, memory, disk I/O, and network
-bytes via cgroup stats. Emit `resource_event` entries. Enables
-post-session cost estimation and anomaly detection.
+### ~~3.4 Resource consumption tracking~~ ✓
+Periodically sample agent container CPU, memory, and PID count via
+cgroup v2 stats mounted at `/hostcgroup`. Emit `resource_event` entries.
+Enables post-session cost estimation and anomaly detection.
 
-### 3.5 Session timeline visualization
-`carranca log --timeline <session>` renders an ASCII or HTML timeline
-of events: commands, file mutations, execve calls, network connections.
-Makes session review fast and intuitive.
+### ~~3.5 Session timeline visualization~~ ✓
+`carranca log --timeline` renders an ASCII timeline of all session
+events: commands, file mutations, execve calls, network connections,
+resource samples. Makes session review fast and intuitive.
 
 ---
 

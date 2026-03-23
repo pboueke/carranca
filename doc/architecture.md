@@ -35,7 +35,7 @@ transient images.
        │     ├── creates FIFO on shared volume
        │     ├── starts inotifywait (or fswatch fallback) on /workspace (read-only)
        │     ├── reads FIFO events
-       │     └── writes JSONL to /state/{session}.jsonl
+       │     └── writes JSONL, checksum, and HMAC key files to /state/
        │
        └── <runtime> run -it (agent)
              ├── shell-wrapper opens FIFO
@@ -89,6 +89,8 @@ Two containers share a tmpfs volume containing a Unix FIFO:
 - Mounts: FIFO volume (rw), workspace (ro), state dir (rw)
 - Capabilities: requests `CAP_LINUX_IMMUTABLE` for `chattr +a`; rootless Podman
   degrades to `--userns keep-id`, so append-only is best-effort there too
+- Owns the per-session `.jsonl`, `.checksums`, and `.hmac-key` files used by
+  `carranca log --verify` and `carranca log --export`
 
 **Agent** (`.carranca/Containerfile`):
 - User-configurable per project
@@ -106,8 +108,9 @@ Two containers share a tmpfs volume containing a Unix FIFO:
   │ shell-wrapper.sh │              │ logger.sh        │
   │   │              │              │   │              │
   │   ├─ agent cmd   │   FIFO      │   ├─ read FIFO ──┤──► session.jsonl
-  │   ├─ heartbeat ──┼──────►──────┼───┤              │    (append-only)
+  │   ├─ heartbeat ──┼──────►──────┼───┤              │    + .checksums
   │   └─ exit code   │  (tmpfs)    │   ├─ inotifywait─┤ (or fswatch)
+  │                  │              │   └─ HMAC chain ─┤──► .hmac-key
   │                  │              │   │  /workspace  │
   │ /workspace (rw)  │              │ /workspace (ro)  │
   └──────────────────┘              └──────────────────┘
@@ -118,16 +121,15 @@ Two containers share a tmpfs volume containing a Unix FIFO:
 | Path | Mutable | Owner | Purpose |
 |------|---------|-------|---------|
 | `~/.local/share/carranca/` | No | Install | CLI, runtime assets, templates, and shipped skills |
-| `~/.local/state/carranca/sessions/<repo-id>/` | Yes | Carranca | Session JSONL logs |
+| `~/.local/state/carranca/sessions/<repo-id>/` | Yes | Carranca | Session JSONL logs plus per-session `.checksums`, `.hmac-key`, `.tar`, and `.tar.sig` files |
+| `~/.local/state/carranca/config/<repo-id>/` | Yes | Carranca | Config workflow proposals and audit history |
 | `~/.local/state/carranca/cache/<repo-id>/home/` | Yes | Agent | Persistent agent home dir mounted at `/home/carranca` (auth, config, history) |
+| `~/.config/carranca/config.yml` | Yes | User | Optional user-wide defaults for `runtime.*` and `volumes.*` |
 | `.carranca.yml` | Yes | User | Per-project configuration, including the ordered `agents:` list |
 | `.carranca/Containerfile` | Yes | User | Agent container definition |
 | `.carranca/shell-wrapper.sh` | No | Carranca | Injected into agent image at build |
 | `.carranca/skills/carranca/` | Yes | User/Repo | Repo-local Carranca workflow skills scaffolded by `init` and mounted by `run` when present |
 | `.carranca/skills/user/` | Yes | User | Per-project user-authored skills |
-
-Carranca's CLI help still prints `~/.config/carranca/config.yml`, but that file
-is not currently read by the implementation.
 
 ## Repo identity
 

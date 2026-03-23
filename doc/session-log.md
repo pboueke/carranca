@@ -47,8 +47,12 @@ Commands executed through the shell wrapper.
 {"type":"shell_command","source":"shell-wrapper","ts":"2026-03-22T09:45:02Z","session_id":"abc12345","command":"npm test","exit_code":0,"duration_ms":3420,"cwd":"/workspace/src","seq":4}
 ```
 
-**Limitation:** Only captures commands that flow through the shell wrapper.
-Agent-native operations (file writes, edits via tool APIs) bypass the wrapper.
+Today this records the top-level configured agent command as seen by the
+wrapper. It does not trace every subprocess or internal tool call the agent may
+spawn after startup.
+
+**Limitation:** Agent-native operations such as direct file edits via tool APIs
+still bypass shell-wrapper command capture.
 
 ### `file_event`
 
@@ -100,7 +104,7 @@ Example event with HMAC:
 {"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","repo_id":"a1b2c3d4e5f6","repo_name":"my-app","repo_path":"/home/user/my-app","agent":"codex","adapter":"codex","engine":"podman","seq":1,"hmac":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6"}
 ```
 
-Verify a session's integrity:
+Verify a session's integrity from the local Carranca state directory:
 ```bash
 carranca log --verify --session <id>
 ```
@@ -123,14 +127,14 @@ macOS).
 The checksum file is written by the logger container only and lives on the
 same `/state` volume that the agent container cannot access.
 
-Checksum verification runs automatically during `carranca log --verify`.
-If the checksum file is missing (sessions predating this feature),
-verification proceeds using the HMAC chain only.
+Checksum verification runs automatically during `carranca log --verify`. If the
+checksum file is missing (sessions predating this feature), verification
+proceeds using the HMAC chain only.
 
 ## Log export and archival
 
-`carranca log --export` produces a self-contained signed archive for
-external storage, compliance review, or incident postmortem:
+`carranca log --export` produces a self-contained signed archive for external
+storage, compliance review, or incident postmortem:
 
 ```bash
 carranca log --export --session abc12345
@@ -143,22 +147,22 @@ This creates two files alongside the session log:
 ~/.local/state/carranca/sessions/<repo-id>/<session-id>.tar.sig
 ```
 
-The tar archive bundles the `.jsonl`, `.hmac-key`, and `.checksums`
-files. The `.sig` file contains an HMAC-SHA256 signature of the tar
-computed with the session key. If the HMAC key is missing (pre-Phase 2
-sessions), the signature is an unsigned SHA-256 digest.
+The tar archive bundles the `.jsonl`, `.hmac-key`, and `.checksums` files. The
+`.sig` file contains an HMAC-SHA256 signature of the tar computed with the
+session key. If the HMAC key is missing (pre-Phase 2 sessions), the signature
+is an unsigned SHA-256 digest.
 
 To verify an exported archive independently:
 
 ```bash
-# Extract and verify the HMAC chain
-tar xf <session-id>.tar
-carranca log --verify --session <session-id>
-
 # Verify the archive signature
-KEY=$(cat <session-id>/<session-id>.hmac-key)
-echo -n "$(openssl dgst -sha256 -macopt hexkey:$KEY -hex <session-id>.tar | awk '{print $NF}')" | diff - <session-id>.tar.sig
+KEY="$(cat <session-id>/<session-id>.hmac-key)"
+openssl dgst -sha256 -macopt "hexkey:$KEY" -hex <session-id>.tar | awk '{print $NF}'
+cat <session-id>.tar.sig
 ```
+
+For full `carranca log --verify` replay, restore the extracted `.jsonl`,
+`.hmac-key`, and `.checksums` files into a Carranca session state directory.
 
 ### `heartbeat`
 
@@ -176,6 +180,56 @@ Malformed data received on the FIFO.
 {"type":"invalid_event","source":"fifo","ts":"2026-03-22T09:45:05Z","session_id":"abc12345","raw":"not valid json","seq":8}
 ```
 
+### `execve_event`
+
+Process execution captured by strace attached to the agent PID namespace.
+Requires `observability.execve_tracing: true` and `CAP_SYS_PTRACE` on the
+logger container.
+
+```json
+{"type":"execve_event","source":"strace","ts":"2026-03-22T09:45:03Z","session_id":"abc12345","pid":42,"binary":"/usr/bin/npm","argv":"[\"npm\", \"test\"]","seq":9}
+```
+
+### `network_event`
+
+Outbound network connection detected by polling `/proc/net/tcp`.
+Requires `observability.network_logging: true` and PID namespace sharing.
+Only active when `runtime.network` is enabled.
+
+```json
+{"type":"network_event","source":"carranca","ts":"2026-03-22T09:45:03Z","session_id":"abc12345","dest_ip":"104.18.12.33","dest_port":443,"protocol":"tcp","state":"ESTABLISHED","seq":10}
+```
+
+### `resource_event`
+
+Periodic container resource sample from cgroup stats.
+Configurable via `observability.resource_interval` (default: 10 seconds).
+
+```json
+{"type":"resource_event","source":"carranca","ts":"2026-03-22T09:45:10Z","session_id":"abc12345","cpu_usage_us":1234567,"memory_bytes":52428800,"pids":12,"seq":11}
+```
+
+### `file_access_event`
+
+File read detected by fanotify on `watched_paths`.
+Requires `observability.secret_monitoring: true` and `CAP_SYS_ADMIN` on the
+logger container.
+
+```json
+{"type":"file_access_event","source":"fanotify","ts":"2026-03-22T09:45:03Z","session_id":"abc12345","path":"/workspace/.env","pid":42,"watched":true,"seq":12}
+```
+
+### Session timeline
+
+`carranca log --timeline` renders an ASCII timeline of all session events:
+
+```bash
+carranca log --timeline --session abc12345
+```
+
+Each event type maps to a glyph: `>>` lifecycle, `$` command, `F+/F~/F-`
+file mutation, `X` execve, `N` network, `R` resource, `A` file access.
+
 ## Event provenance
 
 The `source` field identifies the component that produced each event. This
@@ -184,9 +238,11 @@ data.
 
 | Source value | Origin | Trust level |
 |-------------|--------|-------------|
-| `carranca` | Logger container (session lifecycle) | Ground truth — produced by carranca itself |
+| `carranca` | Logger container (session lifecycle, resource sampling, network monitoring) | Ground truth — produced by carranca itself |
 | `inotifywait` | Linux file watcher | Ground truth — kernel-level observation |
 | `fswatch` | macOS file watcher | Ground truth — OS-level observation |
+| `strace` | Process execution tracer | Ground truth — kernel-level observation via ptrace |
+| `fanotify` | File access monitor | Ground truth — kernel-level observation via fanotify |
 | `shell-wrapper` | Agent container shell wrapper | Agent-reported — the agent can forge or suppress these |
 | `fifo` | Malformed data on the FIFO | Untrusted — raw data that failed validation |
 
@@ -220,7 +276,7 @@ jq '{seq, type, event, command, path}' session.jsonl
 # Count commands
 jq -s '[.[] | select(.type=="shell_command")] | length' session.jsonl
 
-# Verify HMAC chain integrity
+# Verify HMAC chain and checksum integrity
 carranca log --verify --session abc12345
 ```
 
@@ -234,7 +290,7 @@ developers:
 - unique paths touched
 - file-event totals split by create, modify, and delete
 - top touched paths ranked by event count
-- command totals, failures, and ordered command list
+- command totals, failures, and ordered shell-wrapper command list
 
 Examples:
 

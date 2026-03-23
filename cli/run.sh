@@ -80,6 +80,8 @@ NETWORK="$(carranca_config_get_with_global runtime.network)"
 [ -z "$NETWORK" ] && NETWORK="true"
 EXTRA_FLAGS="$(carranca_config_get_with_global runtime.extra_flags)"
 LOGGER_EXTRA_FLAGS="$(carranca_config_get_with_global runtime.logger_extra_flags)"
+RESOURCE_INTERVAL="$(carranca_config_get_with_global observability.resource_interval)"
+SECRET_MONITORING="$(carranca_config_get_with_global observability.secret_monitoring)"
 
 # Parse capability additions for the agent container
 CAP_ADD_FLAGS=""
@@ -87,6 +89,10 @@ while IFS= read -r cap; do
   [ -z "$cap" ] && continue
   CAP_ADD_FLAGS="$CAP_ADD_FLAGS --cap-add $cap"
 done < <(carranca_config_get_list_with_global runtime.cap_add 2>/dev/null || true)
+
+EXECVE_TRACING="$(carranca_config_get_with_global observability.execve_tracing)"
+NETWORK_LOGGING="$(carranca_config_get_with_global observability.network_logging)"
+NETWORK_INTERVAL="$(carranca_config_get_with_global observability.network_interval)"
 
 CONTAINER_RUNTIME="$(carranca_runtime_cmd)"
 LOGGER_CAP_FLAGS="$(carranca_runtime_logger_cap_flags)"
@@ -188,6 +194,21 @@ fi
 
 # --- Cleanup handler ---
 
+PID_NS_FLAG=""
+if [ "$EXECVE_TRACING" = "true" ] || [ "$NETWORK_LOGGING" = "true" ]; then
+  PID_NS_FLAG="--pid=container:$LOGGER_NAME"
+fi
+
+PTRACE_CAP_FLAG=""
+if [ "$EXECVE_TRACING" = "true" ]; then
+  PTRACE_CAP_FLAG="--cap-add SYS_PTRACE"
+fi
+
+SECRETMON_CAP_FLAG=""
+if [ "${SECRET_MONITORING:-}" = "true" ]; then
+  SECRETMON_CAP_FLAG="--cap-add SYS_ADMIN"
+fi
+
 SESSION_CLEANED_UP=0
 
 _cleanup() {
@@ -207,6 +228,7 @@ carranca_log info "Starting logger..."
 carranca_runtime_run -d --rm \
   --name "$LOGGER_NAME" \
   $LOGGER_CAP_FLAGS \
+  $PTRACE_CAP_FLAG \
   -v "$FIFO_VOLUME:/fifo" \
   -v "$WORKSPACE:/workspace:ro" \
   -v "$STATE_DIR:/state" \
@@ -218,6 +240,14 @@ carranca_runtime_run -d --rm \
   -e "AGENT_NAME=$SELECTED_AGENT_NAME" \
   -e "AGENT_ADAPTER=$AGENT_ADAPTER" \
   -e "ENGINE=$CONTAINER_RUNTIME" \
+  -e "EXECVE_TRACING=${EXECVE_TRACING:-}" \
+  -v /sys/fs/cgroup:/hostcgroup:ro \
+  -e "RESOURCE_INTERVAL=${RESOURCE_INTERVAL:-}" \
+  -e "AGENT_CONTAINER_ID=$AGENT_CONTAINER_NAME" \
+  -e "SECRET_MONITORING=${SECRET_MONITORING:-}" \
+  -e "NETWORK_LOGGING=${NETWORK_LOGGING:-}" \
+  -e "NETWORK_INTERVAL=${NETWORK_INTERVAL:-}" \
+  $SECRETMON_CAP_FLAG \
   $LOGGER_EXTRA_FLAGS \
   "$LOGGER_IMAGE" >/dev/null
 
@@ -258,6 +288,7 @@ AGENT_EXIT_CODE=0
 carranca_runtime_run $TTY_FLAGS --rm \
   --name "$AGENT_CONTAINER_NAME" \
   $AGENT_IDENTITY_FLAGS \
+  $PID_NS_FLAG \
   -v "$FIFO_VOLUME:/fifo" \
   -v "$WORKSPACE:/workspace:rw" \
   -e "HOME=$AGENT_HOME" \

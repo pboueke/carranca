@@ -19,7 +19,7 @@ Carranca reads user-wide defaults from:
 
 Override the directory with `CARRANCA_CONFIG_DIR`.
 
-Only `runtime.*` and `volumes.*` settings are read from global config.
+Only `runtime.*`, `volumes.*`, and `observability.*` settings are read from global config.
 Project-level `.carranca.yml` always takes precedence. Lists (like
 `runtime.cap_add` and `volumes.extra`) are not merged — the project list
 replaces the global list entirely when present.
@@ -69,6 +69,13 @@ watched_paths:
   - .env
   - secrets/
   - "*.key"
+
+observability:
+  resource_interval: 10
+  execve_tracing: false
+  network_logging: false
+  network_interval: 5
+  secret_monitoring: false
 ```
 
 ### Field reference
@@ -89,6 +96,11 @@ watched_paths:
 | `policy.docs_before_code` | No | — | Parsed and scaffolded, but not enforced by the current CLI |
 | `policy.tests_before_impl` | No | — | Parsed and scaffolded, but not enforced by the current CLI |
 | `watched_paths` | No | — | File events matching watched patterns are tagged with `"watched":true` in session logs |
+| `observability.resource_interval` | No | `10` | Seconds between cgroup resource samples; `0` disables |
+| `observability.execve_tracing` | No | `false` | Enable strace-based execve tracing; adds `CAP_SYS_PTRACE` to logger |
+| `observability.network_logging` | No | `false` | Enable `/proc/net/tcp` polling for outbound connections; requires PID namespace sharing |
+| `observability.network_interval` | No | `5` | Seconds between network connection polls |
+| `observability.secret_monitoring` | No | `false` | Enable fanotify-based file read monitoring on `watched_paths`; adds `CAP_SYS_ADMIN` to logger |
 
 ### Runtime resolution
 

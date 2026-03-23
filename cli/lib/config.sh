@@ -203,7 +203,7 @@ carranca_config_get_with_global() {
 
   # Fall back to global only for runtime.* and volumes.* keys
   case "$key" in
-    runtime.*|volumes.*)
+    runtime.*|volumes.*|observability.*)
       val="$(carranca_config_get "$key" "$CARRANCA_GLOBAL_CONFIG" 2>/dev/null || true)"
       if [ -n "$val" ]; then
         printf '%s' "$val"
@@ -230,7 +230,7 @@ carranca_config_get_list_with_global() {
 
   # Fall back to global only for runtime.* and volumes.* keys
   case "$key" in
-    runtime.*|volumes.*)
+    runtime.*|volumes.*|observability.*)
       items="$(carranca_config_get_list "$key" "$CARRANCA_GLOBAL_CONFIG" 2>/dev/null || true)"
       if [ -n "$items" ]; then
         printf '%s\n' "$items"

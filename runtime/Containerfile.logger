@@ -1,3 +1,8 @@
+FROM alpine:3.21 AS builder
+RUN apk add --no-cache gcc musl-dev
+COPY fanotify-watcher.c /tmp/
+RUN gcc -static -O2 -o /tmp/fanotify-watcher /tmp/fanotify-watcher.c
+
 FROM alpine:3.21
 
 RUN apk add --no-cache \
@@ -5,8 +10,10 @@ RUN apk add --no-cache \
       coreutils \
       inotify-tools \
       e2fsprogs \
-      openssl
+      openssl \
+      strace
 
+COPY --from=builder /tmp/fanotify-watcher /usr/local/bin/fanotify-watcher
 COPY logger.sh /usr/local/bin/logger.sh
 RUN chmod +x /usr/local/bin/logger.sh
 

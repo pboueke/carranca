@@ -10,7 +10,7 @@
     <img src="https://img.shields.io/badge/coverage-100%25_(79%2F79_functions)-brightgreen" alt="coverage: 100%" />
   </p>
 
-  <p><strong>Containerized multi-agent runtime with session logging.</strong> Named after the carved figureheads on boats in Brazil's São Francisco river, believed to protect sailors. Carranca protects engineers from coding agents by running them in isolated containers with structured session logging.
+  <p><strong>Containerized multi-agent runtime with verified session logging.</strong> Named after the carved figureheads on boats in Brazil's São Francisco river, believed to protect sailors. Carranca protects engineers from coding agents by running them in isolated containers with structured, tamper-evident audit logs.
 </p>
 </div>
 
@@ -52,10 +52,11 @@ Docker, selected by `CARRANCA_CONTAINER_RUNTIME` or `runtime.engine`; `auto`
 prefers Podman and falls back to Docker.
 
 Two runtime-managed containers share a FIFO on a tmpfs volume. The agent gets an
-interactive TTY. The logger writes a structured JSONL session log that the agent
-cannot access. On Linux, the agent container runs as the invoking host UID:GID,
-or with `--userns keep-id` on rootless Podman, so workspace writes keep usable
-host ownership.
+interactive TTY. The logger writes a structured JSONL session log plus a
+parallel checksum file and per-session HMAC key that the agent cannot access.
+On Linux, the agent container runs as the invoking host UID:GID, or with
+`--userns keep-id` on rootless Podman, so workspace writes keep usable host
+ownership.
 
 ```
   carranca run
@@ -71,15 +72,16 @@ See [doc/architecture.md](doc/architecture.md) for the full picture.
 - `carranca init`: scaffold `.carranca.yml`, `.carranca/Containerfile`, and repo-local skill directories under `.carranca/skills/`
 - `carranca kill`: stop one active session by exact id or all active sessions globally after confirmation
 - `carranca config`: launch the selected configured agent, require it to use Carranca `confiskill`, and propose updates to `.carranca.yml` and `.carranca/Containerfile`
-- `carranca log`: pretty-print the latest session for the current repo, or a selected session via `--session <exact-id>`
+- `carranca log`: pretty-print the latest session for the current repo, inspect a selected session via `--session <exact-id>`, verify integrity with `--verify`, or export a signed archive with `--export`
 - `carranca run`: start an interactive session with the default first agent or a named agent via `--agent <name>`
 - `carranca status`: show active sessions and the 5 most recent session logs for the current repo, or inspect a specific session via `--session <exact-id>`
 
 Each command also exposes command-specific help through either `carranca help <command>` or `carranca <command> help`.
 
-Carranca currently reads per-project config from `.carranca.yml`. There is no
-implemented global config file yet. Runtime selection precedence is:
-`CARRANCA_CONTAINER_RUNTIME`, then `.carranca.yml` `runtime.engine`, then
+Carranca reads per-project config from `.carranca.yml` and optional user-wide
+defaults from `~/.config/carranca/config.yml` for `runtime.*` and `volumes.*`
+keys. Runtime selection precedence is `CARRANCA_CONTAINER_RUNTIME`, then
+`.carranca.yml` `runtime.engine`, then global `runtime.engine`, then
 auto-detection.
 
 Carranca config is forward-only on the `agents:` format. `carranca init`
@@ -98,7 +100,11 @@ shows rationale and a diff before applying any proposal. Use
 `--dangerously-skip-confirmation` only when you want to bypass the confirmation
 prompt and accept the proposal immediately.
 
-`carranca log` reports the latest or selected session in a developer-readable summary: duration, unique touched paths, file-event totals, top touched paths, command counts, and the ordered command list when shell-wrapper command capture exists.
+`carranca log` reports the latest or selected session in a developer-readable
+summary: duration, unique touched paths, file-event totals, top touched paths,
+command counts, and the shell-wrapper command list when command capture exists.
+Current command capture records the top-level configured agent command, not each
+sub-command an agent may spawn internally.
 
 ## Documentation
 

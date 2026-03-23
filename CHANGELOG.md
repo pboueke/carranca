@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.13.0] - 2026-03-23
+
+- feat: add `carranca log --timeline` for ASCII timeline rendering of session events
+- feat: add `execve` tracing via strace — captures all process execution in agent PID namespace (`observability.execve_tracing`)
+- feat: add network connection logging by polling `/proc/net/tcp` (`observability.network_logging`)
+- feat: add secret read monitoring via fanotify C binary — detects file reads on `watched_paths` (`observability.secret_monitoring`)
+- feat: add resource consumption tracking via cgroup v2 stats (`observability.resource_interval`)
+- feat: add `observability.*` config namespace with global fallback support
+- feat: PID namespace sharing (`--pid=container`) when execve tracing or network logging is enabled
+- feat: multi-stage Containerfile.logger build for fanotify-watcher C binary
+- docs: add Phase 3 event types to session-log.md (execve_event, network_event, resource_event, file_access_event)
+- docs: update trust model with deep observability capabilities and updated threat table
+- docs: add observability config keys to configuration.md
+- docs: mark all Phase 3 roadmap items (3.1–3.5) as complete
+- test: add coverage for timeline rendering, strace parser, network monitor, resource sampler, and fanotify integration
+- test: 392 tests, 17 suites, 0 failures
+
 ## [0.12.0] - 2026-03-23
 
 - feat: add HMAC-signed event chain — per-session key signs each JSONL event with chained HMAC-SHA256; `carranca log --verify` validates the chain

@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/identity.sh"
 source "$SCRIPT_DIR/lib/log.sh"
+source "$SCRIPT_DIR/lib/timeline.sh"
 
 STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
 SESSION_ID=""
@@ -14,6 +15,7 @@ COMMANDS_ONLY=false
 TOP_N=""
 VERIFY=false
 EXPORT=false
+TIMELINE=false
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -30,6 +32,7 @@ while [ "$#" -gt 0 ]; do
       echo "  --top <n>         Limit top touched paths to n entries"
       echo "  --verify          Verify HMAC chain integrity and detect log tampering"
       echo "  --export          Export session as a signed archive (.tar + .sig)"
+      echo "  --timeline        Render an ASCII timeline of session events"
       exit 0
       ;;
     --session)
@@ -54,6 +57,9 @@ while [ "$#" -gt 0 ]; do
     --export)
       EXPORT=true
       ;;
+    --timeline)
+      TIMELINE=true
+      ;;
     -h|--help)
       echo "Usage: carranca log [--session <exact-id>] [--files-only] [--commands-only] [--top <n>]"
       echo ""
@@ -67,6 +73,7 @@ while [ "$#" -gt 0 ]; do
       echo "  --top <n>         Limit top touched paths to n entries"
       echo "  --verify          Verify HMAC chain integrity and detect log tampering"
       echo "  --export          Export session as a signed archive (.tar + .sig)"
+      echo "  --timeline        Render an ASCII timeline of session events"
       exit 0
       ;;
     *)
@@ -99,6 +106,11 @@ fi
 
 if [ "$EXPORT" = true ]; then
   carranca_session_export "$LOG_FILE" "$STATE_BASE"
+  exit $?
+fi
+
+if [ "$TIMELINE" = true ]; then
+  carranca_session_render_timeline "$LOG_FILE"
   exit $?
 fi
 

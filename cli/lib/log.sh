@@ -114,6 +114,10 @@ carranca_session_collect_stats() {
   CARRANCA_LOG_FILE_EVENTS_TOTAL=0
   CARRANCA_LOG_WATCHED_EVENTS=0
   CARRANCA_LOG_UNIQUE_PATHS=0
+  CARRANCA_LOG_RESOURCE_SAMPLES=0
+  CARRANCA_LOG_EXECVE_EVENTS=0
+  CARRANCA_LOG_NETWORK_EVENTS=0
+  CARRANCA_LOG_ACCESS_EVENTS=0
   CARRANCA_LOG_FIRST_TS=""
   CARRANCA_LOG_LAST_TS=""
   CARRANCA_LOG_AGENT_NAME=""
@@ -168,6 +172,10 @@ carranca_session_collect_stats() {
             ;;
         esac
         ;;
+      resource_event) CARRANCA_LOG_RESOURCE_SAMPLES=$((CARRANCA_LOG_RESOURCE_SAMPLES + 1)) ;;
+      execve_event) CARRANCA_LOG_EXECVE_EVENTS=$((CARRANCA_LOG_EXECVE_EVENTS + 1)) ;;
+      network_event) CARRANCA_LOG_NETWORK_EVENTS=$((CARRANCA_LOG_NETWORK_EVENTS + 1)) ;;
+      file_access_event) CARRANCA_LOG_ACCESS_EVENTS=$((CARRANCA_LOG_ACCESS_EVENTS + 1)) ;;
       session_event)
         ts="$(carranca_json_get_string "$line" "ts")"
         [ -z "$CARRANCA_LOG_FIRST_TS" ] && CARRANCA_LOG_FIRST_TS="$ts"
@@ -201,6 +209,18 @@ carranca_session_print_summary() {
     echo "  Watched path events: $CARRANCA_LOG_WATCHED_EVENTS"
   fi
   echo "  Commands run: $CARRANCA_LOG_TOTAL_CMDS ($CARRANCA_LOG_SUCCEEDED_CMDS succeeded, $CARRANCA_LOG_FAILED_CMDS failed)"
+  if [ "$CARRANCA_LOG_RESOURCE_SAMPLES" -gt 0 ]; then
+    echo "  Resource samples: $CARRANCA_LOG_RESOURCE_SAMPLES"
+  fi
+  if [ "$CARRANCA_LOG_EXECVE_EVENTS" -gt 0 ]; then
+    echo "  Execve events: $CARRANCA_LOG_EXECVE_EVENTS"
+  fi
+  if [ "$CARRANCA_LOG_NETWORK_EVENTS" -gt 0 ]; then
+    echo "  Network events: $CARRANCA_LOG_NETWORK_EVENTS"
+  fi
+  if [ "$CARRANCA_LOG_ACCESS_EVENTS" -gt 0 ]; then
+    echo "  Access events: $CARRANCA_LOG_ACCESS_EVENTS"
+  fi
   echo "  Action log: $log_file"
   if [ "$CARRANCA_LOG_TOTAL_CMDS" -eq 0 ] && [ "$CARRANCA_LOG_FILE_EVENTS_TOTAL" -gt 0 ]; then
     echo "  Command capture: none recorded; changes likely came from agent-native edit/tool operations"
