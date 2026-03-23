@@ -68,7 +68,7 @@ done
 _heartbeat_loop() {
   while true; do
     sleep 30
-    printf '{"type":"heartbeat","ts":"%s","session_id":"%s"}\n' "$(timestamp)" "$SESSION_ID" > "$FIFO_PATH" 2>/dev/null || exit 1
+    printf '{"type":"heartbeat","source":"shell-wrapper","ts":"%s","session_id":"%s"}\n' "$(timestamp)" "$SESSION_ID" > "$FIFO_PATH" 2>/dev/null || exit 1
   done
 }
 
@@ -87,7 +87,7 @@ WATCHDOG_PID=$!
 
 # --- Session start event ---
 
-write_event "{\"type\":\"session_event\",\"event\":\"agent_start\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\"}"
+write_event "{\"type\":\"session_event\",\"source\":\"shell-wrapper\",\"event\":\"agent_start\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\"}"
 
 # --- Execute agent command ---
 # We log the overall agent command as a shell_command event.
@@ -106,7 +106,7 @@ write_event "{\"type\":\"shell_command\",\"source\":\"shell-wrapper\",\"ts\":\"$
 
 # --- Session stop event ---
 
-write_event "{\"type\":\"session_event\",\"event\":\"agent_stop\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"exit_code\":$AGENT_EXIT}"
+write_event "{\"type\":\"session_event\",\"source\":\"shell-wrapper\",\"event\":\"agent_stop\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"exit_code\":$AGENT_EXIT}"
 
 # Cleanup
 kill $HEARTBEAT_PID 2>/dev/null || true

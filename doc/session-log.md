@@ -21,8 +21,8 @@ Session lifecycle events produced by carranca itself.
 ```json
 {"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","repo_id":"a1b2c3d4e5f6","repo_name":"my-app","repo_path":"/home/user/my-app","agent":"codex","adapter":"codex","engine":"podman","seq":1}
 {"type":"session_event","source":"carranca","event":"degraded","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","reason":"append_only_unavailable","seq":2}
-{"type":"session_event","event":"agent_start","ts":"2026-03-22T09:45:02Z","session_id":"abc12345","seq":3}
-{"type":"session_event","event":"agent_stop","ts":"2026-03-22T09:57:34Z","session_id":"abc12345","exit_code":0,"seq":10}
+{"type":"session_event","source":"shell-wrapper","event":"agent_start","ts":"2026-03-22T09:45:02Z","session_id":"abc12345","seq":3}
+{"type":"session_event","source":"shell-wrapper","event":"agent_stop","ts":"2026-03-22T09:57:34Z","session_id":"abc12345","exit_code":0,"seq":10}
 {"type":"session_event","source":"carranca","event":"logger_stop","ts":"2026-03-22T09:57:35Z","session_id":"abc12345","seq":11}
 ```
 
@@ -79,7 +79,7 @@ it cannot identify which process caused it. Reads are not captured.
 Periodic liveness check from the shell wrapper (every 30s).
 
 ```json
-{"type":"heartbeat","ts":"2026-03-22T09:45:32Z","session_id":"abc12345","seq":7}
+{"type":"heartbeat","source":"shell-wrapper","ts":"2026-03-22T09:45:32Z","session_id":"abc12345","seq":7}
 ```
 
 ### `invalid_event`
@@ -100,6 +100,20 @@ Malformed data received on the FIFO.
 | `source` | string | Component that produced the event |
 | `session_id` | string | 8-char hex session identifier |
 | `repo_id` | string | 12-char hex repo identifier |
+
+## Event provenance
+
+The `source` field identifies the component that produced each event. This
+enables consumers to distinguish ground-truth observations from agent-reported
+data.
+
+| Source value | Origin | Trust level |
+|-------------|--------|-------------|
+| `carranca` | Logger container (session lifecycle) | Ground truth — produced by carranca itself |
+| `inotifywait` | Linux file watcher | Ground truth — kernel-level observation |
+| `fswatch` | macOS file watcher | Ground truth — OS-level observation |
+| `shell-wrapper` | Agent container shell wrapper | Agent-reported — the agent can forge or suppress these |
+| `fifo` | Malformed data on the FIFO | Untrusted — raw data that failed validation |
 
 ## Querying
 

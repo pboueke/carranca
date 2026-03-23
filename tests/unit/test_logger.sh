@@ -122,6 +122,28 @@ fswatch_json_line="$(grep 'local line=' "$SCRIPT_DIR/runtime/logger.sh" | grep '
 assert_contains "_start_fswatch produces file_event JSON" '\"type\":\"file_event\"' "$fswatch_json_line"
 assert_contains "_start_fswatch uses fswatch source" '\"source\":\"fswatch\"' "$fswatch_json_line"
 
+# --- Test event provenance tagging ---
+
+echo ""
+echo "--- Event provenance tagging ---"
+
+# Test: heartbeat event has source field
+heartbeat_line="$(grep 'type.*heartbeat' "$SCRIPT_DIR/runtime/shell-wrapper.sh" | head -1)"
+assert_contains "heartbeat event has source field" '"source":"shell-wrapper"' "$heartbeat_line"
+
+# Test: agent_start event has source field
+# Note: write_event uses double-quoted JSON, so quotes are escaped in the source
+agent_start_line="$(grep 'write_event.*agent_start' "$SCRIPT_DIR/runtime/shell-wrapper.sh" | head -1)"
+assert_contains "agent_start event has source field" 'source\":\"shell-wrapper\"' "$agent_start_line"
+
+# Test: agent_stop event has source field
+agent_stop_line="$(grep 'write_event.*agent_stop' "$SCRIPT_DIR/runtime/shell-wrapper.sh" | head -1)"
+assert_contains "agent_stop event has source field" 'source\":\"shell-wrapper\"' "$agent_stop_line"
+
+# Test: logger start event has source field (already present)
+logger_start_line="$(grep 'START_EVENT' "$SCRIPT_DIR/runtime/logger.sh" | head -1)"
+assert_contains "logger start event has source field" 'source\":\"carranca\"' "$logger_start_line"
+
 rm -rf "$TMPDIR"
 
 echo ""
