@@ -16,6 +16,10 @@ case "$AGENT_DRIVER" in
     printf -v ESCAPED_PROMPT '%q' "$PROMPT"
     eval "$AGENT_COMMAND $ESCAPED_PROMPT"
     ;;
+  opencode)
+    printf -v ESCAPED_PROMPT '%q' "$PROMPT"
+    eval "$AGENT_COMMAND $ESCAPED_PROMPT"
+    ;;
   stdin)
     printf '%s\n' "$PROMPT" | eval "$AGENT_COMMAND"
     ;;

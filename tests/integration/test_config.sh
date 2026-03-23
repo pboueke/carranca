@@ -112,11 +112,55 @@ printf '%s\n' "Used confiskill from the carranca skill mount and considered user
 EOF
 chmod +x ".carranca/fake-config-agent.sh"
 
+cat > ".carranca/fake-arg-config-agent.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROMPT="${1:-}"
+printf '%s' "$PROMPT" > /proposal/request.txt
+
+test -f /carranca-skills/confiskill/SKILL.md
+test -f /user-skills/custom/SKILL.md
+
+cp /workspace/.carranca.yml /proposal/.carranca.yml
+awk '
+  BEGIN {
+    replaced_name=0
+    replaced_adapter=0
+    replaced_command=0
+  }
+  !replaced_name && /^  - name: / {
+    print "  - name: claude"
+    replaced_name=1
+    next
+  }
+  replaced_name && !replaced_adapter && /^    adapter: / {
+    print "    adapter: claude"
+    replaced_adapter=1
+    next
+  }
+  replaced_adapter && !replaced_command && /^    command: / {
+    print "    command: claude"
+    replaced_command=1
+    next
+  }
+  { print }
+' /proposal/.carranca.yml > /proposal/.carranca.yml.next
+mv /proposal/.carranca.yml.next /proposal/.carranca.yml
+
+cp /workspace/.carranca/Containerfile /proposal/Containerfile
+printf '%s\n' "node pnpm" > /proposal/detected-stack.txt
+printf '%s\n' "Used arg-style config agent invocation." > /proposal/rationale.txt
+EOF
+chmod +x ".carranca/fake-arg-config-agent.sh"
+
 awk '
   {
     if ($0 == "COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh") {
       print "COPY fake-config-agent.sh /usr/local/bin/fake-config-agent.sh"
       print "RUN chmod +x /usr/local/bin/fake-config-agent.sh"
+      print "COPY fake-arg-config-agent.sh /usr/local/bin/fake-arg-config-agent.sh"
+      print "RUN chmod +x /usr/local/bin/fake-arg-config-agent.sh"
     }
     print
   }
@@ -178,6 +222,26 @@ assert_contains "agent prompt includes operator request" "Operator request:" "$(
 assert_contains "agent prompt includes exact operator request text" "install claude" "$(cat "$REQUEST_FILE")"
 assert_contains "audit log records confirmation bypass" '"event":"confirmation_bypassed"' "$(cat "$AUDIT_LOG")"
 assert_contains "audit log records apply event" '"event":"applied"' "$(cat "$AUDIT_LOG")"
+
+cat > ".carranca.yml" <<'EOF'
+agents:
+  - name: opencode
+    adapter: opencode
+    command: bash /usr/local/bin/fake-arg-config-agent.sh
+runtime:
+  engine: auto
+  network: true
+volumes:
+  cache: true
+policy:
+  docs_before_code: warn
+  tests_before_impl: warn
+EOF
+
+OPENCODE_OUTPUT="$(printf 'n\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent opencode --prompt "install opencode deps" 2>&1)" || true
+assert_contains "config command reports opencode driver" "Config agent driver: opencode -> opencode" "$OPENCODE_OUTPUT"
+OPENCODE_REQUEST_FILE="$(find "$TMPSTATE/config/$REPO_ID" -name request.txt -exec grep -l "install opencode deps" {} + 2>/dev/null | head -1 || true)"
+assert_contains "opencode config agent receives exact operator request text" "install opencode deps" "$(cat "$OPENCODE_REQUEST_FILE")"
 
 rm -rf "$TMPDIR" "$TMPSTATE"
 

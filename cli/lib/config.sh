@@ -39,7 +39,7 @@ _carranca_config_get_yq() {
 
   # Convert dot-notation to yq path: runtime.network → .runtime.network
   yq_path=".${key}"
-  val="$(yq eval "$yq_path // \"\"" "$file" 2>/dev/null)"
+  val="$(yq eval "$yq_path" "$file" 2>/dev/null)"
 
   # yq returns "null" for missing keys
   if [ "$val" = "null" ] || [ -z "$val" ]; then
@@ -385,10 +385,11 @@ carranca_config_agent_driver_for() {
       case "$cmd" in
         claude) printf '%s' "claude" ;;
         codex) printf '%s' "codex" ;;
+        opencode) printf '%s' "opencode" ;;
         *) printf '%s' "stdin" ;;
       esac
       ;;
-    claude|codex|stdin)
+    claude|codex|opencode|stdin)
       printf '%s' "$adapter"
       ;;
     *)
@@ -425,7 +426,7 @@ carranca_config_validate() {
     if [ -z "$adapter" ]; then
       carranca_log warn "No agents[$name].adapter set in $file, using 'default'"
     elif ! carranca_config_agent_driver_for "$name" "$file" >/dev/null 2>&1; then
-      carranca_die "Unsupported agents[$name].adapter in $file: $adapter (expected default, claude, codex, or stdin)"
+      carranca_die "Unsupported agents[$name].adapter in $file: $adapter (expected default, claude, codex, opencode, or stdin)"
     fi
   done < <(carranca_config_agent_names "$file")
 

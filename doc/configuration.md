@@ -78,7 +78,7 @@ watched_paths:
 | `agents` | Yes | — | Ordered configured agents; the first entry is the default for `run` and `config` |
 | `agents[].name` | Yes | — | Stable selector used by `--agent <name>` |
 | `agents[].command` | Yes | — | Command executed inside the agent container |
-| `agents[].adapter` | No | `default` | Adapter selection: `default`, `claude`, `codex`, or `stdin` |
+| `agents[].adapter` | No | `default` | Adapter selection: `default`, `claude`, `codex`, `opencode`, or `stdin` |
 | `runtime.engine` | No | `auto` | Runtime engine: `auto`, `docker`, or `podman` |
 | `runtime.network` | No | `true` | `false` adds `--network=none` to the agent and config-agent container |
 | `runtime.extra_flags` | No | — | Extra flags appended to the agent container `run` command |
@@ -107,9 +107,10 @@ Carranca resolves the effective driver for an agent like this:
 
 - `adapter: claude` uses the configured command in Claude-style interactive mode
 - `adapter: codex` uses the configured command in Codex-style interactive mode
+- `adapter: opencode` uses the configured command in OpenCode-style interactive mode
 - `adapter: stdin` pipes the generated prompt to the command on stdin
-- `adapter: default` infers `claude` or `codex` only when the command itself
-  starts with `claude` or `codex`; otherwise it falls back to `stdin`
+- `adapter: default` infers `claude`, `codex`, or `opencode` only when the command itself
+  starts with `claude`, `codex`, or `opencode`; otherwise it falls back to `stdin`
 
 ### Starter agents
 
@@ -117,6 +118,7 @@ Carranca resolves the effective driver for an agent like this:
 
 - `codex`
 - `claude`
+- `opencode`
 
 The generated config still uses the general `agents:` format, so you can add or
 rename agents afterward.
@@ -139,6 +141,15 @@ agents:
   - name: codex
     adapter: codex
     command: codex
+```
+
+OpenCode:
+
+```yaml
+agents:
+  - name: opencode
+    adapter: opencode
+    command: opencode
 ```
 
 Custom stdin-driven agent:

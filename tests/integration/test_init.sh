@@ -89,6 +89,13 @@ assert_contains "force init writes selected agent command" "command: claude" "$(
 
 assert_file_exists "config still exists after --force" ".carranca.yml"
 
+# Test 4: init --agent opencode rewrites scaffold when confirmed
+FORCE_OUTPUT="$(printf 'y\n' | bash "$CARRANCA_HOME/cli/init.sh" --force --agent opencode 2>&1)" || true
+assert_contains "force init configures opencode agent" "Configured for opencode agent" "$FORCE_OUTPUT"
+assert_contains "force init writes opencode agent name" "name: opencode" "$(cat .carranca.yml)"
+assert_contains "force init writes opencode agent adapter" "adapter: opencode" "$(cat .carranca.yml)"
+assert_contains "force init writes opencode agent command" "command: opencode" "$(cat .carranca.yml)"
+
 # Cleanup
 rm -rf "$TMPDIR" "$TMPSTATE"
 

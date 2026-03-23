@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.12.0] - 2026-03-23
+
+- feat: add `opencode` as a supported starter agent for `carranca init`
+- feat: accept `opencode` as an explicit adapter and infer it from `adapter: default` when the command starts with `opencode`
+- feat: run config agents with the `opencode` adapter through the argument-based prompt path
+- fix: install OpenCode from the official release binary instead of the broken npm wrapper package
+- docs: document `opencode` starter and adapter support across README and configuration docs
+- docs: add `doc/vision.md` and link it from the README documentation index
+- test: add init, config, and help coverage for `opencode` starter and adapter flows
+
 ## [0.11.0] - 2026-03-23
 
 - feat: add `runtime.cap_add` config — list of Linux capabilities passed as `--cap-add` flags to the agent container
