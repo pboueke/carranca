@@ -82,6 +82,7 @@ assert_eq "config help matches --help form" "$config_help_from_root" "$config_he
 init_help_from_root="$(bash "$CLI" help init 2>&1)"
 assert_contains "root help routes to init help" "Usage: carranca init [--agent <name>] [--force]" "$init_help_from_root"
 assert_contains "init help documents agent option" "--agent <name>" "$init_help_from_root"
+assert_contains "init help lists supported starter agents" "Supported: codex, claude, opencode" "$init_help_from_root"
 init_help_from_subcommand="$(bash "$CLI" init help 2>&1)"
 assert_eq "init help matches between root and subcommand forms" "$init_help_from_root" "$init_help_from_subcommand"
 

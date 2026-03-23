@@ -27,9 +27,12 @@ RUN apk add --no-cache nodejs npm && \
 # OpenAI Codex CLI
 RUN apk add --no-cache bubblewrap && \
     npm install -g @openai/codex
+# OpenCode CLI
+RUN curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path && \
+    mv /root/.opencode/bin/opencode /usr/local/bin/opencode && \
+    chmod 0755 /usr/local/bin/opencode && \
+    rm -rf /root/.opencode
 # ──────────────────────────────────────────────
-
-
 
 # ──────────────────────────────────────────────
 # Carranca shell wrapper (do not remove)

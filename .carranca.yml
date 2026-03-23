@@ -10,6 +10,10 @@ agents:
     adapter: codex
     command: codex
 
+  - name: opencode
+    adapter: opencode
+    command: opencode
+
 # Container runtime settings
 runtime:
   engine: podman

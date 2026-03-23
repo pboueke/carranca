@@ -5,7 +5,7 @@
   <h1>Carranca</h1>
 
   <p>
-    <img src="https://img.shields.io/badge/version-0.11.0-blue" alt="version: 0.11.0" />
+    <img src="https://img.shields.io/badge/version-0.12.0-blue" alt="version: 0.12.0" />
     <img src="https://img.shields.io/badge/tests-370%2F370_passed-brightgreen" alt="tests: 370/370 passed" />
     <img src="https://img.shields.io/badge/coverage-100%25_(79%2F79_functions)-brightgreen" alt="coverage: 100%" />
   </p>
@@ -83,8 +83,9 @@ implemented global config file yet. Runtime selection precedence is:
 auto-detection.
 
 Carranca config is forward-only on the `agents:` format. `carranca init`
-scaffolds a supported starter agent (`codex` or `claude`) as the first/default
-entry, `carranca run --agent <name>` selects any configured agent, and
+scaffolds a supported starter agent (`codex`, `claude`, or `opencode`) as the
+first/default entry, `carranca run --agent <name>` selects any configured
+agent, and
 `carranca config --agent <name> --prompt "..."` chooses which configured agent
 executes the config workflow while passing free-form operator intent into the
 prompt.
@@ -107,6 +108,7 @@ prompt and accept the proposal immediately.
 | [Configuration](doc/configuration.md) | `.carranca.yml` reference, Containerfile, init flags |
 | [Session log](doc/session-log.md) | JSONL schema, event types, `jq` query examples |
 | [Trust model](doc/trust-model.md) | Threat table, failure behavior, honest scope |
+| [Vision](doc/vision.md) | Current use cases, future roadmap, and target audiences |
 | [Versioning](doc/versioning.md) | Semver policy, changelog format |
 
 ## Platform support

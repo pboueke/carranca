@@ -10,12 +10,12 @@ CARRANCA_HOME="${CARRANCA_HOME:-$HOME/.local/share/carranca}"
 STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
 
 supported_agent_names() {
-  printf '%s\n' "codex" "claude"
+  printf '%s\n' "codex" "claude" "opencode"
 }
 
 supported_agent_exists() {
   case "$1" in
-    codex|claude) return 0 ;;
+    codex|claude|opencode) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -30,7 +30,7 @@ while [ "$#" -gt 0 ]; do
       echo "  Scaffolds carranca config in the current directory."
       echo ""
       echo "Options:"
-      echo "  --agent <name>  Supported: codex, claude"
+      echo "  --agent <name>  Supported: codex, claude, opencode"
       echo "  --force   Overwrite existing .carranca.yml and Containerfile"
       exit 0
       ;;
@@ -46,7 +46,7 @@ while [ "$#" -gt 0 ]; do
       echo "  Scaffolds carranca config in the current directory."
       echo ""
       echo "Options:"
-      echo "  --agent <name>  Supported: codex, claude"
+      echo "  --agent <name>  Supported: codex, claude, opencode"
       echo "  --force   Overwrite existing .carranca.yml and Containerfile"
       exit 0
       ;;
@@ -55,7 +55,7 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
-supported_agent_exists "$AGENT" || carranca_die "Unsupported agent for init: $AGENT (supported: codex, claude)"
+supported_agent_exists "$AGENT" || carranca_die "Unsupported agent for init: $AGENT (supported: codex, claude, opencode)"
 
 # Check for existing config
 if [ -f ".carranca.yml" ] && [ "$FORCE" = false ]; then

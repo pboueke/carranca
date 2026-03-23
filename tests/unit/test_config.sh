@@ -138,6 +138,22 @@ EOF
 mapfile -t items < <(carranca_config_get_list runtime.cap_add "$TMPDIR/no-caps.yml" 2>/dev/null || true)
 assert_eq "missing runtime.cap_add returns empty list" "0" "${#items[@]}"
 
+cat > "$TMPDIR/opencode.yml" <<'EOF'
+agents:
+  - name: opencode
+    adapter: opencode
+    command: opencode
+  - name: auto-opencode
+    adapter: default
+    command: opencode --fast
+EOF
+
+val="$(carranca_config_agent_driver_for opencode "$TMPDIR/opencode.yml")"
+assert_eq "explicit opencode adapter resolves to opencode driver" "opencode" "$val"
+
+val="$(carranca_config_agent_driver_for auto-opencode "$TMPDIR/opencode.yml")"
+assert_eq "default adapter resolves to opencode driver for opencode command" "opencode" "$val"
+
 cd "$TMPDIR"
 if (carranca_config_validate 2>/dev/null); then
   echo "  PASS: validation passes for valid config"
