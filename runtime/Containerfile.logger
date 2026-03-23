@@ -4,7 +4,8 @@ RUN apk add --no-cache \
       bash \
       coreutils \
       inotify-tools \
-      e2fsprogs
+      e2fsprogs \
+      openssl
 
 COPY logger.sh /usr/local/bin/logger.sh
 RUN chmod +x /usr/local/bin/logger.sh

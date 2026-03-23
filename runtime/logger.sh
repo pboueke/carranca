@@ -21,6 +21,9 @@ ENGINE="${ENGINE:-unknown}"
 LOG_FILE="/state/${SESSION_ID}.jsonl"
 SEQ_FILE="/tmp/carranca-seq"
 SEQ_LOCK="/tmp/carranca-seq.lock"
+HMAC_KEY_FILE="/state/${SESSION_ID}.hmac-key"
+HMAC_KEY=""
+PREV_HMAC="0"
 
 # --- Helpers ---
 
@@ -39,8 +42,18 @@ write_log() {
     seq=$(cat "$SEQ_FILE" 2>/dev/null || echo 0)
     seq=$((seq + 1))
     echo "$seq" > "$SEQ_FILE"
-    # Inject seq into the JSON object (append before closing brace)
-    printf '%s\n' "${line%\}},\"seq\":$seq}" >> "$LOG_FILE"
+    # Inject seq into the JSON object
+    local line_with_seq="${line%\}},\"seq\":$seq}"
+    # Extract ts for HMAC input
+    local ts
+    ts="$(printf '%s' "$line_with_seq" | grep -o '"ts":"[^"]*"' | head -1 | cut -d'"' -f4)"
+    # Compute HMAC over: prev_hmac | seq | ts | line_with_seq
+    local hmac_input="${PREV_HMAC}|${seq}|${ts}|${line_with_seq}"
+    local hmac_value
+    hmac_value="$(compute_hmac "$hmac_input")"
+    PREV_HMAC="$hmac_value"
+    # Inject hmac and write to log file
+    printf '%s\n' "${line_with_seq%\}},\"hmac\":\"$hmac_value\"}" >> "$LOG_FILE"
   } 9>"$SEQ_LOCK"
 }
 
@@ -85,6 +98,20 @@ path_is_watched() {
   return 1
 }
 
+# Generate a per-session HMAC key and save it to /state/
+# The key file lives outside the agent container for security.
+generate_hmac_key() {
+  HMAC_KEY="$(openssl rand -hex 32)"
+  printf '%s\n' "$HMAC_KEY" > "$HMAC_KEY_FILE"
+  chmod 0600 "$HMAC_KEY_FILE"
+}
+
+# Compute HMAC-SHA256 of a message using the session key.
+compute_hmac() {
+  local message="$1"
+  printf '%s' "$message" | openssl dgst -sha256 -macopt "hexkey:$HMAC_KEY" -hex 2>/dev/null | awk '{print $NF}'
+}
+
 # --- Setup ---
 
 # Initialize seq counter
@@ -101,6 +128,9 @@ if chattr +a "$LOG_FILE" 2>/dev/null; then
 else
   APPEND_ONLY=false
 fi
+
+# Generate HMAC key for this session
+generate_hmac_key
 
 # Write session start event
 START_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"start\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"repo_id\":\"$REPO_ID\",\"repo_name\":\"$REPO_NAME\",\"repo_path\":\"$REPO_PATH\",\"agent\":\"$AGENT_NAME\",\"adapter\":\"$AGENT_ADAPTER\",\"engine\":\"$ENGINE\"}"

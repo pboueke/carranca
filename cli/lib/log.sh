@@ -259,3 +259,60 @@ carranca_session_print_top_paths() {
       "$path" "$count" "$create_count" "$modify_count" "$delete_count"
   done <<< "$sorted_lines"
 }
+
+carranca_session_verify() {
+  local log_file="$1"
+  local state_base="${2:-${CARRANCA_STATE:-$HOME/.local/state/carranca}}"
+  local session_id repo_id key_file hmac_key
+  local prev_hmac="0"
+  local line seq ts payload hmac_field expected_hmac
+  local line_no=0
+  local errors=0
+
+  session_id="$(basename "$log_file" .jsonl)"
+  repo_id="$(basename "$(dirname "$log_file")")"
+  key_file="$state_base/sessions/$repo_id/$session_id.hmac-key"
+
+  if [ ! -f "$key_file" ]; then
+    echo "FAIL: HMAC key file not found: $key_file"
+    echo "  This session was recorded before HMAC signing was enabled."
+    return 1
+  fi
+
+  hmac_key="$(cat "$key_file")"
+
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    line_no=$((line_no + 1))
+
+    # Extract hmac field from the line
+    hmac_field="$(carranca_json_get_string "$line" "hmac")"
+
+    # Strip hmac field from line to get payload for re-computation
+    # The hmac is always the last field before closing brace
+    payload="$(printf '%s' "$line" | sed 's/,"hmac":"[^"]*"//g')"
+
+    seq="$(carranca_json_get_number "$line" "seq")"
+    ts="$(carranca_json_get_string "$line" "ts")"
+
+    # Recompute HMAC
+    local hmac_input="${prev_hmac}|${seq}|${ts}|${payload}"
+    expected_hmac="$(printf '%s' "$hmac_input" | openssl dgst -sha256 -macopt "hexkey:$hmac_key" -hex 2>/dev/null | awk '{print $NF}')"
+
+    if [ "$hmac_field" != "$expected_hmac" ]; then
+      echo "FAIL: HMAC mismatch at line $line_no (seq=$seq)"
+      echo "  expected: $expected_hmac"
+      echo "  got:      $hmac_field"
+      errors=$((errors + 1))
+    fi
+    prev_hmac="$hmac_field"
+  done < "$log_file"
+
+  if [ "$errors" -eq 0 ]; then
+    echo "OK: $line_no events verified, chain intact"
+    return 0
+  else
+    echo "FAIL: $errors integrity error(s) in $line_no events"
+    return 1
+  fi
+}

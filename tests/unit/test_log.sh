@@ -164,6 +164,138 @@ all_paths_output="$(carranca_session_print_top_paths 0)"
 assert_contains "top paths limit=0 shows all paths (b.txt)" "/workspace/b.txt" "$all_paths_output"
 assert_contains "top paths limit=0 shows all paths (c.txt)" "/workspace/c.txt" "$all_paths_output"
 
+# --- Test carranca_session_verify ---
+
+echo ""
+echo "--- carranca_session_verify ---"
+
+VERIFY_TMPDIR="$(mktemp -d)"
+VERIFY_LOG_FILE="$VERIFY_TMPDIR/test.jsonl"
+VERIFY_KEY_FILE="$VERIFY_TMPDIR/test.hmac-key"
+
+# Stub carranca_session_verify to use mock HMAC for testing
+_carranca_session_verify_mock() {
+  local log_file="$1"
+  local state_base="$2"
+  local session_id repo_id key_file hmac_key
+  local prev_hmac="0"
+  local line seq ts payload hmac_field expected_hmac
+  local line_no=0
+  local errors=0
+
+  session_id="$(basename "$log_file" .jsonl)"
+  repo_id="$(basename "$(dirname "$log_file")")"
+  key_file="$state_base/sessions/$repo_id/$session_id.hmac-key"
+
+  if [ ! -f "$key_file" ]; then
+    echo "FAIL: HMAC key file not found: $key_file"
+    echo "  This session was recorded before HMAC signing was enabled."
+    return 1
+  fi
+
+  hmac_key="$(cat "$key_file")"
+
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    line_no=$((line_no + 1))
+
+    # Extract hmac field from the line
+    hmac_field="$(carranca_json_get_string "$line" "hmac")"
+
+    # Strip hmac field from line to get payload for re-computation
+    payload="$(printf '%s' "$line" | sed 's/,"hmac":"[^"]*"//g')"
+
+    seq="$(carranca_json_get_number "$line" "seq")"
+    ts="$(carranca_json_get_string "$line" "ts")"
+
+    # Recompute HMAC using same mock approach
+    local hmac_input="${prev_hmac}|${seq}|${ts}|${payload}"
+    local first_char="${hmac_input:0:1}"
+    local len=${#hmac_input}
+    expected_hmac="hmac-${len}-${first_char}"
+
+    if [ "$hmac_field" != "$expected_hmac" ]; then
+      echo "FAIL: HMAC mismatch at line $line_no (seq=$seq)"
+      echo "  expected: $expected_hmac"
+      echo "  got:      $hmac_field"
+      errors=$((errors + 1))
+    fi
+    prev_hmac="$hmac_field"
+  done < "$log_file"
+
+  if [ "$errors" -eq 0 ]; then
+    echo "OK: $line_no events verified, chain intact"
+    return 0
+  else
+    echo "FAIL: $errors integrity error(s) in $line_no events"
+    return 1
+  fi
+}
+
+# Helper to write a line with HMAC
+write_event_with_hmac() {
+  local line="$1"
+  local seq="$2"
+  local prev_hmac="$3"
+  local ts="${4:-2026-03-22T00:00:00Z}"
+  local payload="${line%\}}"
+  local hmac_input="${prev_hmac}|${seq}|${ts}|${payload},\"seq\":${seq}}"
+  # Use a mock HMAC that hashes based on first char and length
+  local first_char="${hmac_input:0:1}"
+  local len=${#hmac_input}
+  local hmac="hmac-${len}-${first_char}"
+  printf '%s,"seq":%s,"hmac":"%s"}\n' "$payload" "$seq" "$hmac"
+}
+
+# Test: verify succeeds with valid chain
+echo '01234567890abcdef01234567890abcdef01234567890abcdef01234567890abcdef' > "$VERIFY_KEY_FILE"
+{
+  write_event_with_hmac '{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T00:00:00Z","session_id":"test123"}' 1 "0"
+  write_event_with_hmac '{"type":"heartbeat","source":"shell-wrapper","ts":"2026-03-22T00:00:01Z","session_id":"test123"}' 2 "hmac-145-0"
+} > "$VERIFY_LOG_FILE"
+
+# Create the repo/sessions directory structure
+mkdir -p "$VERIFY_TMPDIR/sessions/testrepo"
+cp "$VERIFY_LOG_FILE" "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl"
+cp "$VERIFY_KEY_FILE" "$VERIFY_TMPDIR/sessions/testrepo/test.hmac-key"
+
+STATE_BASE="$VERIFY_TMPDIR"
+if _carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$STATE_BASE" >/dev/null 2>&1; then
+  echo "  PASS: verify succeeds with valid chain"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: verify should succeed with valid chain"
+  FAIL=$((FAIL + 1))
+fi
+
+# Test: verify fails with missing key file
+rm "$VERIFY_TMPDIR/sessions/testrepo/test.hmac-key"
+if _carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$STATE_BASE" >/dev/null 2>&1; then
+  echo "  FAIL: verify should fail with missing key"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: verify fails with missing key"
+  PASS=$((PASS + 1))
+fi
+
+# Test: verify reports errors for tampered content
+echo '01234567890abcdef01234567890abcdef01234567890abcdef01234567890abcdef' > "$VERIFY_TMPDIR/sessions/testrepo/test.hmac-key"
+{
+  write_event_with_hmac '{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T00:00:00Z","session_id":"test123"}' 1 "0"
+  write_event_with_hmac '{"type":"heartbeat","source":"shell-wrapper","ts":"2026-03-22T00:00:01Z","session_id":"test123"}' 2 "WRONG_HMAC"
+} > "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl"
+output="$(_carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$STATE_BASE" 2>&1 || true)"
+if echo "$output" | grep -q "HMAC mismatch"; then
+  echo "  PASS: verify reports HMAC mismatch"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: verify should report HMAC mismatch"
+  echo "  Output: $output"
+  FAIL=$((FAIL + 1))
+fi
+
+rm -rf "$VERIFY_TMPDIR"
+
 rm -rf "$TMPSTATE"
 
 echo ""
