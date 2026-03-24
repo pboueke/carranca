@@ -37,7 +37,7 @@ agents:
     command: bash -c "echo default-agent > /workspace/selected-agent.txt && exit 0"
   - name: shell
     adapter: stdin
-    command: bash -c "echo hello-from-agent && echo shell > /workspace/selected-agent.txt && printf '%s' \"\$HOME\" > /workspace/agent-home.txt && id -g > /workspace/agent-gid.txt && id -G > /workspace/agent-groups.txt && touch /workspace/testfile.txt && exit 0"
+    command: bash -c "echo hello-from-agent && echo shell > /workspace/selected-agent.txt && printf '%s' \"\$HOME\" > /workspace/agent-home.txt && id -g > /workspace/agent-gid.txt && id -G > /workspace/agent-groups.txt && touch /workspace/testfile.txt && (ls /workspace/.carranca/ 2>/dev/null | wc -l | tr -d ' ') > /workspace/carranca-dir-contents.txt && (cat /workspace/.carranca.yml 2>/dev/null | wc -c | tr -d ' ') > /workspace/carranca-yml-size.txt && exit 0"
 runtime:
   network: true
 policy:
@@ -156,6 +156,14 @@ for gid in $HOST_GROUPS; do
     FAIL=$((FAIL + 1))
   fi
 done
+
+# Verify .carranca/ is hidden from the agent (tmpfs overlay)
+CARRANCA_DIR_CONTENTS="$(cat "$TMPDIR/carranca-dir-contents.txt" 2>/dev/null || true)"
+assert_eq "agent sees empty .carranca/ directory (tmpfs overlay)" "0" "$CARRANCA_DIR_CONTENTS"
+
+# Verify .carranca.yml is hidden from the agent (/dev/null bind mount)
+CARRANCA_YML_SIZE="$(cat "$TMPDIR/carranca-yml-size.txt" 2>/dev/null || true)"
+assert_eq "agent sees empty .carranca.yml (bind mount overlay)" "0" "$CARRANCA_YML_SIZE"
 
 # Verify cache home directory was created
 test_start

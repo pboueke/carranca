@@ -5,8 +5,8 @@
   <h1>Carranca</h1>
 
   <p>
-    <img src="https://img.shields.io/badge/version-0.15.3-blue" alt="version: 0.15.3" />
-    <img src="https://img.shields.io/badge/tests-703%2F703_passed-brightgreen" alt="tests: 703/703 passed" />
+    <img src="https://img.shields.io/badge/version-0.15.4-blue" alt="version: 0.15.4" />
+    <img src="https://img.shields.io/badge/tests-760%2F760_passed-brightgreen" alt="tests: 760/760 passed" />
     <img src="https://img.shields.io/badge/coverage-100%25_(119%2F119_functions)-brightgreen" alt="coverage: 100%" />
   </p>
 

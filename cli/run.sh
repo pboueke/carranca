@@ -608,6 +608,8 @@ carranca_runtime_run $TTY_FLAGS --rm \
   $PID_NS_FLAG \
   -v "$FIFO_VOLUME:/fifo" \
   -v "$WORKSPACE:/workspace:rw" \
+  --tmpfs /workspace/.carranca:ro,size=0 \
+  -v /dev/null:/workspace/.carranca.yml:ro \
   -e "HOME=$AGENT_HOME" \
   -e "USER=carranca" \
   $CACHE_FLAGS \

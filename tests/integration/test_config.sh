@@ -165,8 +165,17 @@ EOF
 ORIGINAL_CONFIG="$(cat .carranca.yml)"
 ORIGINAL_CONTAINERFILE="$(cat .carranca/Containerfile)"
 
+# Test: rejecting the trust warning cancels without running the agent
 test_start
-REJECT_OUTPUT="$(printf 'n\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent shell --prompt "install claude" 2>&1)" || true
+TRUST_REJECT_OUTPUT="$(printf 'n\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent shell --prompt "install claude" 2>&1)" || true
+assert_contains "config warns about policy exposure" "READ access to .carranca.yml" "$TRUST_REJECT_OUTPUT"
+assert_contains "trust rejection cancels config" "Config generation cancelled" "$TRUST_REJECT_OUTPUT"
+assert_not_contains "trust rejection does not reach apply prompt" "Apply these changes" "$TRUST_REJECT_OUTPUT"
+assert_eq "trust rejection keeps config unchanged" "$ORIGINAL_CONFIG" "$(cat .carranca.yml)"
+
+# Test: accepting trust, then rejecting the apply prompt
+test_start
+REJECT_OUTPUT="$(printf 'y\nn\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent shell --prompt "install claude" 2>&1)" || true
 assert_contains "proposal asks for confirmation" "Apply these changes" "$REJECT_OUTPUT"
 assert_contains "proposal references confiskill" "confiskill" "$REJECT_OUTPUT"
 assert_contains "config command reports selected agent" "Config agent: shell" "$REJECT_OUTPUT"
@@ -211,7 +220,7 @@ policy:
 EOF
 
 test_start
-OPENCODE_OUTPUT="$(printf 'n\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent opencode --prompt "install opencode deps" 2>&1)" || true
+OPENCODE_OUTPUT="$(printf 'y\nn\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent opencode --prompt "install opencode deps" 2>&1)" || true
 assert_contains "config command reports opencode driver" "Config agent driver: opencode -> opencode" "$OPENCODE_OUTPUT"
 OPENCODE_REQUEST_FILE="$(find "$TMPSTATE/config/$REPO_ID" -name request.txt -exec grep -l "install opencode deps" {} + 2>/dev/null | head -1 || true)"
 assert_contains "opencode config agent receives exact operator request text" "install opencode deps" "$(cat "$OPENCODE_REQUEST_FILE")"

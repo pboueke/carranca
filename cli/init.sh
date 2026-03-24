@@ -80,10 +80,8 @@ cp "$CARRANCA_HOME/templates/carranca.yml.tmpl" ".carranca.yml"
 carranca_log info "Created .carranca.yml"
 
 # Create skills directories and copy defaults
-mkdir -p ".carranca/skills/carranca/plan"
 mkdir -p ".carranca/skills/carranca/confiskill"
 mkdir -p ".carranca/skills/user"
-cp "$CARRANCA_HOME/skills/plan/SKILL.md" ".carranca/skills/carranca/plan/SKILL.md"
 cp "$CARRANCA_HOME/skills/confiskill/SKILL.md" ".carranca/skills/carranca/confiskill/SKILL.md"
 carranca_log info "Created .carranca/skills/"
 
