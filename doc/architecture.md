@@ -99,6 +99,9 @@ Two containers share a tmpfs volume containing a Unix FIFO:
 - Mounts: FIFO volume (rw), workspace (rw), optional cache dir (rw), optional custom volumes, repo-local Carranca skills during `run`, repo-local user skills, and install-managed Carranca skills during `config`
 - Runs as the invoking host UID:GID on Linux, or `--userns keep-id` on rootless Podman, so bind-mounted workspace writes keep usable host ownership
 - The shell wrapper is always injected as the entrypoint
+- When fine-grained network policies are active (`runtime.network` object form),
+  the entrypoint is overridden to `network-setup.sh` which applies iptables rules
+  before exec-ing the shell wrapper
 
 ## Data flow
 
@@ -124,7 +127,7 @@ Two containers share a tmpfs volume containing a Unix FIFO:
 | `~/.local/state/carranca/sessions/<repo-id>/` | Yes | Carranca | Session JSONL logs plus per-session `.checksums`, `.hmac-key`, `.tar`, and `.tar.sig` files |
 | `~/.local/state/carranca/config/<repo-id>/` | Yes | Carranca | Config workflow proposals and audit history |
 | `~/.local/state/carranca/cache/<repo-id>/home/` | Yes | Agent | Persistent agent home dir mounted at `/home/carranca` (auth, config, history) |
-| `~/.config/carranca/config.yml` | Yes | User | Optional user-wide defaults for `runtime.*` and `volumes.*` |
+| `~/.config/carranca/config.yml` | Yes | User | Optional user-wide defaults for `runtime.*`, `volumes.*`, `observability.*`, and `policy.*` |
 | `.carranca.yml` | Yes | User | Per-project configuration, including the ordered `agents:` list |
 | `.carranca/Containerfile` | Yes | User | Agent container definition |
 | `.carranca/shell-wrapper.sh` | No | Carranca | Injected into agent image at build |

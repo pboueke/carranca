@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# carranca pre-commit hook — enforces docs_before_code and tests_before_impl policies
+# Injected via core.hooksPath when policy enforcement is active.
+# Writes policy_event entries to the FIFO for session logging.
+set -uo pipefail
+
+FIFO_PATH="/fifo/events"
+SESSION_ID="${SESSION_ID:-unknown}"
+POLICY_DOCS_BEFORE_CODE="${POLICY_DOCS_BEFORE_CODE:-off}"
+POLICY_TESTS_BEFORE_IMPL="${POLICY_TESTS_BEFORE_IMPL:-off}"
+
+timestamp() {
+  date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+write_policy_event() {
+  local policy="$1" action="$2" detail="$3"
+  local event="{\"type\":\"policy_event\",\"source\":\"pre-commit-hook\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"$policy\",\"action\":\"$action\",\"detail\":\"$detail\"}"
+  if [ -p "$FIFO_PATH" ] && [ -w "$FIFO_PATH" ]; then
+    printf '%s\n' "$event" > "$FIFO_PATH"
+  fi
+}
+
+# Get staged files
+STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null || true)"
+[ -z "$STAGED_FILES" ] && exit 0
+
+# --- docs_before_code check ---
+
+if [ "$POLICY_DOCS_BEFORE_CODE" = "warn" ] || [ "$POLICY_DOCS_BEFORE_CODE" = "enforce" ]; then
+  has_code=false
+  has_docs=false
+
+  while IFS= read -r file; do
+    case "$file" in
+      *.py|*.js|*.ts|*.tsx|*.jsx|*.go|*.rs|*.sh|*.java|*.rb|*.c|*.cpp|*.h|*.hpp|*.cs|*.swift|*.kt)
+        has_code=true ;;
+      *.md|README*|docs/*|doc/*)
+        has_docs=true ;;
+    esac
+  done <<< "$STAGED_FILES"
+
+  if [ "$has_code" = true ] && [ "$has_docs" = false ]; then
+    code_files="$(echo "$STAGED_FILES" | grep -E '\.(py|js|ts|tsx|jsx|go|rs|sh|java|rb|c|cpp|h|hpp|cs|swift|kt)$' | head -3 | tr '\n' ', ' | sed 's/,$//')"
+    if [ "$POLICY_DOCS_BEFORE_CODE" = "enforce" ]; then
+      write_policy_event "docs_before_code" "blocked" "commit modifies $code_files without documentation changes"
+      echo "carranca: docs_before_code policy violation — commit blocked"
+      echo "  Code files staged without documentation changes: $code_files"
+      echo "  Add documentation (*.md, README*, docs/*) or change policy to 'warn'"
+      exit 1
+    else
+      write_policy_event "docs_before_code" "warn" "commit modifies $code_files without documentation changes"
+    fi
+  fi
+fi
+
+# --- tests_before_impl check ---
+
+if [ "$POLICY_TESTS_BEFORE_IMPL" = "warn" ] || [ "$POLICY_TESTS_BEFORE_IMPL" = "enforce" ]; then
+  has_impl=false
+  has_tests=false
+
+  while IFS= read -r file; do
+    case "$file" in
+      test_*|*_test.*|*.test.*|*.spec.*|tests/*|test/*)
+        has_tests=true ;;
+      *.py|*.js|*.ts|*.tsx|*.jsx|*.go|*.rs|*.sh|*.java|*.rb|*.c|*.cpp|*.h|*.hpp|*.cs|*.swift|*.kt)
+        # Only count as impl if not already a test file
+        case "$file" in
+          test_*|*_test.*|*.test.*|*.spec.*|tests/*|test/*) ;;
+          *) has_impl=true ;;
+        esac
+        ;;
+    esac
+  done <<< "$STAGED_FILES"
+
+  if [ "$has_impl" = true ] && [ "$has_tests" = false ]; then
+    impl_files="$(echo "$STAGED_FILES" | grep -E '\.(py|js|ts|tsx|jsx|go|rs|sh|java|rb|c|cpp|h|hpp|cs|swift|kt)$' | grep -vE '(test_|_test\.|\.test\.|\.spec\.|^tests/|^test/)' | head -3 | tr '\n' ', ' | sed 's/,$//')"
+    if [ "$POLICY_TESTS_BEFORE_IMPL" = "enforce" ]; then
+      write_policy_event "tests_before_impl" "blocked" "commit modifies $impl_files without test changes"
+      echo "carranca: tests_before_impl policy violation — commit blocked"
+      echo "  Implementation files staged without test changes: $impl_files"
+      echo "  Add tests (test_*, *_test.*, *.spec.*, tests/*) or change policy to 'warn'"
+      exit 1
+    else
+      write_policy_event "tests_before_impl" "warn" "commit modifies $impl_files without test changes"
+    fi
+  fi
+fi
+
+exit 0

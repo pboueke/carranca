@@ -1,13 +1,13 @@
-.PHONY: help lint lint-shell lint-docker lint-yaml test test-all check build clean install hooks version
+.PHONY: help lint lint-shell lint-docker lint-yaml test test-all check build clean install hooks page version
 
-# Version derived from CHANGELOG.md — single source of truth
-VERSION := $(shell grep -m1 '## \[' CHANGELOG.md 2>/dev/null | sed 's/.*\[\(.*\)\].*/\1/' || echo "0.0.0")
+# Version derived from doc/CHANGELOG.md — single source of truth
+VERSION := $(shell grep -m1 '## \[' doc/CHANGELOG.md 2>/dev/null | sed 's/.*\[\(.*\)\].*/\1/' || echo "0.0.0")
 
 # Shell files to lint
 SHELL_SRC := cli/carranca cli/config.sh cli/init.sh cli/log.sh cli/run.sh cli/lib/common.sh cli/lib/config.sh cli/lib/identity.sh cli/lib/log.sh
 SHELL_RUNTIME := runtime/config-runner.sh runtime/shell-wrapper.sh runtime/logger.sh
 SHELL_TESTS := $(wildcard tests/unit/*.sh) $(wildcard tests/integration/*.sh) $(wildcard tests/failure/*.sh) tests/run_tests.sh
-SHELL_HOOKS := .githooks/pre-commit .githooks/update-badges.sh
+SHELL_HOOKS := .githooks/pre-commit .githooks/update-badges.sh .githooks/build-doc-page.sh
 SHELL_ALL := $(SHELL_SRC) $(SHELL_RUNTIME) $(SHELL_TESTS) $(SHELL_HOOKS)
 
 # Containerfiles to lint
@@ -20,7 +20,7 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-version: ## Print current version from CHANGELOG.md
+version: ## Print current version from doc/CHANGELOG.md
 	@echo $(VERSION)
 
 lint: lint-shell lint-docker lint-yaml ## Run all linters
@@ -83,3 +83,6 @@ hooks: ## Set up git hooks
 	@git config core.hooksPath .githooks
 	@chmod +x .githooks/*
 	@echo "Git hooks configured: .githooks/"
+
+page: ## Build doc/page/index.html with embedded docs
+	@bash .githooks/build-doc-page.sh

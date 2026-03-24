@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Update README.md badge lines from test results and CHANGELOG version.
+# Update README.md badge lines from test results and changelog version.
 # Called by the pre-commit hook after tests pass.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RESULTS="$SCRIPT_DIR/tests/.results.json"
 README="$SCRIPT_DIR/README.md"
-CHANGELOG="$SCRIPT_DIR/CHANGELOG.md"
+CHANGELOG="$SCRIPT_DIR/doc/CHANGELOG.md"
 
 if [ ! -f "$README" ]; then
   echo "badge-update: no README.md found, skipping"
   exit 0
 fi
 
-# --- Version badge from CHANGELOG ---
+# --- Version badge from changelog ---
 
 version=""
 if [ -f "$CHANGELOG" ]; then

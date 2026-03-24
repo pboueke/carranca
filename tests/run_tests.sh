@@ -5,6 +5,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 TEST_RUNTIME="${CARRANCA_TEST_RUNTIME:-}"
+TEST_JOBS="${CARRANCA_TEST_JOBS:-2}"
 SUITES_PASS=0
 SUITES_FAIL=0
 SUITES_SKIP=0
@@ -13,9 +14,29 @@ SUITES_SKIP=0
 TESTS_PASS=0
 TESTS_FAIL=0
 
-run_suite() {
+_record_suite_output() {
+  local output="$1"
+  local rc="$2"
+
+  echo "$output"
+
+  local p f
+  p="$(echo "$output" | grep -c '  PASS:' || true)"
+  f="$(echo "$output" | grep -c '  FAIL:' || true)"
+  TESTS_PASS=$((TESTS_PASS + p))
+  TESTS_FAIL=$((TESTS_FAIL + f))
+
+  if [ "$rc" -eq 0 ]; then
+    SUITES_PASS=$((SUITES_PASS + 1))
+  else
+    SUITES_FAIL=$((SUITES_FAIL + 1))
+  fi
+}
+
+run_suite_sequential() {
   local suite="$1"
   local dir="$2"
+  local test_file output rc
 
   echo ""
   echo "━━━ $suite ━━━"
@@ -23,24 +44,72 @@ run_suite() {
   for test_file in "$dir"/test_*.sh; do
     [ -f "$test_file" ] || continue
     echo ""
-    local output
     output="$(bash "$test_file" 2>&1)"
-    local rc=$?
-    echo "$output"
+    rc=$?
+    _record_suite_output "$output" "$rc"
+  done
+}
 
-    # Count individual test results from output
-    local p f
-    p="$(echo "$output" | grep -c '  PASS:' || true)"
-    f="$(echo "$output" | grep -c '  FAIL:' || true)"
-    TESTS_PASS=$((TESTS_PASS + p))
-    TESTS_FAIL=$((TESTS_FAIL + f))
+run_suite_parallel() {
+  local suite="$1"
+  local dir="$2"
+  local jobs="$3"
+  local tmpdir test_file count slot rc output
+  local -a files=()
+  local -a pids=()
 
-    if [ "$rc" -eq 0 ]; then
-      SUITES_PASS=$((SUITES_PASS + 1))
-    else
-      SUITES_FAIL=$((SUITES_FAIL + 1))
+  echo ""
+  echo "━━━ $suite ━━━"
+
+  for test_file in "$dir"/test_*.sh; do
+    [ -f "$test_file" ] || continue
+    files+=("$test_file")
+  done
+
+  [ "${#files[@]}" -gt 0 ] || return 0
+
+  tmpdir="$(mktemp -d)"
+
+  count=0
+  for test_file in "${files[@]}"; do
+    slot="$count"
+    (
+      bash "$test_file" >"$tmpdir/$slot.out" 2>&1
+      printf '%s\n' "$?" >"$tmpdir/$slot.rc"
+    ) &
+    pids+=("$!")
+    count=$((count + 1))
+
+    if [ "${#pids[@]}" -ge "$jobs" ]; then
+      wait "${pids[0]}"
+      pids=("${pids[@]:1}")
     fi
   done
+
+  for pid in "${pids[@]}"; do
+    wait "$pid"
+  done
+
+  for slot in $(seq 0 $((count - 1))); do
+    echo ""
+    output="$(cat "$tmpdir/$slot.out")"
+    rc="$(cat "$tmpdir/$slot.rc")"
+    _record_suite_output "$output" "$rc"
+  done
+
+  rm -rf "$tmpdir"
+}
+
+run_suite() {
+  local suite="$1"
+  local dir="$2"
+  local mode="${3:-sequential}"
+
+  if [ "$mode" = "parallel" ]; then
+    run_suite_parallel "$suite" "$dir" "$TEST_JOBS"
+  else
+    run_suite_sequential "$suite" "$dir"
+  fi
 }
 
 echo "╔══════════════════════════════════╗"
@@ -64,8 +133,8 @@ run_suite "Unit Tests" "$SCRIPT_DIR/unit"
 
 # Check for a supported container runtime before running integration/failure tests
 if [ -n "$TEST_RUNTIME" ]; then
-  run_suite "Integration Tests" "$SCRIPT_DIR/integration"
-  run_suite "Failure Mode Tests" "$SCRIPT_DIR/failure"
+  run_suite "Integration Tests" "$SCRIPT_DIR/integration" parallel
+  run_suite "Failure Mode Tests" "$SCRIPT_DIR/failure" parallel
 else
   echo ""
   echo "━━━ Integration Tests ━━━"

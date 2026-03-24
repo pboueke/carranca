@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export CARRANCA_HOME="$SCRIPT_DIR"
-RUNTIME="${CARRANCA_CONTAINER_RUNTIME:-podman}"
+source "$SCRIPT_DIR/tests/lib/integration.sh"
 
 PASS=0
 FAIL=0
@@ -31,21 +31,14 @@ assert_contains() {
   fi
 }
 
+integration_init
+trap integration_cleanup EXIT
+
 echo "=== test_config.sh (requires $RUNTIME) ==="
 
-if ! "$RUNTIME" info >/dev/null 2>&1; then
-  echo "  SKIP: $RUNTIME not available"
-  exit 0
-fi
-
-TMPSTATE="$(mktemp -d)"
-TMPDIR="$(mktemp -d)"
-export CARRANCA_STATE="$TMPSTATE"
-
-cd "$TMPDIR"
-git init --quiet
-
-bash "$CARRANCA_HOME/cli/init.sh"
+integration_require_runtime
+integration_create_repo
+integration_init_project
 rm -rf ".carranca/skills/carranca"
 
 mkdir -p ".carranca/skills/user/custom"
@@ -213,7 +206,7 @@ assert_contains "Containerfile has managed config block" "# carranca-config:star
 assert_contains "Containerfile adds pnpm" "pnpm" "$(cat .carranca/Containerfile)"
 assert_eq "config apply still avoids workspace carranca skill writes" "missing" "$(test -d .carranca/skills/carranca && echo present || echo missing)"
 
-REPO_ID="$(source "$CARRANCA_HOME/cli/lib/common.sh" && source "$CARRANCA_HOME/cli/lib/identity.sh" && carranca_repo_id)"
+REPO_ID="$(integration_repo_id)"
 AUDIT_LOG="$TMPSTATE/config/$REPO_ID/history.jsonl"
 REQUEST_FILE="$(find "$TMPSTATE/config/$REPO_ID" -name request.txt | sort | tail -1)"
 assert_contains "agent prompt instructs use of confiskill" "/carranca-skills/confiskill/SKILL.md" "$(cat "$REQUEST_FILE")"
@@ -242,8 +235,6 @@ OPENCODE_OUTPUT="$(printf 'n\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent op
 assert_contains "config command reports opencode driver" "Config agent driver: opencode -> opencode" "$OPENCODE_OUTPUT"
 OPENCODE_REQUEST_FILE="$(find "$TMPSTATE/config/$REPO_ID" -name request.txt -exec grep -l "install opencode deps" {} + 2>/dev/null | head -1 || true)"
 assert_contains "opencode config agent receives exact operator request text" "install opencode deps" "$(cat "$OPENCODE_REQUEST_FILE")"
-
-rm -rf "$TMPDIR" "$TMPSTATE"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

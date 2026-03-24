@@ -6,15 +6,15 @@ set -euo pipefail
 
 echo "=== carranca pre-commit ==="
 
-# Verify CHANGELOG.md exists and has a valid semver header
-if [ ! -f CHANGELOG.md ]; then
-  echo "ERROR: CHANGELOG.md not found"
+# Verify doc/CHANGELOG.md exists and has a valid semver header
+if [ ! -f doc/CHANGELOG.md ]; then
+  echo "ERROR: doc/CHANGELOG.md not found"
   exit 1
 fi
 
-VERSION="$(grep -m1 '## \[' CHANGELOG.md | sed 's/.*\[\(.*\)\].*/\1/')"
+VERSION="$(grep -m1 '## \[' doc/CHANGELOG.md | sed 's/.*\[\(.*\)\].*/\1/')"
 if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "ERROR: CHANGELOG.md first version header is not valid semver: '$VERSION'"
+  echo "ERROR: doc/CHANGELOG.md first version header is not valid semver: '$VERSION'"
   echo "Expected format: ## [X.Y.Z] - YYYY-MM-DD"
   exit 1
 fi
@@ -27,11 +27,16 @@ make check
 # Update README badges from test results
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 bash "$HOOK_DIR/update-badges.sh"
+bash "$HOOK_DIR/build-doc-page.sh"
 
 # Stage README.md if badges changed
 if ! git diff --quiet README.md 2>/dev/null; then
   git add README.md
   echo "pre-commit: staged updated README.md badges"
 fi
+
+# Stage generated docs page
+git add doc/index.html doc/page/index.html
+echo "pre-commit: staged generated docs page"
 
 echo "=== pre-commit passed ==="

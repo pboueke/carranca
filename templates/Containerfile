@@ -15,7 +15,8 @@ RUN apk add --no-cache \
       coreutils \
       curl \
       git \
-      ca-certificates
+      ca-certificates \
+      iptables
 
 RUN mkdir -p /home/carranca && chmod 0777 /home/carranca
 

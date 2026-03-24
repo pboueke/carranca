@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export CARRANCA_HOME="$SCRIPT_DIR"
-RUNTIME="${CARRANCA_CONTAINER_RUNTIME:-podman}"
+source "$SCRIPT_DIR/tests/lib/integration.sh"
 
 PASS=0
 FAIL=0
@@ -31,32 +31,14 @@ assert_not_contains() {
   fi
 }
 
+integration_init
+trap integration_cleanup EXIT
+
 echo "=== test_kill.sh (requires $RUNTIME) ==="
 
-if ! "$RUNTIME" info >/dev/null 2>&1; then
-  echo "  SKIP: $RUNTIME not available"
-  exit 0
-fi
-
-TMPSTATE="$(mktemp -d)"
-TMPDIR="$(mktemp -d)"
-export CARRANCA_STATE="$TMPSTATE"
-
-cleanup() {
-  "$RUNTIME" run --rm --cap-add LINUX_IMMUTABLE -v "$TMPSTATE:/state" ubuntu:24.04 \
-    bash -c 'find /state -type f -exec chattr -a {} \; 2>/dev/null; rm -rf /state/*' 2>/dev/null \
-    || rm -rf "$TMPSTATE"/* 2>/dev/null || true
-  "$RUNTIME" ps -a --format '{{.Names}}' | awk '/^carranca-[0-9a-f]+-(logger|agent)$/{print $0}' | xargs -r "$RUNTIME" rm -f >/dev/null 2>&1 || true
-  "$RUNTIME" volume ls --format '{{.Name}}' | awk '/^carranca-[0-9a-f]+-fifo$/{print $0}' | xargs -r "$RUNTIME" volume rm >/dev/null 2>&1 || true
-  "$RUNTIME" images --format '{{.Repository}}' | awk '/^carranca-[0-9a-f]+-(logger|agent)$/{print $1}' | xargs -r "$RUNTIME" rmi >/dev/null 2>&1 || true
-  rm -rf "$TMPDIR" "$TMPSTATE" 2>/dev/null || true
-}
-trap cleanup EXIT
-
-cd "$TMPDIR"
-git init --quiet
-
-bash "$CARRANCA_HOME/cli/init.sh"
+integration_require_runtime
+integration_create_repo
+integration_init_project
 
 cat > ".carranca.yml" <<'EOF'
 agents:

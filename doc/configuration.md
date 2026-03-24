@@ -1,6 +1,6 @@
 # Configuration
 
-## What Carranca reads today
+## What Carranca reads
 
 Carranca currently reads configuration from:
 
@@ -19,7 +19,7 @@ Carranca reads user-wide defaults from:
 
 Override the directory with `CARRANCA_CONFIG_DIR`.
 
-Only `runtime.*`, `volumes.*`, and `observability.*` settings are read from global config.
+Only `runtime.*`, `volumes.*`, `observability.*`, and `policy.*` settings are read from global config.
 Project-level `.carranca.yml` always takes precedence. Lists (like
 `runtime.cap_add` and `volumes.extra`) are not merged — the project list
 replaces the global list entirely when present.
@@ -87,14 +87,21 @@ observability:
 | `agents[].command` | Yes | — | Command executed inside the agent container |
 | `agents[].adapter` | No | `default` | Adapter selection: `default`, `claude`, `codex`, `opencode`, or `stdin` |
 | `runtime.engine` | No | `auto` | Runtime engine: `auto`, `docker`, or `podman` |
-| `runtime.network` | No | `true` | `false` adds `--network=none` to the agent and config-agent container |
+| `runtime.network` | No | `true` | Boolean `true`/`false` or object with `default`/`allow` keys. `false` adds `--network=none`. Object form enables fine-grained network filtering via iptables |
+| `runtime.network.default` | No | — | Network policy default: must be `deny`. Presence of this key switches to filtered mode with iptables OUTPUT DROP + allow-list. Requires yq |
+| `runtime.network.allow` | No | — | List of `host:port` entries allowed through the firewall (e.g., `*.anthropic.com:443`). Requires yq |
 | `runtime.extra_flags` | No | — | Extra flags appended to the agent container `run` command |
 | `runtime.logger_extra_flags` | No | — | Extra flags appended to the logger container `run` command |
 | `runtime.cap_add` | No | — | List of Linux capabilities added to the agent container via `--cap-add` |
 | `volumes.cache` | No | `true` | Persists `/home/carranca` under `~/.local/state/carranca/cache/<repo-id>/home/` |
 | `volumes.extra` | No | — | Extra bind mounts added only to the agent container |
-| `policy.docs_before_code` | No | — | Parsed and scaffolded, but not enforced by the current CLI |
-| `policy.tests_before_impl` | No | — | Parsed and scaffolded, but not enforced by the current CLI |
+| `policy.docs_before_code` | No | — | `warn`, `enforce`, or `off`. When `warn` or `enforce`, injects git pre-commit hooks. `enforce` blocks commits that modify code without documentation |
+| `policy.tests_before_impl` | No | — | `warn`, `enforce`, or `off`. When `warn` or `enforce`, injects git pre-commit hooks. `enforce` blocks commits that modify implementation without tests |
+| `policy.max_duration` | No | — | Seconds; logger removes FIFO after this wall-clock limit, triggering agent fail-closed exit. `0` or absent means no limit |
+| `policy.resource_limits.memory` | No | — | Container memory limit (e.g., `2g`, `512m`). Passed as `--memory` to agent container. Requires yq |
+| `policy.resource_limits.cpus` | No | — | CPU limit (e.g., `2.0`). Passed as `--cpus` to agent container. Requires yq |
+| `policy.resource_limits.pids` | No | — | Max number of processes. Passed as `--pids-limit` to agent container. Requires yq |
+| `policy.filesystem.enforce_watched_paths` | No | `false` | When `true`, `watched_paths` directories and files are bind-mounted read-only. Requires yq |
 | `watched_paths` | No | — | File events matching watched patterns are tagged with `"watched":true` in session logs |
 | `observability.resource_interval` | No | `10` | Seconds between cgroup resource samples; `0` disables |
 | `observability.execve_tracing` | No | `false` | Enable strace-based execve tracing; adds `CAP_SYS_PTRACE` to logger |
@@ -233,6 +240,246 @@ agents:
 runtime:
   cap_add:
     - SYS_PTRACE
+```
+
+## Configuration examples
+
+The examples below map the roles in [vision.md](vision.md) to concrete Carranca
+setups. Each one includes both `.carranca.yml` and `.carranca/Containerfile`
+because operator intent affects both runtime policy and the tools installed in
+the agent image.
+
+### DevOps operator: restricted package access and enforceable workflow
+
+Use this when a platform or DevOps team wants an agent that can work on build
+and deployment files while restricting outbound network access to a small
+allow-list.
+
+`.carranca.yml`
+
+```yaml
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+
+runtime:
+  engine: podman
+  network:
+    default: deny
+    allow:
+      - registry.npmjs.org:443
+      - pypi.org:443
+      - files.pythonhosted.org:443
+      - api.github.com:443
+
+volumes:
+  cache: true
+  extra:
+    - ~/.ssh:/home/carranca/.ssh:ro
+
+policy:
+  docs_before_code: enforce
+  tests_before_impl: enforce
+  max_duration: 1800
+  resource_limits:
+    memory: 2g
+    cpus: "2.0"
+    pids: 256
+
+watched_paths:
+  - .env
+  - .github/
+  - deploy/
+  - secrets/
+
+observability:
+  resource_interval: 10
+  execve_tracing: true
+  network_logging: true
+  network_interval: 5
+  secret_monitoring: true
+```
+
+`.carranca/Containerfile`
+
+```Dockerfile
+FROM alpine:3.21
+
+RUN apk add --no-cache \
+    bash \
+    ca-certificates \
+    coreutils \
+    curl \
+    git \
+    jq \
+    make \
+    nodejs \
+    npm \
+    openssh-client \
+    python3 \
+    py3-pip \
+    yq
+
+RUN npm install -g @openai/codex
+
+COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
+RUN chmod +x /usr/local/bin/shell-wrapper.sh
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
+```
+
+### Agent developer: trace unexpected timeline events
+
+Use this when an engineer is debugging surprising `carranca log --timeline`
+output and wants higher-fidelity process and resource visibility while keeping
+policies permissive enough for investigation.
+
+`.carranca.yml`
+
+```yaml
+agents:
+  - name: debugger
+    adapter: stdin
+    command: bash /usr/local/bin/agent-debug-session.sh
+
+runtime:
+  engine: auto
+  network: true
+  cap_add:
+    - SYS_PTRACE
+
+volumes:
+  cache: false
+  extra:
+    - ~/scratch/captures:/captures:rw
+
+policy:
+  docs_before_code: off
+  tests_before_impl: warn
+  max_duration: 0
+  resource_limits:
+    memory: 4g
+    cpus: "4.0"
+    pids: 512
+
+watched_paths:
+  - .carranca.yml
+  - runtime/
+  - cli/
+  - tests/
+
+observability:
+  resource_interval: 2
+  execve_tracing: true
+  network_logging: true
+  network_interval: 2
+  secret_monitoring: false
+```
+
+`.carranca/Containerfile`
+
+```Dockerfile
+FROM alpine:3.21
+
+RUN apk add --no-cache \
+    bash \
+    coreutils \
+    curl \
+    git \
+    jq \
+    procps \
+    strace \
+    tree \
+    yq
+
+RUN printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  'exec codex "$@"' \
+  > /usr/local/bin/agent-debug-session.sh \
+  && chmod +x /usr/local/bin/agent-debug-session.sh
+
+RUN apk add --no-cache nodejs npm && npm install -g @openai/codex
+
+COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
+RUN chmod +x /usr/local/bin/shell-wrapper.sh
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
+```
+
+### Forensic analyst: offline replay and evidence review
+
+Use this when the goal is post-session investigation rather than active coding.
+The agent image is minimal, the network is disabled, and the workspace can be
+mounted with reference material for analysis.
+
+`.carranca.yml`
+
+```yaml
+agents:
+  - name: analyst
+    adapter: stdin
+    command: bash /usr/local/bin/review-session.sh
+
+runtime:
+  engine: podman
+  network: false
+
+volumes:
+  cache: false
+  extra:
+    - ~/cases:/cases:ro
+    - ~/.local/state/carranca/sessions:/session-archive:ro
+
+policy:
+  docs_before_code: off
+  tests_before_impl: off
+  max_duration: 7200
+  filesystem:
+    enforce_watched_paths: true
+
+watched_paths:
+  - reports/
+  - findings/
+  - /session-archive
+
+observability:
+  resource_interval: 30
+  execve_tracing: true
+  network_logging: false
+  secret_monitoring: true
+```
+
+`.carranca/Containerfile`
+
+```Dockerfile
+FROM alpine:3.21
+
+RUN apk add --no-cache \
+    bash \
+    coreutils \
+    git \
+    jq \
+    less \
+    python3 \
+    py3-pip \
+    yq
+
+RUN printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  'exec bash' \
+  > /usr/local/bin/review-session.sh \
+  && chmod +x /usr/local/bin/review-session.sh
+
+COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
+RUN chmod +x /usr/local/bin/shell-wrapper.sh
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
 ```
 
 ## `carranca config`

@@ -5,12 +5,12 @@
   <h1>Carranca</h1>
 
   <p>
-    <img src="https://img.shields.io/badge/version-0.12.0-blue" alt="version: 0.12.0" />
-    <img src="https://img.shields.io/badge/tests-370%2F370_passed-brightgreen" alt="tests: 370/370 passed" />
-    <img src="https://img.shields.io/badge/coverage-100%25_(79%2F79_functions)-brightgreen" alt="coverage: 100%" />
+    <img src="https://img.shields.io/badge/version-0.14.0-blue" alt="version: 0.14.0" />
+    <img src="https://img.shields.io/badge/tests-610%2F610_passed-brightgreen" alt="tests: 610/610 passed" />
+    <img src="https://img.shields.io/badge/coverage-100%25_(99%2F99_functions)-brightgreen" alt="coverage: 100%" />
   </p>
 
-  <p><strong>Containerized multi-agent runtime with verified session logging.</strong> Named after the carved figureheads on boats in Brazil's São Francisco river, believed to protect sailors. Carranca protects engineers from coding agents by running them in isolated containers with structured, tamper-evident audit logs.
+  <p><strong>Isolated agent runtime with verified audits, deep observability, and policy enforcement.</strong> Named after the carved figureheads on boats in Brazil's São Francisco river, believed to protect sailors. Carranca protects engineers from coding agents by running them in isolated containers with tamper-evident logs, kernel-level tracing, and enforceable guardrails.
 </p>
 </div>
 
@@ -65,7 +65,9 @@ ownership.
        └── <runtime> run -it (agent: shell-wrapper → FIFO)
 ```
 
-See [doc/architecture.md](doc/architecture.md) for the full picture.
+Open [doc/page/index.html](doc/page/index.html) for the full technical reference.
+The markdown files in [`doc/`](doc/) remain the source chapters and companion
+guides.
 
 ## Commands
 
@@ -79,8 +81,8 @@ See [doc/architecture.md](doc/architecture.md) for the full picture.
 Each command also exposes command-specific help through either `carranca help <command>` or `carranca <command> help`.
 
 Carranca reads per-project config from `.carranca.yml` and optional user-wide
-defaults from `~/.config/carranca/config.yml` for `runtime.*`, `volumes.*`, and
-`observability.*` keys. Runtime selection precedence is `CARRANCA_CONTAINER_RUNTIME`, then
+defaults from `~/.config/carranca/config.yml` for `runtime.*`, `volumes.*`,
+`observability.*`, and `policy.*` keys. Runtime selection precedence is `CARRANCA_CONTAINER_RUNTIME`, then
 `.carranca.yml` `runtime.engine`, then global `runtime.engine`, then
 auto-detection.
 
@@ -111,11 +113,13 @@ of every event in chronological order.
 
 | Doc | What it covers |
 |-----|---------------|
+| [Technical reference](doc/page/index.html) | Primary browsable reference for architecture, configuration, session log schema, trust model, roadmap, versioning, and changelog |
+| [Usage](doc/usage.md) | Detailed CLI command reference, options, and operator workflows |
 | [Architecture](doc/architecture.md) | Container layout, data flow, directory structure |
 | [Configuration](doc/configuration.md) | `.carranca.yml` reference, Containerfile, init flags |
 | [Session log](doc/session-log.md) | JSONL schema, event types, `jq` query examples |
 | [Trust model](doc/trust-model.md) | Threat table, failure behavior, honest scope |
-| [Vision](doc/vision.md) | Current use cases, future roadmap, and target audiences |
+| [Vision](doc/vision.md) | Current product position, future phases, and target audiences |
 | [Versioning](doc/versioning.md) | Semver policy, changelog format |
 
 ## Platform support

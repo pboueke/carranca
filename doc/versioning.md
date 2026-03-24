@@ -2,7 +2,7 @@
 
 ## Single source of truth
 
-The current version is the first `## [X.Y.Z]` header in `CHANGELOG.md`.
+The current version is the first `## [X.Y.Z]` header in `doc/CHANGELOG.md`.
 All tooling derives from this. There is no `VERSION` file, no `package.json`,
 no other version declaration.
 
@@ -11,7 +11,7 @@ no other version declaration.
 make version
 
 # Programmatically
-grep -m1 '## \[' CHANGELOG.md | sed 's/.*\[\(.*\)\].*/\1/'
+grep -m1 '## \[' doc/CHANGELOG.md | sed 's/.*\[\(.*\)\].*/\1/'
 ```
 
 ## Semantic versioning
@@ -39,7 +39,7 @@ Prefixes: `feat:`, `fix:`, `chore:`, `test:`, `docs:`, `refactor:`
 
 ## Bumping version
 
-1. Add a new `## [X.Y.Z] - YYYY-MM-DD` header at the top of CHANGELOG.md
+1. Add a new `## [X.Y.Z] - YYYY-MM-DD` header at the top of `doc/CHANGELOG.md`
 2. List changes under it with conventional prefixes
 3. Commit
 

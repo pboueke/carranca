@@ -89,6 +89,12 @@ WATCHDOG_PID=$!
 
 write_event "{\"type\":\"session_event\",\"source\":\"shell-wrapper\",\"event\":\"agent_start\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\"}"
 
+# --- Policy hooks setup (4.3) ---
+
+if [ "${POLICY_HOOKS:-}" = "true" ] && [ -d "/carranca-hooks" ]; then
+  git config --global core.hooksPath /carranca-hooks 2>/dev/null || true
+fi
+
 # --- Execute agent command ---
 # We log the overall agent command as a shell_command event.
 # The agent may run sub-commands internally — those are captured by
