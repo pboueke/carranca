@@ -78,13 +78,8 @@ ms="$(ms_now)"
 assert_match "ms_now is numeric" '^[0-9]+$' "$ms"
 
 # Verify ms_now is at least 13 digits (milliseconds) or 10 (seconds fallback)
-if [ "${#ms}" -ge 10 ]; then
-  echo "  PASS: ms_now produces epoch timestamp (${#ms} digits)"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: ms_now too short (${#ms} digits, expected >= 10)"
-  FAIL=$((FAIL + 1))
-fi
+ms_len_ok=0; [ "${#ms}" -ge 10 ] && ms_len_ok=1
+assert_eq "ms_now produces epoch timestamp (>= 10 digits)" "1" "$ms_len_ok"
 
 # --- logger.sh helpers ---
 
@@ -163,45 +158,20 @@ assert_eq "write_event sends JSON through FIFO" '{"type":"test_event"}' "$RECEIV
 # so we verify they exist in the source rather than executing them.
 # Integration tests (test_run.sh) exercise them end-to-end.
 
-if grep -q '^_cleanup()' "$SCRIPT_DIR/runtime/logger.sh"; then
-  echo "  PASS: _cleanup defined in logger.sh"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: _cleanup not found in logger.sh"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; grep -q '^_cleanup()' "$SCRIPT_DIR/runtime/logger.sh" || rc=$?
+assert_eq "_cleanup defined in logger.sh" "0" "$rc"
 
-if grep -q '^_heartbeat_loop()' "$SCRIPT_DIR/runtime/shell-wrapper.sh"; then
-  echo "  PASS: _heartbeat_loop defined in shell-wrapper.sh"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: _heartbeat_loop not found in shell-wrapper.sh"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; grep -q '^_heartbeat_loop()' "$SCRIPT_DIR/runtime/shell-wrapper.sh" || rc=$?
+assert_eq "_heartbeat_loop defined in shell-wrapper.sh" "0" "$rc"
 
-if grep -q '^_fifo_watchdog_loop()' "$SCRIPT_DIR/runtime/shell-wrapper.sh"; then
-  echo "  PASS: _fifo_watchdog_loop defined in shell-wrapper.sh"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: _fifo_watchdog_loop not found in shell-wrapper.sh"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; grep -q '^_fifo_watchdog_loop()' "$SCRIPT_DIR/runtime/shell-wrapper.sh" || rc=$?
+assert_eq "_fifo_watchdog_loop defined in shell-wrapper.sh" "0" "$rc"
 
-if grep -q '^fail_closed()' "$SCRIPT_DIR/runtime/shell-wrapper.sh"; then
-  echo "  PASS: fail_closed defined in shell-wrapper.sh"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: fail_closed not found in shell-wrapper.sh"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; grep -q '^fail_closed()' "$SCRIPT_DIR/runtime/shell-wrapper.sh" || rc=$?
+assert_eq "fail_closed defined in shell-wrapper.sh" "0" "$rc"
 
-if grep -q '^fifo_is_healthy()' "$SCRIPT_DIR/runtime/shell-wrapper.sh"; then
-  echo "  PASS: fifo_is_healthy defined in shell-wrapper.sh"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: fifo_is_healthy not found in shell-wrapper.sh"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; grep -q '^fifo_is_healthy()' "$SCRIPT_DIR/runtime/shell-wrapper.sh" || rc=$?
+assert_eq "fifo_is_healthy defined in shell-wrapper.sh" "0" "$rc"
 
 # Test fifo_is_healthy behavior
 FIFO_TEST_DIR="$(mktemp -d)"
@@ -213,22 +183,12 @@ source /dev/stdin <<FIFO_FUNC
 $(grep -A3 '^fifo_is_healthy()' "$SCRIPT_DIR/runtime/shell-wrapper.sh")
 FIFO_FUNC
 
-if FIFO_PATH="$FIFO_PATH" fifo_is_healthy; then
-  echo "  PASS: fifo_is_healthy returns true for valid FIFO"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: fifo_is_healthy should return true for valid FIFO"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; FIFO_PATH="$FIFO_PATH" fifo_is_healthy || rc=$?
+assert_eq "fifo_is_healthy returns true for valid FIFO" "0" "$rc"
 
 rm -f "$FIFO_PATH"
-if ! FIFO_PATH="$FIFO_PATH" fifo_is_healthy; then
-  echo "  PASS: fifo_is_healthy returns false for missing FIFO"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: fifo_is_healthy should return false for missing FIFO"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; FIFO_PATH="$FIFO_PATH" fifo_is_healthy || rc=$?
+assert_eq "fifo_is_healthy returns false for missing FIFO" "1" "$rc"
 
 rm -rf "$FIFO_TEST_DIR"
 

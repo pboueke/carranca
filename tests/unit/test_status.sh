@@ -85,13 +85,7 @@ assert_contains "status prints repo heading" "Repo:" "$STATUS_OUTPUT"
 assert_contains "status prints active session" "a1b2c3d4 (2026-03-22T10:00:00Z)" "$STATUS_OUTPUT"
 assert_contains "status prints recent sessions heading" "Recent sessions:" "$STATUS_OUTPUT"
 assert_contains "status prints recent log path" "$LOG_DIR/b2c3d4e5.jsonl" "$STATUS_OUTPUT"
-if echo "$STATUS_OUTPUT" | grep -Fq -- "$LOG_DIR/a1b2c3d4.jsonl"; then
-  echo "  FAIL: status overview should not include the sixth-oldest log"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: status overview limits recent sessions to 5"
-  PASS=$((PASS + 1))
-fi
+assert_not_contains "status overview limits recent sessions to 5" "$LOG_DIR/a1b2c3d4.jsonl" "$STATUS_OUTPUT"
 
 DETAIL_OUTPUT="$(bash "$CLI" --session b2c3d4e5 2>&1)"
 assert_contains "detailed status prints session heading" "Session: b2c3d4e5" "$DETAIL_OUTPUT"

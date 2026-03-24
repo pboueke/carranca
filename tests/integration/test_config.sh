@@ -5,36 +5,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export CARRANCA_HOME="$SCRIPT_DIR"
 source "$SCRIPT_DIR/tests/lib/integration.sh"
-
-PASS=0
-FAIL=0
-
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -q "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
+source "$SCRIPT_DIR/tests/lib/assert.sh"
 
 integration_init
 trap integration_cleanup EXIT
 
-echo "=== test_config.sh (requires $RUNTIME) ==="
+suite_header "test_config.sh (requires $RUNTIME)"
 
 integration_require_runtime
 integration_create_repo
@@ -189,6 +165,7 @@ EOF
 ORIGINAL_CONFIG="$(cat .carranca.yml)"
 ORIGINAL_CONTAINERFILE="$(cat .carranca/Containerfile)"
 
+test_start
 REJECT_OUTPUT="$(printf 'n\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent shell --prompt "install claude" 2>&1)" || true
 assert_contains "proposal asks for confirmation" "Apply these changes" "$REJECT_OUTPUT"
 assert_contains "proposal references confiskill" "confiskill" "$REJECT_OUTPUT"
@@ -198,6 +175,7 @@ assert_eq "rejected proposal keeps config unchanged" "$ORIGINAL_CONFIG" "$(cat .
 assert_eq "rejected proposal keeps Containerfile unchanged" "$ORIGINAL_CONTAINERFILE" "$(cat .carranca/Containerfile)"
 assert_eq "config reject does not recreate carranca-managed skills in workspace" "missing" "$(test -d .carranca/skills/carranca && echo present || echo missing)"
 
+test_start
 APPLY_OUTPUT="$(bash "$CARRANCA_HOME/cli/config.sh" --agent shell --prompt "install claude" --dangerously-skip-confirmation 2>&1)" || true
 assert_contains "dangerous apply prints strict warning" "WARNING: applying configurator-generated changes without user confirmation" "$APPLY_OUTPUT"
 assert_contains "config command applied proposal" "Applied configurator proposal" "$APPLY_OUTPUT"
@@ -209,6 +187,7 @@ assert_eq "config apply still avoids workspace carranca skill writes" "missing" 
 REPO_ID="$(integration_repo_id)"
 AUDIT_LOG="$TMPSTATE/config/$REPO_ID/history.jsonl"
 REQUEST_FILE="$(find "$TMPSTATE/config/$REPO_ID" -name request.txt | sort | tail -1)"
+test_start
 assert_contains "agent prompt instructs use of confiskill" "/carranca-skills/confiskill/SKILL.md" "$(cat "$REQUEST_FILE")"
 assert_contains "agent prompt includes selected executor name" "Selected config agent name: shell" "$(cat "$REQUEST_FILE")"
 assert_contains "agent prompt includes operator request" "Operator request:" "$(cat "$REQUEST_FILE")"
@@ -231,11 +210,11 @@ policy:
   tests_before_impl: warn
 EOF
 
+test_start
 OPENCODE_OUTPUT="$(printf 'n\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent opencode --prompt "install opencode deps" 2>&1)" || true
 assert_contains "config command reports opencode driver" "Config agent driver: opencode -> opencode" "$OPENCODE_OUTPUT"
 OPENCODE_REQUEST_FILE="$(find "$TMPSTATE/config/$REPO_ID" -name request.txt -exec grep -l "install opencode deps" {} + 2>/dev/null | head -1 || true)"
 assert_contains "opencode config agent receives exact operator request text" "install opencode deps" "$(cat "$OPENCODE_REQUEST_FILE")"
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

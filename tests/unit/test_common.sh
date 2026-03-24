@@ -16,27 +16,16 @@ assert_match "random_hex is hex chars" "^[0-9a-f]{16}$" "$hex"
 
 # Test two calls produce different values
 hex2="$(carranca_random_hex)"
-if [ "$hex" != "$hex2" ]; then
-  echo "  PASS: random_hex produces different values"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: random_hex produced identical values"
-  FAIL=$((FAIL + 1))
-fi
+hex_differ=0; [ "$hex" != "$hex2" ] && hex_differ=1
+assert_eq "random_hex produces different values" "1" "$hex_differ"
 
 # Test carranca_require_cmd with existing command
-carranca_require_cmd bash 2>/dev/null
-echo "  PASS: require_cmd accepts existing command (bash)"
-PASS=$((PASS + 1))
+rc=0; carranca_require_cmd bash 2>/dev/null || rc=$?
+assert_eq "require_cmd accepts existing command (bash)" "0" "$rc"
 
 # Test carranca_require_cmd with missing command (run in subshell since die calls exit)
-if (carranca_require_cmd nonexistent_cmd_xyz 2>/dev/null); then
-  echo "  FAIL: require_cmd should fail for missing command"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: require_cmd rejects missing command"
-  PASS=$((PASS + 1))
-fi
+rc=0; (carranca_require_cmd nonexistent_cmd_xyz 2>/dev/null) || rc=$?
+assert_eq "require_cmd rejects missing command" "1" "$rc"
 
 # Test carranca_log outputs to stdout for info/ok, stderr for warn/error
 info_out="$(carranca_log info "test message" 2>/dev/null)"

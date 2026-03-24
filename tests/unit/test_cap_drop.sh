@@ -44,13 +44,8 @@ assert_contains "combined flags contain --cap-add NET_ADMIN" "--cap-add NET_ADMI
 # Verify ordering: --cap-drop before --cap-add
 drop_pos="$(echo "$COMBINED" | grep -bo '\-\-cap-drop' | head -1 | cut -d: -f1)"
 add_pos="$(echo "$COMBINED" | grep -bo '\-\-cap-add' | head -1 | cut -d: -f1)"
-if [ "$drop_pos" -lt "$add_pos" ]; then
-  echo "  PASS: --cap-drop appears before --cap-add"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: --cap-drop should appear before --cap-add"
-  FAIL=$((FAIL + 1))
-fi
+order_ok=0; [ "$drop_pos" -lt "$add_pos" ] && order_ok=1
+assert_eq "--cap-drop appears before --cap-add" "1" "$order_ok"
 
 # --- Test: false + cap-add yields only cap-add ---
 echo "--- cap_drop_all false with cap_add ---"

@@ -115,8 +115,7 @@ echo "--- DNS resolution ---"
 # Test that getent works for a known host
 resolved="$(getent ahosts localhost 2>/dev/null | awk '{print $1}' | sort -u | head -1 || true)"
 if [ -n "$resolved" ]; then
-  echo "  PASS: getent resolves localhost"
-  PASS=$((PASS + 1))
+  assert_eq "getent resolves localhost" "0" "0"
 else
   echo "  SKIP: getent not available or cannot resolve localhost"
 fi
@@ -154,46 +153,15 @@ echo "--- network-setup script ---"
 SETUP_SCRIPT="$SCRIPT_DIR/runtime/network-setup.sh"
 
 # Verify script exists and is executable
-if [ -x "$SETUP_SCRIPT" ]; then
-  echo "  PASS: network-setup.sh is executable"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: network-setup.sh should be executable"
-  FAIL=$((FAIL + 1))
-fi
+is_exec=0; [ -x "$SETUP_SCRIPT" ] && is_exec=1
+assert_eq "network-setup.sh is executable" "1" "$is_exec"
 
 # Verify script contains expected iptables commands
-if grep -q 'iptables -P OUTPUT DROP' "$SETUP_SCRIPT"; then
-  echo "  PASS: network-setup sets default DROP policy"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: network-setup should set default DROP policy"
-  FAIL=$((FAIL + 1))
-fi
-
-if grep -q 'iptables -A OUTPUT -o lo -j ACCEPT' "$SETUP_SCRIPT"; then
-  echo "  PASS: network-setup allows loopback"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: network-setup should allow loopback"
-  FAIL=$((FAIL + 1))
-fi
-
-if grep -q 'dport 53' "$SETUP_SCRIPT"; then
-  echo "  PASS: network-setup allows DNS"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: network-setup should allow DNS"
-  FAIL=$((FAIL + 1))
-fi
-
-if grep -q 'network-ready' "$SETUP_SCRIPT"; then
-  echo "  PASS: network-setup signals readiness"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: network-setup should signal readiness"
-  FAIL=$((FAIL + 1))
-fi
+SETUP_CONTENT="$(cat "$SETUP_SCRIPT")"
+assert_contains "network-setup sets default DROP policy" "iptables -P OUTPUT DROP" "$SETUP_CONTENT"
+assert_contains "network-setup allows loopback" "iptables -A OUTPUT -o lo -j ACCEPT" "$SETUP_CONTENT"
+assert_contains "network-setup allows DNS" "dport 53" "$SETUP_CONTENT"
+assert_contains "network-setup signals readiness" "network-ready" "$SETUP_CONTENT"
 
 # --- Backward compatibility ---
 

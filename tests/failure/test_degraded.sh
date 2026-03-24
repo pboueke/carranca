@@ -5,14 +5,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export CARRANCA_HOME="$SCRIPT_DIR"
 source "$SCRIPT_DIR/tests/lib/integration.sh"
-
-PASS=0
-FAIL=0
+source "$SCRIPT_DIR/tests/lib/assert.sh"
 
 integration_init
 trap integration_cleanup EXIT
 
-echo "=== test_degraded.sh (requires $RUNTIME) ==="
+suite_header "test_degraded.sh (requires $RUNTIME)"
 
 integration_require_runtime
 
@@ -35,6 +33,7 @@ runtime:
 EOF
 
 echo "  Running carranca session to check degraded mode..."
+test_start
 bash "$CARRANCA_HOME/cli/run.sh" 2>&1 || true
 
 # Find log
@@ -55,6 +54,7 @@ else
   fi
 
   # Session should still complete successfully even in degraded mode
+  test_start
   if grep -q '"event":"start"' "$LOG_FILE"; then
     echo "  PASS: session started in degraded mode"
     PASS=$((PASS + 1))
@@ -65,5 +65,4 @@ else
 fi
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

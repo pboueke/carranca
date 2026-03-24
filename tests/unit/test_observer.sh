@@ -186,23 +186,14 @@ echo "abcdef1234567890" > "$TOKEN_DIR/$SESSION_ID.observer-token"
 OBSERVER_TOKEN=""
 _token_file="$TOKEN_DIR/$SESSION_ID.observer-token"
 OBSERVER_TOKEN="$(cat "$_token_file" 2>/dev/null)"
-if [[ "$OBSERVER_TOKEN" =~ ^[0-9a-fA-F]+$ ]]; then
-  assert_eq "_read_observer_token reads valid hex token" "abcdef1234567890" "$OBSERVER_TOKEN"
-else
-  echo "  FAIL: _read_observer_token should accept hex token"
-  FAIL=$((FAIL + 1))
-fi
+assert_match "_read_observer_token reads valid hex token format" '^[0-9a-fA-F]+$' "$OBSERVER_TOKEN"
+assert_eq "_read_observer_token reads valid hex token" "abcdef1234567890" "$OBSERVER_TOKEN"
 
 # _read_observer_token: reject non-hex token
 echo "not-hex-!!!" > "$_token_file"
 OBSERVER_TOKEN="$(cat "$_token_file" 2>/dev/null)"
-if [[ "$OBSERVER_TOKEN" =~ ^[0-9a-fA-F]+$ ]]; then
-  echo "  FAIL: _read_observer_token should reject non-hex token"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: _read_observer_token rejects non-hex token"
-  PASS=$((PASS + 1))
-fi
+is_hex=0; [[ "$OBSERVER_TOKEN" =~ ^[0-9a-fA-F]+$ ]] && is_hex=1
+assert_eq "_read_observer_token rejects non-hex token" "0" "$is_hex"
 
 # _wait_for_fifo: test that it finds an existing FIFO
 TEST_FIFO="$TMPDIR/test-fifo"
@@ -210,50 +201,25 @@ mkfifo "$TEST_FIFO"
 FIFO_PATH="$TEST_FIFO"
 # The function polls, but with a FIFO already present it should return 0 immediately
 # We test the condition directly since calling the function would sleep
-if [ -p "$FIFO_PATH" ]; then
-  echo "  PASS: _wait_for_fifo finds existing FIFO"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: _wait_for_fifo should find existing FIFO"
-  FAIL=$((FAIL + 1))
-fi
+is_fifo=0; [ -p "$FIFO_PATH" ] && is_fifo=1
+assert_eq "_wait_for_fifo finds existing FIFO" "1" "$is_fifo"
 
 # _find_agent_host_pid: verify function exists in observer.sh source
-if grep -q '_find_agent_host_pid()' "$SCRIPT_DIR/runtime/observer.sh"; then
-  echo "  PASS: _find_agent_host_pid defined in observer.sh"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: _find_agent_host_pid not found in observer.sh"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; grep -q '_find_agent_host_pid()' "$SCRIPT_DIR/runtime/observer.sh" || rc=$?
+assert_eq "_find_agent_host_pid defined in observer.sh" "0" "$rc"
 
 # _start_observer_tracer: verify function exists
-if grep -q '_start_observer_tracer()' "$SCRIPT_DIR/runtime/observer.sh"; then
-  echo "  PASS: _start_observer_tracer defined in observer.sh"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: _start_observer_tracer not found in observer.sh"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; grep -q '_start_observer_tracer()' "$SCRIPT_DIR/runtime/observer.sh" || rc=$?
+assert_eq "_start_observer_tracer defined in observer.sh" "0" "$rc"
 
 # _start_observer_network_monitor: verify function exists
-if grep -q '_start_observer_network_monitor()' "$SCRIPT_DIR/runtime/observer.sh"; then
-  echo "  PASS: _start_observer_network_monitor defined in observer.sh"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: _start_observer_network_monitor not found in observer.sh"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; grep -q '_start_observer_network_monitor()' "$SCRIPT_DIR/runtime/observer.sh" || rc=$?
+assert_eq "_start_observer_network_monitor defined in observer.sh" "0" "$rc"
 
 # --- Test: _emit_enforcement_failure (network-setup.sh) ---
 echo "--- network-setup coverage ---"
-if grep -q '_emit_enforcement_failure()' "$SCRIPT_DIR/runtime/network-setup.sh"; then
-  echo "  PASS: _emit_enforcement_failure defined in network-setup.sh"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: _emit_enforcement_failure not found in network-setup.sh"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; grep -q '_emit_enforcement_failure()' "$SCRIPT_DIR/runtime/network-setup.sh" || rc=$?
+assert_eq "_emit_enforcement_failure defined in network-setup.sh" "0" "$rc"
 
 # --- Cleanup ---
 rm -rf "$TMPDIR"

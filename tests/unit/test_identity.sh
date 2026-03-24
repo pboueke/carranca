@@ -23,13 +23,8 @@ TMPDIR_B="$(mktemp -d)"
 cd "$TMPDIR_B"
 git init --quiet
 id_b="$(carranca_repo_id)"
-if [ "$id_a" != "$id_b" ]; then
-  echo "  PASS: different paths produce different repo_ids"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: different paths produced same repo_id"
-  FAIL=$((FAIL + 1))
-fi
+ids_differ=0; [ "$id_a" != "$id_b" ] && ids_differ=1
+assert_eq "different paths produce different repo_ids" "1" "$ids_differ"
 
 # Test repo_id with git remote uses remote URL
 cd "$TMPDIR_A"

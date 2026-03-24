@@ -6,7 +6,7 @@
 
   <p>
     <img src="https://img.shields.io/badge/version-0.15.2-blue" alt="version: 0.15.2" />
-    <img src="https://img.shields.io/badge/tests-702%2F702_passed-brightgreen" alt="tests: 702/702 passed" />
+    <img src="https://img.shields.io/badge/tests-703%2F703_passed-brightgreen" alt="tests: 703/703 passed" />
     <img src="https://img.shields.io/badge/coverage-100%25_(119%2F119_functions)-brightgreen" alt="coverage: 100%" />
   </p>
 

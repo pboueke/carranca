@@ -51,13 +51,8 @@ result="$(_find_agent_cgroup_mock "abc123def456")"
 assert_eq "_find_agent_cgroup finds matching directory" "$MOCK_CGROUP/docker-abc123def456.scope" "$result"
 
 # Test 2: Returns failure when no match
-if _find_agent_cgroup_mock "nonexistent" >/dev/null 2>&1; then
-  echo "  FAIL: _find_agent_cgroup should fail for missing container"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: _find_agent_cgroup fails for missing container"
-  PASS=$((PASS + 1))
-fi
+rc=0; _find_agent_cgroup_mock "nonexistent" >/dev/null 2>&1 || rc=$?
+assert_eq "_find_agent_cgroup fails for missing container" "1" "$rc"
 
 # Test 3: Returns failure when base dir missing
 MOCK_CGROUP_MISSING="$TMPDIR/no-such-dir"
@@ -69,13 +64,8 @@ _find_agent_cgroup_nobase() {
   return 1
 }
 
-if _find_agent_cgroup_nobase "abc123def456" >/dev/null 2>&1; then
-  echo "  FAIL: _find_agent_cgroup should fail when base dir missing"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: _find_agent_cgroup fails when base dir missing"
-  PASS=$((PASS + 1))
-fi
+rc=0; _find_agent_cgroup_nobase "abc123def456" >/dev/null 2>&1 || rc=$?
+assert_eq "_find_agent_cgroup fails when base dir missing" "1" "$rc"
 
 # --- Test _read_cgroup_stats ---
 
@@ -107,20 +97,8 @@ echo "99999999" > "$CGROUP_PARTIAL/memory.current"
 
 result="$(_read_cgroup_stats "$CGROUP_PARTIAL")"
 assert_contains "_read_cgroup_stats with partial files includes memory" '"memory_bytes":99999999' "$result"
-if echo "$result" | grep -Fq '"cpu_usage_us"'; then
-  echo "  FAIL: _read_cgroup_stats should omit cpu_usage_us when cpu.stat missing"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: _read_cgroup_stats omits cpu_usage_us when cpu.stat missing"
-  PASS=$((PASS + 1))
-fi
-if echo "$result" | grep -Fq '"pids"'; then
-  echo "  FAIL: _read_cgroup_stats should omit pids when pids.current missing"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: _read_cgroup_stats omits pids when pids.current missing"
-  PASS=$((PASS + 1))
-fi
+assert_not_contains "_read_cgroup_stats omits cpu_usage_us when cpu.stat missing" '"cpu_usage_us"' "$result"
+assert_not_contains "_read_cgroup_stats omits pids when pids.current missing" '"pids"' "$result"
 
 # Test 6: Returns empty when no cgroup files exist
 CGROUP_EMPTY="$TMPDIR/cgroup-empty"
@@ -170,41 +148,11 @@ cat > "$STATS_LOG_MINIMAL" <<'EOF'
 EOF
 
 summary_minimal="$(carranca_session_print_summary "$STATS_LOG_MINIMAL")"
-if echo "$summary_minimal" | grep -Fq "Resource samples"; then
-  echo "  FAIL: summary should hide resource samples when zero"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: summary hides resource samples when zero"
-  PASS=$((PASS + 1))
-fi
-if echo "$summary_minimal" | grep -Fq "Execve events"; then
-  echo "  FAIL: summary should hide execve events when zero"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: summary hides execve events when zero"
-  PASS=$((PASS + 1))
-fi
-if echo "$summary_minimal" | grep -Fq "Network events"; then
-  echo "  FAIL: summary should hide network events when zero"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: summary hides network events when zero"
-  PASS=$((PASS + 1))
-fi
-if echo "$summary_minimal" | grep -Fq "Access events"; then
-  echo "  FAIL: summary should hide access events when zero"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: summary hides access events when zero"
-  PASS=$((PASS + 1))
-fi
-if echo "$summary_minimal" | grep -Fq "Policy events"; then
-  echo "  FAIL: summary should hide policy events when zero"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: summary hides policy events when zero"
-  PASS=$((PASS + 1))
-fi
+assert_not_contains "summary hides resource samples when zero" "Resource samples" "$summary_minimal"
+assert_not_contains "summary hides execve events when zero" "Execve events" "$summary_minimal"
+assert_not_contains "summary hides network events when zero" "Network events" "$summary_minimal"
+assert_not_contains "summary hides access events when zero" "Access events" "$summary_minimal"
+assert_not_contains "summary hides policy events when zero" "Policy events" "$summary_minimal"
 
 rm -rf "$TMPDIR"
 

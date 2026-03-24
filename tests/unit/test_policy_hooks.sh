@@ -45,45 +45,20 @@ should_activate_hooks() {
   return 1
 }
 
-if should_activate_hooks "enforce" "warn"; then
-  echo "  PASS: hooks activate for enforce+warn"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: hooks should activate for enforce+warn"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; should_activate_hooks "enforce" "warn" || rc=$?
+assert_eq "hooks activate for enforce+warn" "0" "$rc"
 
-if should_activate_hooks "warn" "off"; then
-  echo "  PASS: hooks activate for warn+off"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: hooks should activate for warn+off"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; should_activate_hooks "warn" "off" || rc=$?
+assert_eq "hooks activate for warn+off" "0" "$rc"
 
-if should_activate_hooks "off" "enforce"; then
-  echo "  PASS: hooks activate for off+enforce"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: hooks should activate for off+enforce"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; should_activate_hooks "off" "enforce" || rc=$?
+assert_eq "hooks activate for off+enforce" "0" "$rc"
 
-if should_activate_hooks "off" "off"; then
-  echo "  FAIL: hooks should not activate for off+off"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: hooks skip for off+off"
-  PASS=$((PASS + 1))
-fi
+rc=0; should_activate_hooks "off" "off" || rc=$?
+assert_eq "hooks skip for off+off" "1" "$rc"
 
-if should_activate_hooks "" ""; then
-  echo "  FAIL: hooks should not activate for empty+empty"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: hooks skip for empty+empty"
-  PASS=$((PASS + 1))
-fi
+rc=0; should_activate_hooks "" "" || rc=$?
+assert_eq "hooks skip for empty+empty" "1" "$rc"
 
 # --- Pre-commit hook tests with mock git repo ---
 
@@ -211,10 +186,8 @@ if [ -f "$FIFO_LOG" ] && [ -s "$FIFO_LOG" ]; then
   assert_contains "FIFO received policy_event" '"type":"policy_event"' "$fifo_content"
   assert_contains "FIFO event has pre-commit-hook source" '"source":"pre-commit-hook"' "$fifo_content"
 else
-  echo "  PASS: FIFO events written (file exists)"
-  PASS=$((PASS + 1))
-  echo "  PASS: FIFO event source (skipped — empty log)"
-  PASS=$((PASS + 1))
+  assert_eq "FIFO events written (file exists)" "0" "0"
+  assert_eq "FIFO event source (skipped — empty log)" "0" "0"
 fi
 
 rm -rf "$TMPDIR"

@@ -69,45 +69,20 @@ should_start_timer() {
   return 1
 }
 
-if should_start_timer "3600"; then
-  echo "  PASS: timer starts for positive duration"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: timer should start for positive duration"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; should_start_timer "3600" || rc=$?
+assert_eq "timer starts for positive duration" "0" "$rc"
 
-if should_start_timer "0"; then
-  echo "  FAIL: timer should not start for duration=0"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: timer skipped for duration=0"
-  PASS=$((PASS + 1))
-fi
+rc=0; should_start_timer "0" || rc=$?
+assert_eq "timer skipped for duration=0" "1" "$rc"
 
-if should_start_timer ""; then
-  echo "  FAIL: timer should not start for empty duration"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: timer skipped for empty duration"
-  PASS=$((PASS + 1))
-fi
+rc=0; should_start_timer "" || rc=$?
+assert_eq "timer skipped for empty duration" "1" "$rc"
 
-if should_start_timer "abc"; then
-  echo "  FAIL: timer should not start for non-numeric duration"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: timer skipped for non-numeric duration"
-  PASS=$((PASS + 1))
-fi
+rc=0; should_start_timer "abc" || rc=$?
+assert_eq "timer skipped for non-numeric duration" "1" "$rc"
 
-if should_start_timer "-5"; then
-  echo "  FAIL: timer should not start for negative duration"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: timer skipped for negative duration"
-  PASS=$((PASS + 1))
-fi
+rc=0; should_start_timer "-5" || rc=$?
+assert_eq "timer skipped for negative duration" "1" "$rc"
 
 # --- Timer event format ---
 
@@ -210,13 +185,8 @@ assert_eq "_start_session_timer no-op for non-numeric duration" "0" "$MOCK_LOG_C
 # Verify the guard passes for a valid duration by checking the return code.
 MAX_DURATION=1
 # We can't run the full function (it sleeps), but we verify the guard condition
-if [ "$MAX_DURATION" -gt 0 ] 2>/dev/null; then
-  echo "  PASS: _start_session_timer guard passes for positive duration"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: _start_session_timer guard should pass for positive duration"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; [ "$MAX_DURATION" -gt 0 ] 2>/dev/null || rc=$?
+assert_eq "_start_session_timer guard passes for positive duration" "0" "$rc"
 
 rm -rf "$TMPDIR"
 

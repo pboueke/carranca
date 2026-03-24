@@ -11,21 +11,11 @@ suite_header "test_hooks.sh"
 
 # --- Verify hook files exist and are executable ---
 
-if [ -x "$SCRIPT_DIR/.githooks/pre-commit" ]; then
-  echo "  PASS: pre-commit hook exists and is executable"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: pre-commit hook missing or not executable"
-  FAIL=$((FAIL + 1))
-fi
+is_exec=0; [ -x "$SCRIPT_DIR/.githooks/pre-commit" ] && is_exec=1
+assert_eq "pre-commit hook exists and is executable" "1" "$is_exec"
 
-if [ -x "$SCRIPT_DIR/.githooks/update-badges.sh" ]; then
-  echo "  PASS: update-badges.sh exists and is executable"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: update-badges.sh missing or not executable"
-  FAIL=$((FAIL + 1))
-fi
+is_exec=0; [ -x "$SCRIPT_DIR/.githooks/update-badges.sh" ] && is_exec=1
+assert_eq "update-badges.sh exists and is executable" "1" "$is_exec"
 
 # --- Verify pre-commit hook calls make check ---
 

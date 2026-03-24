@@ -5,39 +5,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export CARRANCA_HOME="$SCRIPT_DIR"
 source "$SCRIPT_DIR/tests/lib/integration.sh"
-
-PASS=0
-FAIL=0
-
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
+source "$SCRIPT_DIR/tests/lib/assert.sh"
 
 assert_gt() {
   local desc="$1" threshold="$2" actual="$3"
+  local ms
+  ms="$(_assert_elapsed)"
   if [ "$actual" -gt "$threshold" ]; then
-    echo "  PASS: $desc"
+    echo "  PASS: $desc (${ms}ms)"
     PASS=$((PASS + 1))
   else
-    echo "  FAIL: $desc (expected > $threshold, got $actual)"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -q "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected to contain '$needle')"
+    echo "  FAIL: $desc (expected > $threshold, got $actual) (${ms}ms)"
     FAIL=$((FAIL + 1))
   fi
 }
@@ -45,7 +23,7 @@ assert_contains() {
 integration_init
 trap integration_cleanup EXIT
 
-echo "=== test_run.sh (requires $RUNTIME) ==="
+suite_header "test_run.sh (requires $RUNTIME)"
 
 integration_require_runtime
 integration_create_repo
@@ -69,6 +47,7 @@ EOF
 
 # Run carranca
 echo "  Running carranca session (this may take a moment on first build)..."
+test_start
 OUTPUT="$(bash "$CARRANCA_HOME/cli/run.sh" --agent shell 2>&1)" || true
 
 # Find the session log
@@ -80,7 +59,7 @@ if [ -z "$LOG_FILE" ]; then
   echo "  FAIL: No session log found in $LOG_DIR"
   FAIL=$((FAIL + 1))
   echo ""
-  echo "Results: $PASS passed, $FAIL failed"
+  print_results
   exit 1
 fi
 
@@ -99,6 +78,7 @@ SHELL_CMD_COUNT="$(echo "$SHELL_CMD_COUNT" | tr -d '[:space:]')"
 assert_gt "log contains shell_command events" 0 "$SHELL_CMD_COUNT"
 
 # Check for session stop or logger_stop event
+test_start
 if echo "$LOG_CONTENT" | grep -q '"event":"agent_stop"\|"event":"logger_stop"'; then
   echo "  PASS: log contains stop event"
   PASS=$((PASS + 1))
@@ -108,6 +88,7 @@ else
 fi
 
 # Check seq numbers are present and monotonic
+test_start
 SEQS="$(grep -o '"seq":[0-9]*' "$LOG_FILE" | cut -d: -f2)"
 PREV=0
 SEQ_OK=true
@@ -135,6 +116,7 @@ else
 fi
 
 # Check session summary was printed
+test_start
 assert_contains "output contains session complete" "complete" "$OUTPUT"
 assert_contains "output mentions selected agent" "Agent: shell" "$OUTPUT"
 
@@ -147,6 +129,7 @@ EXPECTED_GID="$(id -g)"
 ACTUAL_UID="$(stat -c '%u' "$TMPDIR/testfile.txt")"
 assert_eq "workspace file is owned by invoking host uid" "$EXPECTED_UID" "$ACTUAL_UID"
 
+test_start
 if [ "$ACTUAL_UID" != "0" ]; then
   echo "  PASS: workspace file is not owned by root"
   PASS=$((PASS + 1))
@@ -163,6 +146,7 @@ assert_eq "agent primary gid matches invoking host gid" "$EXPECTED_GID" "$AGENT_
 
 HOST_GROUPS="$(id -G)"
 AGENT_GROUPS="$(cat "$TMPDIR/agent-groups.txt" 2>/dev/null || true)"
+test_start
 for gid in $HOST_GROUPS; do
   if echo " $AGENT_GROUPS " | grep -q " $gid "; then
     echo "  PASS: agent groups include host gid $gid"
@@ -174,6 +158,7 @@ for gid in $HOST_GROUPS; do
 done
 
 # Verify cache home directory was created
+test_start
 if [ -d "$TMPSTATE/cache/$REPO_ID/home" ]; then
   echo "  PASS: cache home directory created"
   PASS=$((PASS + 1))
@@ -183,5 +168,4 @@ else
 fi
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

@@ -144,13 +144,8 @@ val="$(carranca_config_agent_driver_for auto-opencode "$TMPDIR/opencode.yml")"
 assert_eq "default adapter resolves to opencode driver for opencode command" "opencode" "$val"
 
 cd "$TMPDIR"
-if (carranca_config_validate 2>/dev/null); then
-  echo "  PASS: validation passes for valid config"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: validation should pass for valid config"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; (carranca_config_validate 2>/dev/null) || rc=$?
+assert_eq "validation passes for valid config" "0" "$rc"
 
 cat > ".carranca.yml" <<'EOF'
 agents:
@@ -161,13 +156,8 @@ runtime:
   network: true
 EOF
 
-if (carranca_config_validate 2>/dev/null); then
-  echo "  FAIL: validation should fail when agents[name].command is missing"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: validation fails when agents[name].command is missing"
-  PASS=$((PASS + 1))
-fi
+rc=0; (carranca_config_validate 2>/dev/null) || rc=$?
+assert_eq "validation fails when agents[name].command is missing" "1" "$rc"
 
 cat > ".carranca.yml" <<'EOF'
 runtime:
@@ -175,13 +165,8 @@ runtime:
   network: true
 EOF
 
-if (carranca_config_validate 2>/dev/null); then
-  echo "  FAIL: validation should fail when agents is missing"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: validation fails when agents is missing"
-  PASS=$((PASS + 1))
-fi
+rc=0; (carranca_config_validate 2>/dev/null) || rc=$?
+assert_eq "validation fails when agents is missing" "1" "$rc"
 
 cat > ".carranca.yml" <<'EOF'
 agents:
@@ -192,13 +177,8 @@ runtime:
   engine: auto
 EOF
 
-if (carranca_config_validate 2>/dev/null); then
-  echo "  FAIL: validation should fail for unsupported agent adapter"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: validation fails for unsupported agent adapter"
-  PASS=$((PASS + 1))
-fi
+rc=0; (carranca_config_validate 2>/dev/null) || rc=$?
+assert_eq "validation fails for unsupported agent adapter" "1" "$rc"
 
 cat > ".carranca.yml" <<'EOF'
 agents:
@@ -212,21 +192,11 @@ runtime:
   engine: auto
 EOF
 
-if (carranca_config_validate 2>/dev/null); then
-  echo "  FAIL: validation should fail for duplicate agent names"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: validation fails for duplicate agent names"
-  PASS=$((PASS + 1))
-fi
+rc=0; (carranca_config_validate 2>/dev/null) || rc=$?
+assert_eq "validation fails for duplicate agent names" "1" "$rc"
 
-if carranca_config_resolve_agent_name missing ".carranca.yml" >/dev/null 2>&1; then
-  echo "  FAIL: resolving an unknown agent should fail"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: resolving an unknown agent fails"
-  PASS=$((PASS + 1))
-fi
+rc=0; carranca_config_resolve_agent_name missing ".carranca.yml" >/dev/null 2>&1 || rc=$?
+assert_eq "resolving an unknown agent fails" "1" "$rc"
 
 cat > ".carranca.yml" <<'EOF'
 agents:
@@ -237,13 +207,8 @@ runtime:
   engine: nerdctl
 EOF
 
-if (carranca_config_validate 2>/dev/null); then
-  echo "  FAIL: validation should fail for unsupported runtime.engine"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: validation fails for unsupported runtime.engine"
-  PASS=$((PASS + 1))
-fi
+rc=0; (carranca_config_validate 2>/dev/null) || rc=$?
+assert_eq "validation fails for unsupported runtime.engine" "1" "$rc"
 
 # --- Global config fallback tests ---
 
@@ -357,13 +322,7 @@ runtime:
 EOF
 
 compat_output="$(carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>&1)"
-if echo "$compat_output" | grep -Fq "multi-line strings"; then
-  echo "  PASS: multi-line string warning emitted"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: multi-line string warning not emitted"
-  FAIL=$((FAIL + 1))
-fi
+assert_contains "multi-line string warning emitted" "multi-line strings" "$compat_output"
 
 # --- Fail-closed: security-critical keys without yq must abort ---
 
@@ -380,22 +339,11 @@ runtime:
       - api.example.com:443
 EOF
 
-if carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>/dev/null; then
-  echo "  FAIL: security-critical network keys did not cause abort without yq"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: security-critical network keys cause non-zero exit without yq"
-  PASS=$((PASS + 1))
-fi
+rc=0; carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>/dev/null || rc=$?
+assert_eq "security-critical network keys cause non-zero exit without yq" "1" "$rc"
 
 compat_output="$(carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>&1 || true)"
-if echo "$compat_output" | grep -Fq "Security configuration requires 'yq'"; then
-  echo "  PASS: security-critical error message emitted for network keys"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: security-critical error message not emitted for network keys"
-  FAIL=$((FAIL + 1))
-fi
+assert_contains "security-critical error message emitted for network keys" "Security configuration requires 'yq'" "$compat_output"
 
 # Config with policy.resource_limits should fail without yq
 cat > "$COMPAT_CONFIG" <<'EOF'
@@ -411,13 +359,8 @@ policy:
     cpus: "2"
 EOF
 
-if carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>/dev/null; then
-  echo "  FAIL: security-critical resource_limits keys did not cause abort without yq"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: security-critical resource_limits keys cause non-zero exit without yq"
-  PASS=$((PASS + 1))
-fi
+rc=0; carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>/dev/null || rc=$?
+assert_eq "security-critical resource_limits keys cause non-zero exit without yq" "1" "$rc"
 
 # Config with policy.filesystem should fail without yq
 cat > "$COMPAT_CONFIG" <<'EOF'
@@ -432,13 +375,8 @@ policy:
     enforce_watched_paths: true
 EOF
 
-if carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>/dev/null; then
-  echo "  FAIL: security-critical filesystem keys did not cause abort without yq"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: security-critical filesystem keys cause non-zero exit without yq"
-  PASS=$((PASS + 1))
-fi
+rc=0; carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>/dev/null || rc=$?
+assert_eq "security-critical filesystem keys cause non-zero exit without yq" "1" "$rc"
 
 # Config without security-critical keys should still pass (return 0)
 cat > "$COMPAT_CONFIG" <<'EOF'
@@ -453,13 +391,8 @@ volumes:
   cache: true
 EOF
 
-if carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>/dev/null; then
-  echo "  PASS: non-security config without yq still passes"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: non-security config without yq should not abort"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>/dev/null || rc=$?
+assert_eq "non-security config without yq still passes" "0" "$rc"
 
 # Restore
 _CARRANCA_HAS_YQ="$_save_has_yq"

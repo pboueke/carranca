@@ -5,36 +5,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export CARRANCA_HOME="$SCRIPT_DIR"
 source "$SCRIPT_DIR/tests/lib/integration.sh"
-
-PASS=0
-FAIL=0
-
-assert_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -Fq -- "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_not_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -Fq -- "$needle"; then
-    echo "  FAIL: $desc (did not expect '$needle')"
-    FAIL=$((FAIL + 1))
-  else
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  fi
-}
+source "$SCRIPT_DIR/tests/lib/assert.sh"
 
 integration_init
 trap integration_cleanup EXIT
 
-echo "=== test_kill.sh (requires $RUNTIME) ==="
+suite_header "test_kill.sh (requires $RUNTIME)"
 
 integration_require_runtime
 integration_create_repo
@@ -70,6 +46,7 @@ done
 FIRST_SESSION="$(printf '%s\n' "$SESSION_IDS" | sed -n '1p')"
 SECOND_SESSION="$(printf '%s\n' "$SESSION_IDS" | sed -n '2p')"
 
+test_start
 KILL_ONE_OUTPUT="$(printf 'y\n' | bash "$CARRANCA_HOME/cli/kill.sh" --session "$FIRST_SESSION" 2>&1)"
 assert_contains "kill specific confirms stopped session" "Stopped session $FIRST_SESSION" "$KILL_ONE_OUTPUT"
 
@@ -78,6 +55,7 @@ NAMES_AFTER_ONE="$("$RUNTIME" ps --format '{{.Names}}')"
 assert_not_contains "kill specific removes first logger" "carranca-$FIRST_SESSION-logger" "$NAMES_AFTER_ONE"
 assert_contains "kill specific leaves second logger running" "carranca-$SECOND_SESSION-logger" "$NAMES_AFTER_ONE"
 
+test_start
 KILL_ALL_OUTPUT="$(printf 'yes\n' | bash "$CARRANCA_HOME/cli/kill.sh" 2>&1)"
 assert_contains "kill all stops remaining session" "Stopped session $SECOND_SESSION" "$KILL_ALL_OUTPUT"
 
@@ -89,5 +67,4 @@ wait "$RUN1_PID" || true
 wait "$RUN2_PID" || true
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

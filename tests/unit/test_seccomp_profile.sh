@@ -12,27 +12,16 @@ PROFILE="$SCRIPT_DIR/runtime/security/seccomp-agent.json"
 
 # --- Test: profile is valid JSON ---
 echo "--- seccomp profile validation ---"
-if python3 -c "import json; json.load(open('$PROFILE'))" 2>/dev/null || \
-   jq empty "$PROFILE" 2>/dev/null; then
-  echo "  PASS: seccomp profile is valid JSON"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: seccomp profile is not valid JSON"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; python3 -c "import json; json.load(open('$PROFILE'))" 2>/dev/null || jq empty "$PROFILE" 2>/dev/null || rc=$?
+assert_eq "seccomp profile is valid JSON" "0" "$rc"
 
 # --- Test: profile has defaultAction ---
-if python3 -c "
+rc=0; python3 -c "
 import json, sys
 p = json.load(open('$PROFILE'))
 assert 'defaultAction' in p, 'missing defaultAction'
-" 2>/dev/null; then
-  echo "  PASS: profile has defaultAction"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: profile missing defaultAction"
-  FAIL=$((FAIL + 1))
-fi
+" 2>/dev/null || rc=$?
+assert_eq "profile has defaultAction" "0" "$rc"
 
 # --- Test: profile blocks expected syscalls ---
 echo "--- blocked syscalls ---"
@@ -93,13 +82,8 @@ assert_eq "empty yields no flag" "" "$result"
 # --- Test: AppArmor reference profile exists ---
 echo "--- apparmor profile file ---"
 APPARMOR_FILE="$SCRIPT_DIR/runtime/security/apparmor-agent.profile"
-if [ -f "$APPARMOR_FILE" ]; then
-  echo "  PASS: AppArmor reference profile exists"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: AppArmor reference profile not found"
-  FAIL=$((FAIL + 1))
-fi
+file_exists=0; [ -f "$APPARMOR_FILE" ] && file_exists=1
+assert_eq "AppArmor reference profile exists" "1" "$file_exists"
 
 echo ""
 print_results

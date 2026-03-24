@@ -98,13 +98,7 @@ assert_contains "top touched paths includes deleted file" "/workspace/c.txt (1 e
 
 limited_top_paths_output="$(carranca_session_print_top_paths 1)"
 assert_contains "top touched paths limit keeps busiest file" "/workspace/b.txt (2 events: 1 create, 1 modify, 0 delete)" "$limited_top_paths_output"
-if echo "$limited_top_paths_output" | grep -Fq "/workspace/c.txt"; then
-  echo "  FAIL: top touched paths limit should omit lower-ranked file"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: top touched paths limit omits lower-ranked file"
-  PASS=$((PASS + 1))
-fi
+assert_not_contains "top touched paths limit omits lower-ranked file" "/workspace/c.txt" "$limited_top_paths_output"
 
 commands_output="$(carranca_session_print_commands)"
 assert_contains "command list includes exit code and duration" "[1, 34ms] echo second" "$commands_output"
@@ -127,13 +121,7 @@ assert_contains "summary includes watched path events" "Watched path events: 2" 
 carranca_session_collect_stats "$LOG_DIR/22222222.jsonl"
 assert_eq "no watched events in normal session" "0" "$CARRANCA_LOG_WATCHED_EVENTS"
 no_watched_summary="$(carranca_session_print_summary "$LOG_DIR/22222222.jsonl")"
-if echo "$no_watched_summary" | grep -Fq "Watched path events"; then
-  echo "  FAIL: summary should not show watched line when no watched events"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: summary hides watched line when no watched events"
-  PASS=$((PASS + 1))
-fi
+assert_not_contains "summary hides watched line when no watched events" "Watched path events" "$no_watched_summary"
 
 # Test print_top_paths with limit=0 (show all)
 carranca_session_collect_stats "$LOG_DIR/22222222.jsonl"
@@ -272,23 +260,13 @@ cp "$VERIFY_LOG_FILE" "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl"
 cp "$VERIFY_KEY_FILE" "$VERIFY_TMPDIR/sessions/testrepo/test.hmac-key"
 
 STATE_BASE="$VERIFY_TMPDIR"
-if _carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$STATE_BASE" >/dev/null 2>&1; then
-  echo "  PASS: verify succeeds with valid chain"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: verify should succeed with valid chain"
-  FAIL=$((FAIL + 1))
-fi
+rc=0; _carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$STATE_BASE" >/dev/null 2>&1 || rc=$?
+assert_eq "verify succeeds with valid chain" "0" "$rc"
 
 # Test: verify fails with missing key file
 rm "$VERIFY_TMPDIR/sessions/testrepo/test.hmac-key"
-if _carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$STATE_BASE" >/dev/null 2>&1; then
-  echo "  FAIL: verify should fail with missing key"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: verify fails with missing key"
-  PASS=$((PASS + 1))
-fi
+rc=0; _carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$STATE_BASE" >/dev/null 2>&1 || rc=$?
+assert_eq "verify fails with missing key" "1" "$rc"
 
 # Test: verify reports errors for tampered content
 echo '01234567890abcdef01234567890abcdef01234567890abcdef01234567890abcdef' > "$VERIFY_TMPDIR/sessions/testrepo/test.hmac-key"
@@ -297,14 +275,7 @@ echo '01234567890abcdef01234567890abcdef01234567890abcdef01234567890abcdef' > "$
   write_event_with_hmac '{"type":"heartbeat","source":"shell-wrapper","ts":"2026-03-22T00:00:01Z","session_id":"test123"}' 2 "WRONG_HMAC"
 } > "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl"
 output="$(_carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$STATE_BASE" 2>&1 || true)"
-if echo "$output" | grep -q "HMAC mismatch"; then
-  echo "  PASS: verify reports HMAC mismatch"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: verify should report HMAC mismatch"
-  echo "  Output: $output"
-  FAIL=$((FAIL + 1))
-fi
+assert_contains "verify reports HMAC mismatch" "HMAC mismatch" "$output"
 
 # Test: verify with valid checksums
 echo '01234567890abcdef01234567890abcdef01234567890abcdef01234567890abcdef' > "$VERIFY_TMPDIR/sessions/testrepo/test.hmac-key"
@@ -319,14 +290,7 @@ echo '01234567890abcdef01234567890abcdef01234567890abcdef01234567890abcdef' > "$
 } > "$VERIFY_TMPDIR/sessions/testrepo/test.checksums"
 
 output="$(_carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$VERIFY_TMPDIR" 2>&1 || true)"
-if echo "$output" | grep -q "OK: 2 events verified"; then
-  echo "  PASS: verify succeeds with valid checksums"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: verify should succeed with valid checksums"
-  echo "  Output: $output"
-  FAIL=$((FAIL + 1))
-fi
+assert_contains "verify succeeds with valid checksums" "OK: 2 events verified" "$output"
 
 # Test: verify fails with tampered checksum
 {
@@ -334,14 +298,7 @@ fi
   echo "wrong-hash"
 } > "$VERIFY_TMPDIR/sessions/testrepo/test.checksums"
 output="$(_carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$VERIFY_TMPDIR" 2>&1 || true)"
-if echo "$output" | grep -q "Checksum mismatch"; then
-  echo "  PASS: verify reports checksum mismatch"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: verify should report checksum mismatch"
-  echo "  Output: $output"
-  FAIL=$((FAIL + 1))
-fi
+assert_contains "verify reports checksum mismatch" "Checksum mismatch" "$output"
 
 # Test: verify succeeds with missing checksum file (backward compat)
 rm -f "$VERIFY_TMPDIR/sessions/testrepo/test.checksums"
@@ -349,14 +306,7 @@ rm -f "$VERIFY_TMPDIR/sessions/testrepo/test.checksums"
   write_event_with_hmac '{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T00:00:00Z","session_id":"test123"}' 1 "0"
 } > "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl"
 output="$(_carranca_session_verify_mock "$VERIFY_TMPDIR/sessions/testrepo/test.jsonl" "$VERIFY_TMPDIR" 2>&1 || true)"
-if echo "$output" | grep -q "No checksum file found"; then
-  echo "  PASS: verify reports missing checksum file"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: verify should report missing checksum file"
-  echo "  Output: $output"
-  FAIL=$((FAIL + 1))
-fi
+assert_contains "verify reports missing checksum file" "No checksum file found" "$output"
 
 rm -rf "$VERIFY_TMPDIR"
 
@@ -378,21 +328,11 @@ echo "somechecksum" \
 
 # Test: export creates tar and sig files
 output="$(carranca_session_export "$EXPORT_TMPDIR/sessions/exportrepo/export01.jsonl" "$EXPORT_TMPDIR" 2>&1)"
-if [ -f "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar" ]; then
-  echo "  PASS: export creates tar archive"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: export should create tar archive"
-  FAIL=$((FAIL + 1))
-fi
+tar_exists=0; [ -f "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar" ] && tar_exists=1
+assert_eq "export creates tar archive" "1" "$tar_exists"
 
-if [ -f "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar.sig" ]; then
-  echo "  PASS: export creates signature file"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: export should create signature file"
-  FAIL=$((FAIL + 1))
-fi
+sig_exists=0; [ -f "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar.sig" ] && sig_exists=1
+assert_eq "export creates signature file" "1" "$sig_exists"
 
 assert_contains "export output shows tar path" "export01.tar" "$output"
 assert_contains "export output shows sig path" "export01.tar.sig" "$output"
@@ -405,26 +345,15 @@ assert_contains "tar contains checksums" "export01.checksums" "$tar_contents"
 
 # Test: signature file contains a hex hash
 sig_content="$(cat "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar.sig")"
-if echo "$sig_content" | grep -qE '^[0-9a-f]{64}$'; then
-  echo "  PASS: signature file contains 64-char hex hash"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: signature should be 64-char hex hash (got: $sig_content)"
-  FAIL=$((FAIL + 1))
-fi
+assert_match "signature file contains 64-char hex hash" '^[0-9a-f]{64}$' "$sig_content"
 
 # Test: export without HMAC key produces unsigned digest with warning
 rm "$EXPORT_TMPDIR/sessions/exportrepo/export01.hmac-key"
 rm "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar" "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar.sig"
 output="$(carranca_session_export "$EXPORT_TMPDIR/sessions/exportrepo/export01.jsonl" "$EXPORT_TMPDIR" 2>&1)"
 assert_contains "export without key warns" "WARN" "$output"
-if [ -f "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar.sig" ]; then
-  echo "  PASS: export creates unsigned digest when key missing"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: export should create unsigned digest when key missing"
-  FAIL=$((FAIL + 1))
-fi
+sig_exists=0; [ -f "$EXPORT_TMPDIR/sessions/exportrepo/export01.tar.sig" ] && sig_exists=1
+assert_eq "export creates unsigned digest when key missing" "1" "$sig_exists"
 
 rm -rf "$EXPORT_TMPDIR"
 

@@ -5,14 +5,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export CARRANCA_HOME="$SCRIPT_DIR"
 source "$SCRIPT_DIR/tests/lib/integration.sh"
-
-PASS=0
-FAIL=0
+source "$SCRIPT_DIR/tests/lib/assert.sh"
 
 integration_init
 trap integration_cleanup EXIT
 
-echo "=== test_fail_closed.sh (requires $RUNTIME) ==="
+suite_header "test_fail_closed.sh (requires $RUNTIME)"
 
 integration_require_runtime
 
@@ -22,6 +20,7 @@ integration_require_runtime
 # Test 2: carranca run without .carranca.yml
 integration_create_repo
 
+test_start
 if bash "$CARRANCA_HOME/cli/run.sh" 2>/dev/null; then
   echo "  FAIL: run without .carranca.yml should fail"
   FAIL=$((FAIL + 1))
@@ -40,6 +39,7 @@ runtime:
   network: true
 EOF
 
+test_start
 if bash "$CARRANCA_HOME/cli/run.sh" 2>/dev/null; then
   echo "  FAIL: run with missing agent.command should fail"
   FAIL=$((FAIL + 1))
@@ -59,6 +59,7 @@ runtime:
   network: true
 EOF
 
+test_start
 if bash "$CARRANCA_HOME/cli/config.sh" 2>/dev/null; then
   echo "  FAIL: config without .carranca/Containerfile should fail"
   FAIL=$((FAIL + 1))
@@ -77,6 +78,7 @@ WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
 EOF
 
+test_start
 if bash "$CARRANCA_HOME/cli/config.sh" 2>/dev/null; then
   echo "  FAIL: config with missing agent.command should fail"
   FAIL=$((FAIL + 1))
@@ -96,6 +98,7 @@ runtime:
   network: true
 EOF
 
+test_start
 if bash "$CARRANCA_HOME/cli/log.sh" 2>/dev/null; then
   echo "  FAIL: log without prior sessions should fail"
   FAIL=$((FAIL + 1))
@@ -109,6 +112,7 @@ REPO_ID="$(source "$CARRANCA_HOME/cli/lib/common.sh" && source "$CARRANCA_HOME/c
 mkdir -p "$TMPSTATE/sessions/$REPO_ID"
 touch "$TMPSTATE/sessions/$REPO_ID/known1234.jsonl"
 
+test_start
 if bash "$CARRANCA_HOME/cli/log.sh" --session missing1234 2>/dev/null; then
   echo "  FAIL: log with missing exact session id should fail"
   FAIL=$((FAIL + 1))
@@ -118,6 +122,7 @@ else
 fi
 
 # Test 7: run with unknown named agent
+test_start
 if bash "$CARRANCA_HOME/cli/run.sh" --agent missing 2>/dev/null; then
   echo "  FAIL: run with unknown named agent should fail"
   FAIL=$((FAIL + 1))
@@ -127,6 +132,7 @@ else
 fi
 
 # Test 8: config with unknown named agent
+test_start
 if bash "$CARRANCA_HOME/cli/config.sh" --agent missing 2>/dev/null; then
   echo "  FAIL: config with unknown named agent should fail"
   FAIL=$((FAIL + 1))
@@ -136,6 +142,7 @@ else
 fi
 
 # Test 9: init with unsupported agent
+test_start
 if bash "$CARRANCA_HOME/cli/init.sh" --agent missing 2>/dev/null; then
   echo "  FAIL: init with unsupported agent should fail"
   FAIL=$((FAIL + 1))
@@ -145,6 +152,7 @@ else
 fi
 
 # Test 10: init with missing agent value
+test_start
 if bash "$CARRANCA_HOME/cli/init.sh" --agent 2>/dev/null; then
   echo "  FAIL: init with missing --agent value should fail"
   FAIL=$((FAIL + 1))
@@ -180,6 +188,7 @@ for _ in $(seq 1 60); do
   sleep 0.5
 done
 
+test_start
 if [ -z "$LOGGER_NAME" ] || [ -z "$AGENT_NAME" ]; then
   sleep 2
   if kill -0 "$RUN_PID" 2>/dev/null; then
@@ -262,5 +271,4 @@ else
 fi
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

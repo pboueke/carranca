@@ -4,9 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export CARRANCA_HOME="$SCRIPT_DIR"
-
-PASS=0
-FAIL=0
+source "$SCRIPT_DIR/tests/lib/assert.sh"
 
 assert_file_exists() {
   local desc="$1" path="$2"
@@ -30,18 +28,7 @@ assert_dir_exists() {
   fi
 }
 
-assert_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -Fq -- "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "=== test_init.sh ==="
+suite_header "test_init.sh"
 
 # Use a temp dir for state
 TMPSTATE="$(mktemp -d)"
@@ -52,6 +39,7 @@ TMPDIR="$(mktemp -d)"
 cd "$TMPDIR"
 git init --quiet
 
+test_start
 bash "$CARRANCA_HOME/cli/init.sh"
 
 assert_file_exists "init creates .carranca.yml" ".carranca.yml"
@@ -71,6 +59,7 @@ assert_dir_exists "init creates state session dir" "$TMPSTATE/sessions/$REPO_ID"
 echo ""
 
 # Test 2: re-init without --force fails and suggests config
+test_start
 if bash "$CARRANCA_HOME/cli/init.sh" 2>/dev/null; then
   echo "  FAIL: re-init without --force should fail"
   FAIL=$((FAIL + 1))
@@ -80,6 +69,7 @@ else
 fi
 
 # Test 3: init --agent claude rewrites scaffold when confirmed
+test_start
 FORCE_OUTPUT="$(printf 'y\n' | bash "$CARRANCA_HOME/cli/init.sh" --force --agent claude 2>&1)" || true
 assert_contains "force init asks for confirmation" "Overwrite existing carranca initialization?" "$FORCE_OUTPUT"
 assert_contains "force init configures selected agent" "Configured for claude agent" "$FORCE_OUTPUT"
@@ -90,6 +80,7 @@ assert_contains "force init writes selected agent command" "command: claude" "$(
 assert_file_exists "config still exists after --force" ".carranca.yml"
 
 # Test 4: init --agent opencode rewrites scaffold when confirmed
+test_start
 FORCE_OUTPUT="$(printf 'y\n' | bash "$CARRANCA_HOME/cli/init.sh" --force --agent opencode 2>&1)" || true
 assert_contains "force init configures opencode agent" "Configured for opencode agent" "$FORCE_OUTPUT"
 assert_contains "force init writes opencode agent name" "name: opencode" "$(cat .carranca.yml)"
@@ -100,5 +91,4 @@ assert_contains "force init writes opencode agent command" "command: opencode" "
 rm -rf "$TMPDIR" "$TMPSTATE"
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

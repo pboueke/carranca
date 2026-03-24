@@ -115,20 +115,10 @@ enforced="$(echo "$result" | grep '^enforced=' | cut -d= -f2-)"
 degraded="$(echo "$result" | grep '^degraded=' | cut -d= -f2-)"
 
 # Use case pattern matching since flags contain -v which grep misinterprets
-if [[ "$flags" == *"$WORKSPACE/.env:/workspace/.env:ro"* ]]; then
-  echo "  PASS: flags include .env bind mount"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: flags include .env bind mount (got '$flags')"
-  FAIL=$((FAIL + 1))
-fi
-if [[ "$flags" == *"$WORKSPACE/secrets/:/workspace/secrets/:ro"* ]]; then
-  echo "  PASS: flags include secrets/ bind mount"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: flags include secrets/ bind mount (got '$flags')"
-  FAIL=$((FAIL + 1))
-fi
+has_env=0; [[ "$flags" == *"$WORKSPACE/.env:/workspace/.env:ro"* ]] && has_env=1
+assert_eq "flags include .env bind mount" "1" "$has_env"
+has_secrets=0; [[ "$flags" == *"$WORKSPACE/secrets/:/workspace/secrets/:ro"* ]] && has_secrets=1
+assert_eq "flags include secrets/ bind mount" "1" "$has_secrets"
 assert_eq "enforced paths list" ".env,secrets/" "$enforced"
 assert_eq "degraded globs" "*.key" "$degraded"
 

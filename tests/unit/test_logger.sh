@@ -73,13 +73,7 @@ echo "0" > "$SEQ_FILE"
 _handle_file_event '{"type":"file_event","source":"inotifywait","ts":"2026-03-22T00:00:01Z","event":"MODIFY","path":"/workspace/src/app.js","session_id":"test1234"}'
 result="$(cat "$LOG_FILE")"
 assert_contains "_handle_file_event writes event to log" '"type":"file_event"' "$result"
-if echo "$result" | grep -Fq '"watched":true'; then
-  echo "  FAIL: _handle_file_event should not tag unwatched event"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: _handle_file_event does not tag unwatched event"
-  PASS=$((PASS + 1))
-fi
+assert_not_contains "_handle_file_event does not tag unwatched event" '"watched":true' "$result"
 
 # Test 2: Event matching watched path is tagged
 WATCHED_PATHS=".env:secrets/"
@@ -94,13 +88,7 @@ assert_contains "_handle_file_event tags watched path" '"watched":true' "$result
 echo "0" > "$SEQ_FILE"
 _handle_file_event '{"type":"file_event","source":"inotifywait","ts":"2026-03-22T00:00:01Z","event":"MODIFY","path":"/workspace/src/app.js","session_id":"test1234"}'
 result="$(cat "$LOG_FILE")"
-if echo "$result" | grep -Fq '"watched":true'; then
-  echo "  FAIL: _handle_file_event should not tag non-matching path"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: _handle_file_event does not tag non-matching path"
-  PASS=$((PASS + 1))
-fi
+assert_not_contains "_handle_file_event does not tag non-matching path" '"watched":true' "$result"
 
 # Test 4: Event matching directory prefix is tagged
 > "$LOG_FILE"
@@ -150,13 +138,8 @@ assert_eq "compute_hmac is deterministic" "$hash1" "$hash2"
 # Test: Different inputs produce different HMACs
 hash1="$(compute_hmac "input A")"
 hash2="$(compute_hmac "input B")"
-if [ "$hash1" = "$hash2" ]; then
-  echo "  FAIL: compute_hmac should differ for different inputs"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: compute_hmac differs for different inputs"
-  PASS=$((PASS + 1))
-fi
+hashes_differ=0; [ "$hash1" != "$hash2" ] && hashes_differ=1
+assert_eq "compute_hmac differs for different inputs" "1" "$hashes_differ"
 
 # --- Test write_checksum ---
 
@@ -167,24 +150,13 @@ echo "--- write_checksum ---"
 
 # Test: write_checksum writes a hash-like value
 write_checksum '{"type":"test"}'
-if grep -q "^checksum-" "$CHECKSUM_FILE"; then
-  echo "  PASS: write_checksum writes hash to file"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: write_checksum should write hash to file"
-  FAIL=$((FAIL + 1))
-fi
+checksum_content="$(cat "$CHECKSUM_FILE")"
+assert_contains "write_checksum writes hash to file" "checksum-" "$checksum_content"
 
 # Test: write_checksum appends to file
 write_checksum '{"type":"test2"}'
 line_count=$(wc -l < "$CHECKSUM_FILE")
-if [ "$line_count" = "2" ]; then
-  echo "  PASS: write_checksum appends to file"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: write_checksum should append (got $line_count lines)"
-  FAIL=$((FAIL + 1))
-fi
+assert_eq "write_checksum appends to file" "2" "$line_count"
 
 rm -rf "$TMPDIR"
 
