@@ -237,8 +237,8 @@ if [ "$ENFORCE_WATCHED_PATHS" = "true" ]; then
       */)
         # Directory: overlay bind mount as read-only
         if [ -d "$WORKSPACE/$wp" ]; then
-          # D3: Resolve symlinks in watched paths
-          local_resolved="$(realpath "$WORKSPACE/$wp" 2>/dev/null || true)"
+          # D3: Resolve symlinks in watched paths (use -P for physical path, no symlink components)
+          local_resolved="$(realpath -P "$WORKSPACE/$wp" 2>/dev/null || true)"
           if [ -z "$local_resolved" ]; then
             carranca_log warn "watched_paths: could not resolve '$wp' — skipping"
             continue
@@ -268,8 +268,8 @@ if [ "$ENFORCE_WATCHED_PATHS" = "true" ]; then
       *)
         # Specific file: overlay bind mount as read-only
         if [ -e "$WORKSPACE/$wp" ]; then
-          # D3: Resolve symlinks in watched paths
-          local_resolved="$(realpath "$WORKSPACE/$wp" 2>/dev/null || true)"
+          # D3: Resolve symlinks in watched paths (use -P for physical path, no symlink components)
+          local_resolved="$(realpath -P "$WORKSPACE/$wp" 2>/dev/null || true)"
           if [ -z "$local_resolved" ]; then
             carranca_log warn "watched_paths: could not resolve '$wp' — skipping"
             continue
@@ -328,6 +328,7 @@ NETWORK_POLICY_ENTRYPOINT=""
 if [ "$NETWORK_MODE" = "filtered" ]; then
   # Resolve DNS for allow-list entries and build iptables rules
   NETWORK_POLICY_RULES=""
+  IPV6_SKIPPED_HOSTS=""
   while IFS= read -r entry; do
     [ -z "$entry" ] && continue
     local_host="${entry%%:*}"
@@ -357,6 +358,7 @@ if [ "$NETWORK_MODE" = "filtered" ]; then
     if [ "$ipv6_skipped" = "true" ]; then
       carranca_log warn "Network policy: IPv6 addresses for $local_host skipped (iptables is IPv4-only)"
       DEGRADATION_WARNINGS="${DEGRADATION_WARNINGS}  - network: IPv6 addresses not enforced for $local_host (iptables is IPv4-only)\n"
+      IPV6_SKIPPED_HOSTS="${IPV6_SKIPPED_HOSTS:+$IPV6_SKIPPED_HOSTS,}$local_host"
     fi
 
     if [ -z "$resolved_ips" ]; then

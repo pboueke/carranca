@@ -120,6 +120,12 @@ if [ -n "$TARGET_USER" ]; then
   target_uid="${TARGET_USER%%:*}"
   target_gid="${TARGET_USER##*:}"
 
+  # Validate UID/GID are positive integers (defense-in-depth)
+  case "$target_uid" in ''|*[!0-9]*) _fail_closed "Invalid UID in NETWORK_POLICY_USER: $target_uid" ;; esac
+  case "$target_gid" in ''|*[!0-9]*) _fail_closed "Invalid GID in NETWORK_POLICY_USER: $target_gid" ;; esac
+  [ "$target_uid" -gt 0 ] 2>/dev/null || _fail_closed "UID must be > 0"
+  [ "$target_gid" -gt 0 ] 2>/dev/null || _fail_closed "GID must be > 0"
+
   # Create a group and user matching the host UID:GID
   addgroup -g "$target_gid" carranca 2>/dev/null || true
   adduser -D -u "$target_uid" -G carranca -h /home/carranca -s /bin/bash carranca 2>/dev/null || true

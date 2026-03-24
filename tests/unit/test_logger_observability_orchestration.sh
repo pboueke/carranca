@@ -12,6 +12,7 @@ suite_header "test_logger_observability_orchestration.sh"
 TMPDIR="$(mktemp -d)"
 LOG_FILE="$TMPDIR/test.jsonl"
 SESSION_ID="test-session-1234"
+CARRANCA_TMPDIR="$TMPDIR"
 
 timestamp() {
   printf '2026-03-23T12:00:00Z'

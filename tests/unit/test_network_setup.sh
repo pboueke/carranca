@@ -116,6 +116,12 @@ assert_contains "drops to target user via su" "exec su -s /bin/bash" "$CONTENT"
 assert_contains "creates group for target GID" 'addgroup -g "$target_gid"' "$CONTENT"
 assert_contains "creates user for target UID" 'adduser -D -u "$target_uid"' "$CONTENT"
 
+# UID/GID validation
+assert_contains "validates UID is numeric" 'Invalid UID in NETWORK_POLICY_USER' "$CONTENT"
+assert_contains "validates GID is numeric" 'Invalid GID in NETWORK_POLICY_USER' "$CONTENT"
+assert_contains "validates UID > 0" 'UID must be > 0' "$CONTENT"
+assert_contains "validates GID > 0" 'GID must be > 0' "$CONTENT"
+
 # Degraded mode
 assert_contains "degraded mode checks ALLOW_DEGRADED" 'ALLOW_DEGRADED" = "true"' "$CONTENT"
 

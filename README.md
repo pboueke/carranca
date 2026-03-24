@@ -6,8 +6,8 @@
 
   <p>
     <img src="https://img.shields.io/badge/version-0.16.1-blue" alt="version: 0.16.1" />
-    <img src="https://img.shields.io/badge/tests-877%2F877_passed-brightgreen" alt="tests: 877/877 passed" />
-    <img src="https://img.shields.io/badge/coverage-100%25_(142%2F142_functions)-brightgreen" alt="coverage: 100%" />
+    <img src="https://img.shields.io/badge/tests-885%2F885_passed-brightgreen" alt="tests: 885/885 passed" />
+    <img src="https://img.shields.io/badge/coverage-100%25_(143%2F143_functions)-brightgreen" alt="coverage: 100%" />
     <img src="https://img.shields.io/badge/license-MIT-green" alt="license: MIT" />
   </p>
 

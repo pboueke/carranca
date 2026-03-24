@@ -47,7 +47,7 @@ carranca_lifecycle_create_fifo() {
 #          SECRET_MONITORING, NETWORK_LOGGING, NETWORK_INTERVAL, MAX_DURATION,
 #          RESOURCE_MEMORY, ENFORCE_WATCHED_PATHS, ENFORCED_PATHS,
 #          DEGRADED_GLOBS, NETWORK_MODE, NETWORK_POLICY_RULES,
-#          INDEPENDENT_OBSERVER, HOST_GID
+#          IPV6_SKIPPED_HOSTS, INDEPENDENT_OBSERVER, HOST_GID
 carranca_lifecycle_start_logger() {
   carranca_log info "Starting logger..."
   # shellcheck disable=SC2086
@@ -80,6 +80,7 @@ carranca_lifecycle_start_logger() {
     -e "DEGRADED_GLOBS=${DEGRADED_GLOBS:-}" \
     -e "NETWORK_MODE=${NETWORK_MODE:-full}" \
     -e "NETWORK_POLICY_RULES=${NETWORK_POLICY_RULES:-}" \
+    -e "IPV6_SKIPPED_HOSTS=${IPV6_SKIPPED_HOSTS:-}" \
     -e "INDEPENDENT_OBSERVER=${INDEPENDENT_OBSERVER:-}" \
     -e "AGENT_GID=$HOST_GID" \
     $SECRETMON_CAP_FLAG \

@@ -158,6 +158,30 @@ write_checksum '{"type":"test2"}'
 line_count=$(wc -l < "$CHECKSUM_FILE")
 assert_eq "write_checksum appends to file" "2" "$line_count"
 
+# --- Test _constant_time_compare ---
+
+echo ""
+echo "--- _constant_time_compare ---"
+
+# Extract _constant_time_compare from logger.sh
+eval "$(sed -n '/_constant_time_compare()/,/^}/p' "$SCRIPT_DIR/runtime/logger.sh")"
+
+# Test: equal strings match
+_constant_time_compare "abc123" "abc123"
+assert_eq "_constant_time_compare equal strings" "0" "$?"
+
+# Test: different strings do not match
+result=0; _constant_time_compare "abc123" "abc124" || result=$?
+assert_eq "_constant_time_compare different strings" "1" "$result"
+
+# Test: different lengths do not match
+result=0; _constant_time_compare "short" "longer" || result=$?
+assert_eq "_constant_time_compare different lengths" "1" "$result"
+
+# Test: empty strings match
+_constant_time_compare "" ""
+assert_eq "_constant_time_compare empty strings" "0" "$?"
+
 rm -rf "$TMPDIR"
 
 echo ""

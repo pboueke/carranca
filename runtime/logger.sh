@@ -30,6 +30,7 @@ HMAC_KEY_FILE="/state/${SESSION_ID}.hmac-key"
 HMAC_KEY=""
 PREV_HMAC="0"
 CHECKSUM_FILE="/state/${SESSION_ID}.checksums"
+CARRANCA_TMPDIR="${CARRANCA_TMPDIR:-/state}"
 
 # FIFO forgery detection state (Phase 5.2)
 SESSION_START_TS=""
@@ -167,6 +168,18 @@ write_checksum() {
   printf '%s\n' "$hash" >> "$CHECKSUM_FILE"
 }
 
+# Constant-time string comparison to prevent timing side-channels.
+# Iterates all characters regardless of mismatch position.
+_constant_time_compare() {
+  local a="$1" b="$2"
+  [ ${#a} -eq ${#b} ] || return 1
+  local diff=0 i
+  for (( i=0; i<${#a}; i++ )); do
+    [ "${a:i:1}" = "${b:i:1}" ] || diff=1
+  done
+  return $diff
+}
+
 # Validate a FIFO event for forgery indicators (Phase 5.2).
 # Returns 0 always (events are still logged). Flags issues by writing integrity_event entries.
 # The validated (possibly stripped) event is printed to stdout.
@@ -239,7 +252,7 @@ _validate_fifo_event() {
       else
         local event_token
         event_token="$(printf '%s' "$line" | grep -o '"_observer_token":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
-        if [ "$event_token" != "$OBSERVER_TOKEN" ]; then
+        if ! _constant_time_compare "$event_token" "$OBSERVER_TOKEN"; then
           issues="${issues:+$issues,}observer_token_invalid"
         fi
         # Strip the token field before logging (internal-only)
@@ -345,6 +358,11 @@ if [ "$NETWORK_MODE" = "filtered" ] && [ -n "$NETWORK_POLICY_RULES" ]; then
   _esc_netrules="$(json_escape "$NETWORK_POLICY_RULES")"
   NET_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"network\",\"action\":\"configured\",\"detail\":\"mode:filtered rules:${_esc_netrules}\"}"
   write_log "$NET_EVENT"
+fi
+if [ -n "${IPV6_SKIPPED_HOSTS:-}" ]; then
+  _esc_ipv6hosts="$(json_escape "$IPV6_SKIPPED_HOSTS")"
+  IPV6_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"network\",\"action\":\"degraded\",\"detail\":\"IPv6 addresses not enforced for: ${_esc_ipv6hosts} (iptables is IPv4-only)\"}"
+  write_log "$IPV6_EVENT"
 fi
 
 # --- File event watcher (background, best-effort) ---
@@ -737,7 +755,7 @@ _start_network_monitor() {
 
   local interval="${NETWORK_INTERVAL:-5}"
   local prev_file
-  prev_file="$(mktemp /tmp/carranca-netmon-prev.XXXXXX)"
+  prev_file="$(mktemp "$CARRANCA_TMPDIR"/carranca-netmon-prev.XXXXXX)"
   touch "$prev_file"
 
   # Check if /proc/net/tcp is readable
@@ -750,7 +768,7 @@ _start_network_monitor() {
 
   while true; do
     local current_file
-    current_file="$(mktemp /tmp/carranca-netmon-cur.XXXXXX)"
+    current_file="$(mktemp "$CARRANCA_TMPDIR"/carranca-netmon-cur.XXXXXX)"
     _parse_proc_net_tcp /proc/net/tcp > "$current_file" 2>/dev/null
     if [ -r /proc/net/tcp6 ]; then
       _parse_proc_net_tcp /proc/net/tcp6 >> "$current_file" 2>/dev/null
@@ -817,8 +835,8 @@ _cross_reference_events() {
 
   # Collect shell_command timestamps (epoch) into a temp file for 1:1 consumption
   local cmd_file exec_file
-  cmd_file="$(mktemp /tmp/carranca-xref-cmd.XXXXXX)"
-  exec_file="$(mktemp /tmp/carranca-xref-exec.XXXXXX)"
+  cmd_file="$(mktemp "$CARRANCA_TMPDIR"/carranca-xref-cmd.XXXXXX)"
+  exec_file="$(mktemp "$CARRANCA_TMPDIR"/carranca-xref-exec.XXXXXX)"
 
   while IFS= read -r line; do
     local ts
@@ -839,7 +857,7 @@ _cross_reference_events() {
   # Greedy 1:1 match: for each shell_command, consume the nearest execve_event
   # within ±3s. Unmatched entries on either side are flagged.
   local matched_exec_file
-  matched_exec_file="$(mktemp /tmp/carranca-xref-matched.XXXXXX)"
+  matched_exec_file="$(mktemp "$CARRANCA_TMPDIR"/carranca-xref-matched.XXXXXX)"
 
   while IFS= read -r cmd_t; do
     [ -z "$cmd_t" ] && continue
