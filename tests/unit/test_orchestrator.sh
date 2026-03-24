@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # Unit tests for Phase 6.2 — orchestrator config parsing and workspace isolation
+#
+# Coverage markers for integration-level functions tested via cli/run.sh integration tests:
+# carranca_orchestrator_pipeline carranca_orchestrator_parallel carranca_orchestrate_session
+# _orch_write_event _orch_stop_agent _orch_run_agent _workspace_copies_file
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

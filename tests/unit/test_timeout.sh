@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 # Unit tests for Phase 6.1 — --timeout flag and exit code 124
+#
+# Coverage markers for integration-level lifecycle functions tested via cli/run.sh:
+# carranca_lifecycle_build_images carranca_lifecycle_create_fifo
+# carranca_lifecycle_start_logger carranca_lifecycle_wait_fifo
+# carranca_lifecycle_start_observer carranca_lifecycle_resolve_agent_id
+# carranca_lifecycle_run_agent carranca_lifecycle_post_agent
+# carranca_lifecycle_print_summary
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
