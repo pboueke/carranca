@@ -198,6 +198,10 @@ runtime:
     default: deny
     allow:
       - registry.npmjs.org:443
+  # Hardening defaults (shown for clarity)
+  cap_drop_all: true
+  read_only: true
+  seccomp_profile: default
 
 policy:
   docs_before_code: enforce
@@ -209,6 +213,10 @@ policy:
     pids: 256
   filesystem:
     enforce_watched_paths: true
+
+observability:
+  independent_observer: true
+  execve_tracing: true
 ```
 
 ```bash

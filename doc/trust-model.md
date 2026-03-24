@@ -2,9 +2,13 @@
 
 ## Design assumption
 
-Carranca assumes a **cooperative agent** — one that is buggy or careless but not
-actively adversarial. The logging system provides value through visibility and
-structure, not through verified guarantees.
+Carranca is designed to handle both **cooperative agents** (buggy or careless)
+and **untrusted agents** (potentially adversarial). The default configuration
+applies adversarial hardening: all capabilities dropped, read-only root
+filesystem, seccomp filtering, and FIFO forgery detection. With
+`observability.independent_observer: true`, the runtime provides independent
+kernel-level ground truth that the agent cannot interfere with, enabling
+cross-referencing to detect unreported or forged activity.
 
 ## What carranca provides
 
@@ -19,6 +23,7 @@ structure, not through verified guarantees.
 | Checksum hardening | Verified evidence | Parallel SHA-256 checksum file for tamper detection without `chattr +a` |
 | Log export | Archival | Self-contained signed tar archive for compliance and forensics |
 | execve tracing | Ground truth | strace captures all process execution in agent PID namespace |
+| Independent observer | Ground truth | Execve/network monitoring in separate sidecar outside agent's namespaces; observer events authenticated via shared token on `/state/` (agent cannot access). Cross-referencing at session end is a best-effort heuristic (±3s window, greedy 1:1 match) that flags anomalies for human review |
 | Network logging | Ground truth | `/proc/net/tcp` polling captures outbound connections |
 | Secret read monitoring | Ground truth | fanotify captures file reads on watched paths |
 | Resource tracking | Transparency tool | cgroup v2 stats sample CPU, memory, and PID count |
@@ -27,26 +32,31 @@ structure, not through verified guarantees.
 | Filesystem access control | Hard boundary | Bind-mount `:ro` overlays prevent writes to `watched_paths` entries |
 | Policy hooks | Enforcement tool | Git `core.hooksPath` injects pre-commit hooks; `enforce` mode blocks policy-violating commits |
 | Network policies | Hard boundary | iptables rules restrict outbound traffic to allow-listed destinations (rootful mode only) |
+| Capability drop | Hard boundary | `--cap-drop ALL` removes all Linux capabilities; `runtime.cap_add` is a strict allowlist |
+| Read-only root FS | Hard boundary | `--read-only` prevents agent from modifying its own runtime environment; explicit tmpfs for writable paths |
+| Seccomp filtering | Hard boundary | Default seccomp profile blocks dangerous syscalls (ptrace, mount, unshare, module loading, etc.) |
+| AppArmor confinement | Opt-in hardening | Reference AppArmor profile restricts file access, mounts, and ptrace; user must load and configure |
 
-## What carranca does NOT provide
+## Current limitations and non-goals
 
-| Property | Status | Path to resolution |
-|----------|--------|--------------------|
-| Verified audit evidence | Provided | HMAC-signed event chain + checksum file (Phase 2) |
-| Complete operation capture | Provided | execve tracing via strace (Phase 3); requires `observability.execve_tracing: true` |
-| Forgery resistance | Partially mitigated | Agent can forge FIFO events, but strace-observed execve events provide independent ground truth for cross-referencing |
-| Secret read monitoring | Provided | fanotify captures file reads on `watched_paths` (Phase 3); requires `observability.secret_monitoring: true` |
-| Technical policy enforcement | Provided | Resource limits, time-boxed sessions, filesystem access control, git policy hooks, network filtering (Phase 4) |
-| Cross-platform file events | Supported | inotifywait (Linux) with fswatch fallback |
+| Limitation | Status | Notes |
+|------------|--------|-------|
+| Formal proof of agent honesty | Not provided | FIFO validation, token-authenticated observer events, and cross-referencing raise evidence quality, but the end-of-session matching remains a best-effort heuristic for human review |
+| Remote attestation of the host, kernel, or container runtime | Not provided | Carranca trusts the operator-controlled machine and runtime; it does not produce third-party-verifiable attestation today |
+| Complete semantic capture of every file change | Not provided | Carranca logs shell activity, execve events, file mutations, and watched-path reads, but it does not record a syscall-level proof of every byte written |
+| Guaranteed fine-grained egress filtering in every runtime mode | Partially provided | Filtered allow-lists use iptables and require a mode that can apply those rules; rootless Podman falls back to `--network=none` instead of filtered allow-list enforcement |
+| Strong cross-platform parity | Not provided | Linux has the most complete observability and enforcement model; macOS and Windows remain experimental |
+| Protection from a malicious host operator or host root | Not provided | A host user with sufficient privilege can alter the runtime environment, inspect mounts, or interfere with containers outside Carranca's boundary |
+| Prevention of bad code or bad intent | Not provided | Carranca constrains and records agent behavior; it does not decide whether the resulting code is safe or correct |
 
 ## Threat table
 
 | Threat | Status | Notes |
 |--------|--------|-------|
 | Agent edits/deletes session log | Mitigated | Agent container has no mount to log directory |
-| Agent forges shell events via FIFO | Partially mitigated | strace execve tracing provides independent ground truth for cross-referencing (Phase 3) |
+| Agent forges shell events via FIFO | Partially mitigated | Structural/temporal validation detects malformed forgeries; observer events are token-authenticated; cross-referencing flags timing anomalies but uses a ±3s heuristic |
 | Agent suppresses events (kills FIFO) | Mitigated | Shell wrapper exits on broken pipe → agent stops |
-| Agent bypasses shell wrapper | Partially mitigated | strace captures all execve calls regardless of wrapper; native edits still not captured |
+| Agent bypasses shell wrapper | Partially mitigated | Independent observer captures execve calls from outside agent namespace; cross-referencing flags unreported activity as a heuristic for review. Observer must attach to the container init process to trace all descendants |
 | Agent reads secrets from repo | Mitigated | fanotify captures file reads on `watched_paths` when `observability.secret_monitoring: true` |
 | Agent exfiltrates over network | Partially mitigated | Network logging records outbound connections; set `runtime.network: false` to disable entirely |
 | Agent writes malicious code | Allowed by design | Review via session log + git diff |
@@ -67,13 +77,17 @@ structure, not through verified guarantees.
 
 ## Summary
 
-Carranca is an isolation, audit, and policy-enforcement runtime built around a
-cooperative-agent trust model. It makes sessions reviewable with cryptographic
-tamper detection, kernel-observed telemetry, and technical controls such as
-resource limits, time bounds, read-only overlays, and network restrictions. An
-adversarial agent with arbitrary code execution inside the container can still
-forge FIFO-originated events, but provenance tagging, execve tracing, and the
-HMAC event chain make that forgery detectable through cross-referencing.
+Carranca is an isolation, audit, policy-enforcement, and adversarial-hardening
+runtime. It makes sessions reviewable with cryptographic tamper detection,
+kernel-observed telemetry, and technical controls such as resource limits, time
+bounds, read-only root filesystem, capability drop, seccomp filtering, and
+network restrictions. FIFO forgery detection validates event structure and
+timing. The independent observer sidecar provides kernel-level ground truth
+outside the agent's namespaces, with observer events authenticated via a shared
+token on `/state/` that the agent cannot access. Cross-referencing at session
+end is a best-effort heuristic (±3s timestamp window, greedy 1:1 matching)
+that flags anomalies for human review — it is not a proof of forgery.
 Post-session log tampering is detectable via the HMAC chain and parallel
 checksum file. The current value proposition is not blind trust, but observable
-execution with enforceable guardrails and verifiable evidence.
+execution with enforceable guardrails, adversarial hardening, and verifiable
+evidence.

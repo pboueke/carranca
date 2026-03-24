@@ -10,6 +10,8 @@
 # 6. On SIGTERM: writes logger_stop event and exits
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 FIFO_PATH="/fifo/events"
 SESSION_ID="${SESSION_ID:-unknown}"
 REPO_ID="${REPO_ID:-unknown}"
@@ -26,10 +28,38 @@ HMAC_KEY=""
 PREV_HMAC="0"
 CHECKSUM_FILE="/state/${SESSION_ID}.checksums"
 
+# FIFO forgery detection state (Phase 5.2)
+SESSION_START_TS=""
+PREV_FIFO_TS=""
+
+# Observer token for authenticating observer-sourced FIFO events (Phase 5.1).
+# Written to /state/ (accessible to logger and observer, not agent).
+OBSERVER_TOKEN_FILE="/state/${SESSION_ID}.observer-token"
+OBSERVER_TOKEN=""
+
 # --- Helpers ---
 
 timestamp() {
   date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+# Convert ISO 8601 timestamp to epoch seconds (portable).
+_ts_to_epoch() {
+  local ts="$1"
+  # Remove trailing Z, replace T with space for date parsing
+  local cleaned="${ts%Z}"
+  cleaned="${cleaned/T/ }"
+  date -u -d "$cleaned" +%s 2>/dev/null || echo 0
+}
+
+# Strip seq and hmac fields from a JSON line if present.
+# The logger is the sole authority on these fields — FIFO events must not contain them.
+_strip_fifo_injected_fields() {
+  local line="$1"
+  # Remove "seq":N and "hmac":"..." fields (with optional leading comma)
+  line="$(printf '%s' "$line" | sed 's/,"seq":[0-9]*//g; s/"seq":[0-9]*,\?//g')"
+  line="$(printf '%s' "$line" | sed 's/,"hmac":"[^"]*"//g; s/"hmac":"[^"]*",\?//g')"
+  printf '%s' "$line"
 }
 
 # Atomically increment the seq counter and write an event to the log.
@@ -125,6 +155,100 @@ write_checksum() {
   printf '%s\n' "$hash" >> "$CHECKSUM_FILE"
 }
 
+# Validate a FIFO event for forgery indicators (Phase 5.2).
+# Returns 0 always (events are still logged). Flags issues by writing integrity_event entries.
+# The validated (possibly stripped) event is printed to stdout.
+_validate_fifo_event() {
+  local line="$1"
+  local issues=""
+
+  # 1. Required fields: type, source, ts, session_id
+  local has_type has_source has_ts has_session_id
+  has_type="$(printf '%s' "$line" | grep -o '"type"' | head -1 || true)"
+  has_source="$(printf '%s' "$line" | grep -o '"source"' | head -1 || true)"
+  has_ts="$(printf '%s' "$line" | grep -o '"ts"' | head -1 || true)"
+  has_session_id="$(printf '%s' "$line" | grep -o '"session_id"' | head -1 || true)"
+
+  if [ -z "$has_type" ] || [ -z "$has_source" ] || [ -z "$has_ts" ] || [ -z "$has_session_id" ]; then
+    issues="${issues:+$issues,}missing_required_fields"
+  fi
+
+  # 2. Timestamp bounds
+  if [ -n "$has_ts" ] && [ -n "$SESSION_START_TS" ]; then
+    local event_ts
+    event_ts="$(printf '%s' "$line" | grep -o '"ts":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
+    if [ -n "$event_ts" ]; then
+      local event_epoch now_epoch start_epoch
+      event_epoch="$(_ts_to_epoch "$event_ts")"
+      now_epoch="$(date -u +%s)"
+      start_epoch="$(_ts_to_epoch "$SESSION_START_TS")"
+
+      if [ "$event_epoch" -gt 0 ] 2>/dev/null; then
+        # Before session start
+        if [ "$event_epoch" -lt "$start_epoch" ] 2>/dev/null; then
+          issues="${issues:+$issues,}timestamp_before_session"
+        fi
+        # More than 5s in the future
+        if [ "$((event_epoch - now_epoch))" -gt 5 ] 2>/dev/null; then
+          issues="${issues:+$issues,}timestamp_future"
+        fi
+        # Regression > 60s from previous event
+        if [ -n "$PREV_FIFO_TS" ]; then
+          local prev_epoch
+          prev_epoch="$(_ts_to_epoch "$PREV_FIFO_TS")"
+          if [ "$prev_epoch" -gt 0 ] 2>/dev/null && [ "$((prev_epoch - event_epoch))" -gt 60 ] 2>/dev/null; then
+            issues="${issues:+$issues,}timestamp_regression"
+          fi
+        fi
+        PREV_FIFO_TS="$event_ts"
+      fi
+    fi
+  fi
+
+  # 3. Seq/HMAC injection: FIFO events must not contain these fields
+  local has_seq has_hmac
+  has_seq="$(printf '%s' "$line" | grep -o '"seq"' | head -1 || true)"
+  has_hmac="$(printf '%s' "$line" | grep -o '"hmac"' | head -1 || true)"
+  if [ -n "$has_seq" ] || [ -n "$has_hmac" ]; then
+    issues="${issues:+$issues,}seq_injection_attempt"
+    line="$(_strip_fifo_injected_fields "$line")"
+  fi
+
+  # 4. Source impersonation: FIFO events should only come from shell-wrapper
+  local source
+  source="$(printf '%s' "$line" | grep -o '"source":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
+  case "$source" in
+    shell-wrapper|"") ;; # expected FIFO sources
+    observer)
+      # Observer must present a valid token to authenticate its events.
+      # The token lives on /state/ which the agent cannot access.
+      if [ "${INDEPENDENT_OBSERVER:-}" != "true" ]; then
+        issues="${issues:+$issues,}source_impersonation"
+      else
+        local event_token
+        event_token="$(printf '%s' "$line" | grep -o '"_observer_token":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
+        if [ "$event_token" != "$OBSERVER_TOKEN" ]; then
+          issues="${issues:+$issues,}observer_token_invalid"
+        fi
+        # Strip the token field before logging (internal-only)
+        line="$(printf '%s' "$line" | sed 's/,"_observer_token":"[^"]*"//g; s/"_observer_token":"[^"]*",\?//g')"
+      fi
+      ;;
+    strace|inotifywait|fswatch|carranca|fanotify)
+      issues="${issues:+$issues,}source_impersonation"
+      ;;
+  esac
+
+  # Emit integrity_event for any issues found
+  if [ -n "$issues" ]; then
+    local integrity_event="{\"type\":\"integrity_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"reason\":\"$issues\",\"raw_source\":\"${source:-unknown}\"}"
+    write_log "$integrity_event"
+  fi
+
+  # Return the (possibly stripped) event
+  printf '%s' "$line"
+}
+
 # --- Setup ---
 
 # Initialize seq counter
@@ -146,8 +270,19 @@ fi
 # Generate HMAC key for this session
 generate_hmac_key
 
+# Generate observer token if independent observer is enabled (Phase 5.1).
+# The token lives on /state/, which only logger and observer can access.
+if [ "${INDEPENDENT_OBSERVER:-}" = "true" ]; then
+  OBSERVER_TOKEN="$(openssl rand -hex 16)"
+  printf '%s\n' "$OBSERVER_TOKEN" > "$OBSERVER_TOKEN_FILE"
+  chmod 0600 "$OBSERVER_TOKEN_FILE"
+fi
+
+# Record session start timestamp for FIFO validation (Phase 5.2)
+SESSION_START_TS="$(timestamp)"
+
 # Write session start event
-START_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"start\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"repo_id\":\"$REPO_ID\",\"repo_name\":\"$REPO_NAME\",\"repo_path\":\"$REPO_PATH\",\"agent\":\"$AGENT_NAME\",\"adapter\":\"$AGENT_ADAPTER\",\"engine\":\"$ENGINE\"}"
+START_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"start\",\"ts\":\"$SESSION_START_TS\",\"session_id\":\"$SESSION_ID\",\"repo_id\":\"$REPO_ID\",\"repo_name\":\"$REPO_NAME\",\"repo_path\":\"$REPO_PATH\",\"agent\":\"$AGENT_NAME\",\"adapter\":\"$AGENT_ADAPTER\",\"engine\":\"$ENGINE\"}"
 write_log "$START_EVENT"
 
 # Log degraded mode for append-only if needed
@@ -400,35 +535,15 @@ fi
 
 # --- Execve tracer (background, best-effort) ---
 
+# Source shared strace parser (used by both logger and observer)
+STRACE_EVENT_SOURCE="strace"
+STRACE_WRITE_FIFO=""
+# shellcheck source=lib/strace-parser.sh
+source "$SCRIPT_DIR/lib/strace-parser.sh"
+
+# Legacy wrapper for backward compatibility
 _strace_to_event() {
-  local line="$1"
-
-  # Skip lines that don't contain execve
-  case "$line" in
-    *execve\(*) ;;
-    *) return ;;
-  esac
-
-  # Extract pid: [pid 42] prefix or default to 0
-  local pid=0
-  case "$line" in
-    \[pid\ *)
-      pid="$(printf '%s' "$line" | awk -F'[][ ]+' '{print $3}')"
-      ;;
-  esac
-
-  # Extract binary path: first argument to execve("...")
-  local binary
-  binary="$(printf '%s' "$line" | sed -n 's/.*execve("\([^"]*\)".*/\1/p')"
-  [ -z "$binary" ] && return
-
-  # Extract argv: the bracket list ["arg0", "arg1", ...]
-  local argv_str
-  argv_str="$(printf '%s' "$line" | sed -n 's/.*execve([^,]*, \(\[[^]]*\]\).*/\1/p')"
-  [ -z "$argv_str" ] && argv_str="[]"
-
-  local event="{\"type\":\"execve_event\",\"source\":\"strace\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"pid\":$pid,\"binary\":\"$binary\",\"argv\":\"$argv_str\"}"
-  write_log "$event"
+  strace_line_to_event "$1"
 }
 
 TRACER_PID=""
@@ -480,7 +595,10 @@ _start_execve_tracer() {
   TRACER_PID=$!
 }
 
-_start_execve_tracer &
+# Skip internal tracers when independent observer is active (Phase 5.1)
+if [ "${INDEPENDENT_OBSERVER:-}" != "true" ]; then
+  _start_execve_tracer &
+fi
 
 # --- Network connection monitor (background, best-effort) ---
 
@@ -605,7 +723,7 @@ _start_network_monitor() {
 }
 
 NETMON_PID=""
-if [ "${NETWORK_LOGGING:-}" = "true" ]; then
+if [ "${NETWORK_LOGGING:-}" = "true" ] && [ "${INDEPENDENT_OBSERVER:-}" != "true" ]; then
   _start_network_monitor &
   NETMON_PID=$!
 fi
@@ -634,9 +752,90 @@ if [ "${MAX_DURATION:-0}" != "0" ] && [ -n "${MAX_DURATION:-}" ]; then
   TIMER_PID=$!
 fi
 
+# --- Cross-reference events (Phase 5.1) ---
+# Heuristic comparison of shell_command vs execve_event counts and timing.
+# This is a best-effort anomaly signal, not a proof of forgery. A single
+# background exec can only satisfy one shell_command (greedy 1:1 matching),
+# and timestamp resolution is ±3s, so both false positives and false negatives
+# are possible. Integrity events from cross-referencing should be treated as
+# indicators for human review, not as definitive evidence.
+
+_cross_reference_events() {
+  [ "${INDEPENDENT_OBSERVER:-}" = "true" ] || return 0
+  [ -f "$LOG_FILE" ] || return 0
+
+  # Collect shell_command timestamps (epoch) into a temp file for 1:1 consumption
+  local cmd_file exec_file
+  cmd_file="$(mktemp /tmp/carranca-xref-cmd.XXXXXX)"
+  exec_file="$(mktemp /tmp/carranca-xref-exec.XXXXXX)"
+
+  while IFS= read -r line; do
+    local ts
+    ts="$(printf '%s' "$line" | grep -o '"ts":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
+    [ -n "$ts" ] && _ts_to_epoch "$ts" >> "$cmd_file"
+  done < <(grep '"type":"shell_command"' "$LOG_FILE" 2>/dev/null || true)
+
+  while IFS= read -r line; do
+    local ts
+    ts="$(printf '%s' "$line" | grep -o '"ts":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
+    [ -n "$ts" ] && _ts_to_epoch "$ts" >> "$exec_file"
+  done < <(grep '"type":"execve_event"' "$LOG_FILE" 2>/dev/null || true)
+
+  # Sort both lists for greedy matching
+  sort -n "$cmd_file" -o "$cmd_file"
+  sort -n "$exec_file" -o "$exec_file"
+
+  # Greedy 1:1 match: for each shell_command, consume the nearest execve_event
+  # within ±3s. Unmatched entries on either side are flagged.
+  local matched_exec_file
+  matched_exec_file="$(mktemp /tmp/carranca-xref-matched.XXXXXX)"
+
+  while IFS= read -r cmd_t; do
+    [ -z "$cmd_t" ] && continue
+    local best_line="" best_diff=999999
+    local line_num=0
+    while IFS= read -r exec_t; do
+      line_num=$((line_num + 1))
+      [ -z "$exec_t" ] && continue
+      # Skip already-consumed exec times
+      if grep -q "^${line_num}$" "$matched_exec_file" 2>/dev/null; then
+        continue
+      fi
+      local diff=$((cmd_t - exec_t))
+      [ "$diff" -lt 0 ] && diff=$((-diff))
+      if [ "$diff" -le 3 ] && [ "$diff" -lt "$best_diff" ]; then
+        best_diff="$diff"
+        best_line="$line_num"
+      fi
+    done < "$exec_file"
+    if [ -n "$best_line" ]; then
+      echo "$best_line" >> "$matched_exec_file"
+    else
+      local event="{\"type\":\"integrity_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"reason\":\"shell_command_without_execve\",\"detail\":\"command at epoch $cmd_t has no matching execve (best-effort heuristic)\"}"
+      write_log "$event"
+    fi
+  done < "$cmd_file"
+
+  # Check for unmatched execve_events
+  local line_num=0
+  while IFS= read -r exec_t; do
+    line_num=$((line_num + 1))
+    [ -z "$exec_t" ] && continue
+    if ! grep -q "^${line_num}$" "$matched_exec_file" 2>/dev/null; then
+      local event="{\"type\":\"integrity_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"reason\":\"unmatched_execve_activity\",\"detail\":\"execve at epoch $exec_t has no matching shell_command (best-effort heuristic)\"}"
+      write_log "$event"
+    fi
+  done < "$exec_file"
+
+  rm -f "$cmd_file" "$exec_file" "$matched_exec_file"
+}
+
 # --- SIGTERM handler ---
 
 _cleanup() {
+  # Cross-reference events before writing logger_stop (Phase 5.1)
+  _cross_reference_events
+
   STOP_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"logger_stop\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\"}"
   write_log "$STOP_EVENT"
   [ -n "$TIMER_PID" ] && kill "$TIMER_PID" 2>/dev/null
@@ -674,6 +873,8 @@ while true; do
 
   # Basic JSON validation: must start with { and end with }
   if [[ "$line" == "{"*"}" ]]; then
+    # Validate FIFO event for forgery indicators (Phase 5.2)
+    line="$(_validate_fifo_event "$line")"
     write_log "$line"
   else
     # Malformed event — log it as invalid

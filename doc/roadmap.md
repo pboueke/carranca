@@ -1,11 +1,10 @@
 # Roadmap
 
-Phased plan for extending carranca beyond the current Phase 1-4 baseline into
-stronger adversarial hardening and broader operational integration.
+Phased plan for extending carranca from foundation through adversarial
+hardening and into broader operational integration.
 
-Phases 1 through 4 are complete. The remaining items describe the next layers of
-hardening and ecosystem work. Items within a phase are independent unless
-noted.
+Phases 1 through 5 are complete. The remaining items describe ecosystem and
+integration work. Items within a phase are independent unless noted.
 
 ---
 
@@ -157,28 +156,28 @@ Useful for unattended runs.
 Harden the runtime against a deliberately malicious agent. This phase
 changes the trust model from "cooperative" to "untrusted".
 
-### 5.1 Independent event ground truth
+### ~~5.1 Independent event ground truth~~ ✓
 Run the execve tracer (Phase 3.1) and file watcher outside the agent's
 PID/mount namespace so the agent cannot interfere. Cross-reference
 agent-reported shell events against kernel-observed execve events.
 Flag discrepancies as `integrity_event` entries.
 
-### 5.2 FIFO forgery detection
+### ~~5.2 FIFO forgery detection~~ ✓
 Validate FIFO event structure and timing in the logger. Detect and flag
 events with impossible timestamps, duplicate sequence numbers, or
 payloads that don't match execve observations.
 
-### 5.3 Seccomp and AppArmor profiles
+### ~~5.3 Seccomp and AppArmor profiles~~ ✓
 Ship default seccomp and AppArmor profiles for the agent container that
 block dangerous syscalls (ptrace, mount, reboot, module loading).
-Configurable via `runtime.security_profile`.
+Configurable via `runtime.seccomp_profile` and `runtime.apparmor_profile`.
 
-### 5.4 Read-only root filesystem
+### ~~5.4 Read-only root filesystem~~ ✓
 Run the agent container with `--read-only` and explicit tmpfs mounts
 for writable paths. Prevents the agent from modifying its own runtime
 environment.
 
-### 5.5 Capability drop
+### ~~5.5 Capability drop~~ ✓
 Drop all Linux capabilities from the agent container by default.
 `cap_add` in config becomes an explicit allowlist, not an addition to
 defaults.

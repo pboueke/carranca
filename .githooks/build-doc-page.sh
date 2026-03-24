@@ -40,7 +40,43 @@ cat > "$TMP_FILE" <<'EOF'
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Carranca: Isolated agent runtime with verified audits, deep observability, and policy enforcement</title>
+  <title>Carranca: Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening</title>
+  <meta name="description" content="Carranca is a local agent runtime for coding agents with isolated container execution, tamper-evident audit logs, observability, policy enforcement, and adversarial hardening." />
+  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1" />
+  <meta name="application-name" content="Carranca" />
+  <meta name="keywords" content="Carranca, coding agent sandbox, agent runtime, containerized agent, tamper-evident logs, coding agent security, developer tooling, audit logging, policy enforcement, adversarial hardening" />
+  <meta property="og:title" content="Carranca: Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening" />
+  <meta property="og:description" content="Local runtime for coding agents with hardened container isolation, reviewable session logs, policy controls, and independent observability." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Carranca" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Carranca: Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening" />
+  <meta name="twitter:description" content="Local runtime for coding agents with hardened container isolation, reviewable session logs, policy controls, and independent observability." />
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "SoftwareSourceCode",
+          "name": "Carranca",
+          "codeRepository": "https://github.com/pboueke/carranca",
+          "license": "https://github.com/pboueke/carranca/blob/main/LICENSE",
+          "programmingLanguage": "Bash",
+          "runtimePlatform": "Docker, Podman",
+          "description": "Carranca is a local agent runtime for coding agents with isolated container execution, tamper-evident audit logs, observability, policy enforcement, and adversarial hardening."
+        },
+        {
+          "@type": "TechArticle",
+          "headline": "Carranca Technical Reference",
+          "about": {
+            "@type": "SoftwareSourceCode",
+            "name": "Carranca"
+          },
+          "description": "Technical reference for Carranca covering architecture, configuration, usage, session logs, trust model, and changelog."
+        }
+      ]
+    }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     :root {
@@ -288,11 +324,11 @@ cat > "$TMP_FILE" <<'EOF'
     <p class="caption">A Carranca photographed by Marcel Gautherot in 1946. Instituto Moreira Salles collection.</p>
     <h1>Carranca</h1>
     <p class="tagline">
-      Isolated agent runtime with verified audits, deep observability, and policy enforcement.
+      Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening.
       Named after the carved figureheads on boats in Brazil's S&atilde;o Francisco river,
       believed to protect sailors. Carranca protects engineers from coding agents
-      by running them in isolated containers with tamper-evident logs, kernel-level tracing,
-      and enforceable guardrails.
+      by running them in hardened containers with tamper-evident logs, kernel-level tracing,
+      enforceable guardrails, and forgery detection.
     </p>
     <div class="links">
       <a href="https://github.com/pboueke/carranca">GitHub</a>
@@ -310,7 +346,7 @@ cat > "$TMP_FILE" <<'EOF'
 
 EOF
 
-emit_doc_section "vision" "Vision" "Why Carranca exists and where it's headed" "$ROOT_DIR/doc/vision.md"
+emit_doc_section "objective" "Objective" "Who Carranca is for, who it is not for, and how it differs from other sandbox models" "$ROOT_DIR/doc/objective.md"
 emit_doc_section "architecture" "Architecture" "Container layout, data flow, and session lifecycle" "$ROOT_DIR/doc/architecture.md"
 emit_doc_section "configuration" "Configuration" "Complete .carranca.yml reference" "$ROOT_DIR/doc/configuration.md"
 emit_doc_section "usage" "Usage" "Detailed command line reference and operator workflows" "$ROOT_DIR/doc/usage.md"
