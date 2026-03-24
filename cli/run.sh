@@ -71,6 +71,11 @@ STATE_DIR="$STATE_BASE/sessions/$REPO_ID"
 WORKSPACE="$(realpath .)"
 mkdir -p "$STATE_DIR"
 
+# Empty directory used to overlay .carranca/ inside the agent container,
+# hiding runtime policy config from the agent (bind mount over workspace subdir).
+CARRANCA_EMPTY_DIR="$STATE_DIR/${SESSION_ID}.carranca-overlay"
+mkdir -p "$CARRANCA_EMPTY_DIR"
+
 HOST_UID="$(id -u)"
 HOST_GID="$(id -g)"
 HOST_GROUPS="$(id -G)"
@@ -608,7 +613,7 @@ carranca_runtime_run $TTY_FLAGS --rm \
   $PID_NS_FLAG \
   -v "$FIFO_VOLUME:/fifo" \
   -v "$WORKSPACE:/workspace:rw" \
-  --tmpfs /workspace/.carranca:ro,size=0 \
+  -v "$CARRANCA_EMPTY_DIR:/workspace/.carranca:ro" \
   -v /dev/null:/workspace/.carranca.yml:ro \
   -e "HOME=$AGENT_HOME" \
   -e "USER=carranca" \
