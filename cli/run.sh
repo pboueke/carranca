@@ -340,10 +340,27 @@ if [ "$NETWORK_MODE" = "filtered" ]; then
       \*.*) resolve_host="${resolve_host#\*.}" ;;
     esac
 
-    # Resolve hostname to IP(s)
-    resolved_ips="$(getent ahosts "$resolve_host" 2>/dev/null | awk '{print $1}' | sort -u || true)"
+    # Resolve hostname to IPv4 addresses only. IPv6 is excluded because:
+    # (a) iptables cannot enforce IPv6 rules (would need ip6tables/nft)
+    # (b) colon-delimited IP:PORT serialization is ambiguous for IPv6
+    all_ips="$(getent ahosts "$resolve_host" 2>/dev/null | awk '{print $1}' | sort -u || true)"
+    resolved_ips=""
+    ipv6_skipped=false
+    while IFS= read -r ip; do
+      [ -z "$ip" ] && continue
+      case "$ip" in
+        *:*) ipv6_skipped=true ;;  # Skip IPv6 addresses
+        *)   resolved_ips="${resolved_ips:+$resolved_ips$'\n'}$ip" ;;
+      esac
+    done <<< "$all_ips"
+
+    if [ "$ipv6_skipped" = "true" ]; then
+      carranca_log warn "Network policy: IPv6 addresses for $local_host skipped (iptables is IPv4-only)"
+      DEGRADATION_WARNINGS="${DEGRADATION_WARNINGS}  - network: IPv6 addresses not enforced for $local_host (iptables is IPv4-only)\n"
+    fi
+
     if [ -z "$resolved_ips" ]; then
-      carranca_log warn "Network policy: could not resolve $local_host — skipping"
+      carranca_log warn "Network policy: could not resolve $local_host to IPv4 — skipping"
       continue
     fi
 

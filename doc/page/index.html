@@ -294,7 +294,7 @@
       enforceable guardrails, and forgery detection.
     </p>
     <div class="links">
-      <a href="https://github.com/pboueke/carranca">source 0.16.0</a>
+      <a href="https://github.com/pboueke/carranca">source 0.16.1</a>
     </div>
   </div>
 
@@ -1812,6 +1812,13 @@ evidence.
       <summary>Changelog <span class="desc">Release history and version source of truth</span></summary>
       <div class="doc-content">
         <pre class="doc-markdown-static">
+## [0.16.1] - 2026-03-24
+
+- fix: **config sandbox hardened** — `carranca config` now applies `--cap-drop ALL`, `--read-only` root FS, seccomp profile, and AppArmor profile, matching the `carranca run` sandbox
+- fix: **IPv6 network policy safety** — `run.sh` filters `getent ahosts` to IPv4 only with degradation warning; `network-setup.sh` has defense-in-depth check rejecting IPv6 entries; prevents ambiguous `IP:PORT` serialization and unenforced egress via IPv6
+- fix: **allowlist-based config redaction** — replaced brittle `grep -vE` denylist with awk allowlist; only `agents`, `runtime`, and `volumes` sections pass through; `runtime.network` allow-list details stripped; unknown future sections denied by default
+- test: 877 tests, 43 suites, 0 failures, 100% function coverage (142/142)
+
 ## [0.16.0] - 2026-03-24
 
 ### Phase 6 — Ecosystem and integration

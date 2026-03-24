@@ -91,12 +91,16 @@ for resolver in $dns_resolvers; do
 done
 
 # Apply allow rules from NETWORK_POLICY_RULES
-# Format: IP1:PORT1,IP2:PORT2,...
+# Format: IP1:PORT1,IP2:PORT2,... (IPv4 only — IPv6 filtered out by cli/run.sh)
 IFS=',' read -ra entries <<< "$RULES"
 for entry in "${entries[@]}"; do
   [ -z "$entry" ] && continue
   local_ip="${entry%%:*}"
   local_port="${entry##*:}"
+  # Defense in depth: skip entries that look like IPv6 (contain colons in IP part)
+  case "$local_ip" in
+    *:*) _log "WARNING: skipping IPv6 entry $entry (iptables is IPv4-only)"; continue ;;
+  esac
   if [ -n "$local_ip" ] && [ -n "$local_port" ]; then
     iptables -A OUTPUT -p tcp -d "$local_ip" --dport "$local_port" -j ACCEPT
     _log "Allowed: $local_ip:$local_port"

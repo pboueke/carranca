@@ -134,6 +134,46 @@ while IFS= read -r cap; do
   CAP_ADD_FLAGS="$CAP_ADD_FLAGS --cap-add $cap"
 done < <(carranca_config_get_list_with_global runtime.cap_add 2>/dev/null || true)
 
+# --- Hardening flags (match carranca run sandbox) ---
+
+# Capability drop (Phase 5.5)
+CAP_DROP_ALL="$(carranca_config_get_with_global runtime.cap_drop_all)"
+if [ -z "$CAP_DROP_ALL" ]; then CAP_DROP_ALL="true"; fi
+CAP_DROP_FLAG=""
+if [ "$CAP_DROP_ALL" = "true" ]; then
+  CAP_DROP_FLAG="--cap-drop ALL"
+fi
+
+# Read-only root filesystem (Phase 5.4)
+READ_ONLY="$(carranca_config_get_with_global runtime.read_only)"
+if [ -z "$READ_ONLY" ]; then READ_ONLY="true"; fi
+READ_ONLY_FLAGS=""
+if [ "$READ_ONLY" = "true" ]; then
+  READ_ONLY_FLAGS="--read-only --tmpfs /tmp --tmpfs /var/tmp --tmpfs /run"
+  if [ "$CACHE_ENABLED" != "true" ]; then
+    READ_ONLY_FLAGS="$READ_ONLY_FLAGS --tmpfs $AGENT_HOME"
+  fi
+fi
+
+# Seccomp and AppArmor profiles (Phase 5.3)
+SECCOMP_PROFILE="$(carranca_config_get_with_global runtime.seccomp_profile)"
+if [ -z "$SECCOMP_PROFILE" ]; then SECCOMP_PROFILE="default"; fi
+APPARMOR_PROFILE="$(carranca_config_get_with_global runtime.apparmor_profile)"
+SECCOMP_FLAG=""
+APPARMOR_FLAG=""
+if [ "$(uname -s)" = "Linux" ]; then
+  case "$SECCOMP_PROFILE" in
+    default)   SECCOMP_FLAG="--security-opt seccomp=$CARRANCA_HOME/runtime/security/seccomp-agent.json" ;;
+    unconfined) SECCOMP_FLAG="--security-opt seccomp=unconfined" ;;
+    /*)        SECCOMP_FLAG="--security-opt seccomp=$SECCOMP_PROFILE" ;;
+  esac
+  if [ -n "$APPARMOR_PROFILE" ] && [ "$APPARMOR_PROFILE" != "unconfined" ]; then
+    APPARMOR_FLAG="--security-opt apparmor=$APPARMOR_PROFILE"
+  elif [ "$APPARMOR_PROFILE" = "unconfined" ]; then
+    APPARMOR_FLAG="--security-opt apparmor=unconfined"
+  fi
+fi
+
 NETWORK_FLAG=""
 if [ "$NETWORK" = "false" ]; then
   NETWORK_FLAG="--network=none"
@@ -189,12 +229,41 @@ if [ -n "$USER_PROMPT" ]; then
 fi
 
 # --- Redact policy-sensitive fields from .carranca.yml ---
-# The config agent needs to see agents, runtime.engine, and volumes to propose
-# changes, but should not see network rules, watched paths, hooks, timer limits,
-# or observability settings. Create a filtered copy.
+# Allowlist approach: extract only the top-level sections the config agent needs
+# (agents, runtime, volumes). Everything else (policy, watched_paths,
+# observability, orchestration, and any future sections) is excluded by default.
+# Within runtime, network allow-list details are stripped to prevent the agent
+# from learning firewall rules.
 REDACTED_CONFIG="$CONFIG_STATE_DIR/redacted-carranca.yml"
-grep -vE '^\s*(watched_paths:|  - "\*|  - \*|  - \.env|policy:|  docs_before_code:|  tests_before_impl:|  max_duration:|  filesystem:|    enforce_watched_paths:|  resource_limits:|    memory:|    cpus:|    pids:|observability:|  execve_tracing:|  network_logging:|  network_interval:|  secret_monitoring:|  resource_interval:|  independent_observer:|  cross_ref_)' \
-  "$WORKSPACE/.carranca.yml" > "$REDACTED_CONFIG"
+awk '
+  # Track which top-level section we are in
+  /^[a-zA-Z]/ {
+    section = $0
+    sub(/:.*/, "", section)
+  }
+
+  # Allowed top-level sections: agents, runtime, volumes
+  /^agents:/ { allowed = 1 }
+  /^runtime:/ { allowed = 1 }
+  /^volumes:/ { allowed = 1 }
+
+  # Disallowed top-level sections (explicit + catch-all for unknown)
+  /^policy:/ { allowed = 0 }
+  /^watched_paths:/ { allowed = 0 }
+  /^observability:/ { allowed = 0 }
+  /^orchestration:/ { allowed = 0 }
+
+  # Any unrecognized top-level key: deny by default
+  /^[a-zA-Z]/ && !/^(agents|runtime|volumes|policy|watched_paths|observability|orchestration):/ { allowed = 0 }
+
+  # Within runtime: strip network allow-list details (agent should not see firewall rules)
+  allowed && section == "runtime" && /^[ \t]+network:/ { in_network_block = 1 }
+  allowed && section == "runtime" && in_network_block && /^[ \t]+(default|allow):/ { next }
+  allowed && section == "runtime" && in_network_block && /^[ \t]+- / { next }
+  allowed && section == "runtime" && /^  [a-zA-Z]/ && !/^[ \t]+network/ { in_network_block = 0 }
+
+  allowed { print }
+' "$WORKSPACE/.carranca.yml" > "$REDACTED_CONFIG"
 
 carranca_log info "Building agent image..."
 carranca_runtime_build -q -t "$CONFIG_IMAGE" -f ".carranca/Containerfile" ".carranca" >/dev/null
@@ -215,7 +284,11 @@ carranca_runtime_run $TTY_FLAGS --rm \
   -e "USER=carranca" \
   $CACHE_FLAGS \
   $EXTRA_GROUP_FLAGS \
+  $CAP_DROP_FLAG \
   $CAP_ADD_FLAGS \
+  $READ_ONLY_FLAGS \
+  $SECCOMP_FLAG \
+  $APPARMOR_FLAG \
   -e "CARRANCA_AGENT_COMMAND=$AGENT_COMMAND" \
   -e "CARRANCA_AGENT_DRIVER=$AGENT_DRIVER" \
   -e "CARRANCA_CONFIG_PROMPT_FILE=/carranca-config/prompt.txt" \
