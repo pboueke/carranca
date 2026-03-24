@@ -1,0 +1,41 @@
+agents:
+  - name: opencode
+    adapter: opencode
+    command: opencode
+
+runtime:
+  engine: podman
+  network:
+    default: deny
+    allow:
+      - api.github.com:443
+      - registry.npmjs.org:443
+
+volumes:
+  cache: false
+  extra:
+    - ~/client-reference:/reference:ro
+
+policy:
+  docs_before_code: warn
+  tests_before_impl: enforce
+  max_duration: 1200
+  filesystem:
+    enforce_watched_paths: true
+  resource_limits:
+    memory: 2g
+    cpus: "1.5"
+    pids: 192
+
+watched_paths:
+  - contracts/
+  - credentials/
+  - .env
+  - secrets/
+
+observability:
+  resource_interval: 10
+  execve_tracing: true
+  network_logging: true
+  network_interval: 5
+  secret_monitoring: true

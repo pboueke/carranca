@@ -5,7 +5,7 @@
   <h1>Carranca</h1>
 
   <p>
-    <img src="https://img.shields.io/badge/version-0.15.2-blue" alt="version: 0.15.2" />
+    <img src="https://img.shields.io/badge/version-0.15.3-blue" alt="version: 0.15.3" />
     <img src="https://img.shields.io/badge/tests-703%2F703_passed-brightgreen" alt="tests: 703/703 passed" />
     <img src="https://img.shields.io/badge/coverage-100%25_(119%2F119_functions)-brightgreen" alt="coverage: 100%" />
   </p>
@@ -87,6 +87,7 @@ guides.
 Run `carranca help <command>` for command-specific options. See
 [usage.md](doc/usage.md) for the full CLI reference and
 [configuration.md](doc/configuration.md) for the `.carranca.yml` schema.
+Persona-oriented example setups live under [doc/examples/](doc/examples/).
 
 ## Documentation
 
@@ -96,6 +97,7 @@ Run `carranca help <command>` for command-specific options. See
 | [Usage](doc/usage.md) | Detailed CLI command reference, options, and operator workflows |
 | [Architecture](doc/architecture.md) | Container layout, data flow, directory structure |
 | [Configuration](doc/configuration.md) | `.carranca.yml` reference, Containerfile, init flags |
+| [Examples](doc/examples/README.md) | Persona-based example `.carranca.yml` and `.carranca/Containerfile` setups |
 | [Session log](doc/session-log.md) | JSONL schema, event types, `jq` query examples |
 | [Trust model](doc/trust-model.md) | Threat table, failure behavior, honest scope |
 | [Objective](doc/objective.md) | Current product position, intended users, non-goals, and comparison with other sandbox models |

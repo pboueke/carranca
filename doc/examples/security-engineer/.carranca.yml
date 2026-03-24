@@ -1,0 +1,40 @@
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+
+runtime:
+  engine: podman
+  network: false
+  read_only: true
+
+volumes:
+  cache: false
+  extra:
+    - ~/.local/state/carranca/sessions:/session-archive:ro
+    - ~/cases:/cases:ro
+
+policy:
+  docs_before_code: off
+  tests_before_impl: off
+  max_duration: 5400
+  filesystem:
+    enforce_watched_paths: true
+  resource_limits:
+    memory: 1g
+    cpus: "1.0"
+    pids: 128
+
+watched_paths:
+  - findings/
+  - reports/
+  - /session-archive
+  - detections/
+
+observability:
+  independent_observer: true
+  resource_interval: 5
+  execve_tracing: true
+  network_logging: true
+  network_interval: 5
+  secret_monitoring: true

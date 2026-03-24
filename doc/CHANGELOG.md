@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.3] - 2026-03-24
+
+- docs: move persona configuration examples out of `doc/configuration.md` into standalone directories under `doc/examples/`
+- docs: add one example per persona with `.carranca.yml`, `.carranca/Containerfile`, and a persona-specific README
+- docs: reference the new examples directory from README, objective.md, usage.md, configuration.md, and regenerate `doc/page/index.html`
+
 ## [0.15.2] - 2026-03-24
 
 - fix: **JSON injection** — RFC 8259 compliant `json_escape()` in new shared `runtime/lib/json.sh`; applied to all JSON producers: fanotify-watcher.c, strace-parser.sh, observer.sh, logger.sh, shell-wrapper.sh

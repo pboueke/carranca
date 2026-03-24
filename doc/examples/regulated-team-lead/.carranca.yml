@@ -1,0 +1,43 @@
+agents:
+  - name: claude
+    adapter: claude
+    command: claude
+
+runtime:
+  engine: podman
+  network:
+    default: deny
+    allow:
+      - api.anthropic.com:443
+      - registry.npmjs.org:443
+      - pypi.org:443
+      - files.pythonhosted.org:443
+
+volumes:
+  cache: true
+
+policy:
+  docs_before_code: enforce
+  tests_before_impl: enforce
+  max_duration: 1800
+  filesystem:
+    enforce_watched_paths: true
+  resource_limits:
+    memory: 2g
+    cpus: "2.0"
+    pids: 256
+
+watched_paths:
+  - docs/
+  - specs/
+  - controls/
+  - approvals/
+  - migrations/
+
+observability:
+  independent_observer: true
+  resource_interval: 10
+  execve_tracing: true
+  network_logging: true
+  network_interval: 5
+  secret_monitoring: true

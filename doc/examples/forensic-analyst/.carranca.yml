@@ -1,0 +1,32 @@
+agents:
+  - name: analyst
+    adapter: stdin
+    command: bash /usr/local/bin/review-session.sh
+
+runtime:
+  engine: podman
+  network: false
+
+volumes:
+  cache: false
+  extra:
+    - ~/cases:/cases:ro
+    - ~/.local/state/carranca/sessions:/session-archive:ro
+
+policy:
+  docs_before_code: off
+  tests_before_impl: off
+  max_duration: 7200
+  filesystem:
+    enforce_watched_paths: true
+
+watched_paths:
+  - reports/
+  - findings/
+  - /session-archive
+
+observability:
+  resource_interval: 30
+  execve_tracing: true
+  network_logging: false
+  secret_monitoring: true

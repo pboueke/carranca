@@ -92,6 +92,9 @@ workflow.
 
 ## Personas That See Value
 
+Concrete `.carranca.yml` and `.carranca/Containerfile` examples for these
+personas live under [examples/](examples/).
+
 - **A platform engineer** hardens agent access to production deployment repos
   with network allow-lists, read-only secret paths, and session duration caps
 - **A security engineer** reviews signed session logs and cross-references them

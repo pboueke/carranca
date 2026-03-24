@@ -226,6 +226,7 @@ carranca run --agent codex
 ## Related docs
 
 - [page/index.html](page/index.html): primary technical reference
-- [configuration.md](configuration.md): configuration schema and examples
+- [configuration.md](configuration.md): configuration schema and container reference
+- [examples/README.md](examples/README.md): persona-based example configs and images
 - [session-log.md](session-log.md): event types and log semantics
 - [trust-model.md](trust-model.md): guarantees, limitations, and degraded modes

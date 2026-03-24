@@ -1,0 +1,26 @@
+FROM alpine:3.21
+
+RUN apk add --no-cache \
+      bash \
+      ca-certificates \
+      coreutils \
+      curl \
+      git \
+      iptables \
+      jq \
+      nodejs \
+      npm \
+      python3 \
+      py3-pip \
+      yq
+
+RUN npm install -g @anthropic-ai/claude-code
+
+RUN mkdir -p /home/carranca && chmod 0777 /home/carranca
+
+COPY lib/json.sh /usr/local/bin/lib/json.sh
+COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
+RUN chmod +x /usr/local/bin/shell-wrapper.sh
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
