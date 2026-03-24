@@ -108,49 +108,63 @@ NOW_TS="$(timestamp)"
 write_log "{\"type\":\"shell_command\",\"source\":\"shell-wrapper\",\"ts\":\"$NOW_TS\",\"session_id\":\"$SESSION_ID\",\"command\":\"ls\"}"
 write_log "{\"type\":\"execve_event\",\"source\":\"observer\",\"ts\":\"$NOW_TS\",\"session_id\":\"$SESSION_ID\",\"pid\":42,\"binary\":\"/usr/bin/ls\"}"
 
-# Inline cross-reference function for testing
+# Inline cross-reference function for testing (greedy 1:1 matching)
 _cross_reference_events() {
   [ -f "$LOG_FILE" ] || return 0
 
-  local cmd_times=""
+  local cmd_file exec_file matched_exec_file
+  cmd_file="$(mktemp /tmp/test-xref-cmd.XXXXXX)"
+  exec_file="$(mktemp /tmp/test-xref-exec.XXXXXX)"
+  matched_exec_file="$(mktemp /tmp/test-xref-matched.XXXXXX)"
+
   while IFS= read -r line; do
     local ts
     ts="$(printf '%s' "$line" | grep -o '"ts":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
-    [ -n "$ts" ] && cmd_times="$cmd_times $(_ts_to_epoch "$ts")"
+    [ -n "$ts" ] && _ts_to_epoch "$ts" >> "$cmd_file"
   done < <(grep '"type":"shell_command"' "$LOG_FILE" 2>/dev/null || true)
 
-  local exec_times=""
   while IFS= read -r line; do
     local ts
     ts="$(printf '%s' "$line" | grep -o '"ts":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
-    [ -n "$ts" ] && exec_times="$exec_times $(_ts_to_epoch "$ts")"
+    [ -n "$ts" ] && _ts_to_epoch "$ts" >> "$exec_file"
   done < <(grep '"type":"execve_event"' "$LOG_FILE" 2>/dev/null || true)
 
-  for cmd_t in $cmd_times; do
-    local found=false
-    for exec_t in $exec_times; do
+  sort -n "$cmd_file" -o "$cmd_file"
+  sort -n "$exec_file" -o "$exec_file"
+
+  while IFS= read -r cmd_t; do
+    [ -z "$cmd_t" ] && continue
+    local best_line="" best_diff=999999 line_num=0
+    while IFS= read -r exec_t; do
+      line_num=$((line_num + 1))
+      [ -z "$exec_t" ] && continue
+      grep -q "^${line_num}$" "$matched_exec_file" 2>/dev/null && continue
       local diff=$((cmd_t - exec_t))
       [ "$diff" -lt 0 ] && diff=$((-diff))
-      [ "$diff" -le 3 ] && found=true && break
-    done
-    if [ "$found" = false ]; then
+      if [ "$diff" -le 3 ] && [ "$diff" -lt "$best_diff" ]; then
+        best_diff="$diff"
+        best_line="$line_num"
+      fi
+    done < "$exec_file"
+    if [ -n "$best_line" ]; then
+      echo "$best_line" >> "$matched_exec_file"
+    else
       local event="{\"type\":\"integrity_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"reason\":\"shell_command_without_execve\"}"
       write_log "$event"
     fi
-  done
+  done < "$cmd_file"
 
-  for exec_t in $exec_times; do
-    local found=false
-    for cmd_t in $cmd_times; do
-      local diff=$((exec_t - cmd_t))
-      [ "$diff" -lt 0 ] && diff=$((-diff))
-      [ "$diff" -le 3 ] && found=true && break
-    done
-    if [ "$found" = false ]; then
+  local line_num=0
+  while IFS= read -r exec_t; do
+    line_num=$((line_num + 1))
+    [ -z "$exec_t" ] && continue
+    if ! grep -q "^${line_num}$" "$matched_exec_file" 2>/dev/null; then
       local event="{\"type\":\"integrity_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"reason\":\"unmatched_execve_activity\"}"
       write_log "$event"
     fi
-  done
+  done < "$exec_file"
+
+  rm -f "$cmd_file" "$exec_file" "$matched_exec_file"
 }
 
 _cross_reference_events

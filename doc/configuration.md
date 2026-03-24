@@ -109,11 +109,11 @@ observability:
 | `policy.filesystem.enforce_watched_paths` | No | `false` | When `true`, `watched_paths` directories and files are bind-mounted read-only. Requires yq |
 | `watched_paths` | No | — | File events matching watched patterns are tagged with `"watched":true` in session logs |
 | `observability.resource_interval` | No | `10` | Seconds between cgroup resource samples; `0` disables |
-| `observability.execve_tracing` | No | `false` | Enable strace-based execve tracing; adds `CAP_SYS_PTRACE` to logger |
+| `observability.execve_tracing` | No | `false` | Enable strace-based execve tracing in the logger; adds `CAP_SYS_PTRACE` to logger. Not required when `independent_observer` is enabled (the observer always traces) |
 | `observability.network_logging` | No | `false` | Enable `/proc/net/tcp` polling for outbound connections; requires PID namespace sharing |
 | `observability.network_interval` | No | `5` | Seconds between network connection polls |
 | `observability.secret_monitoring` | No | `false` | Enable fanotify-based file read monitoring on `watched_paths`; adds `CAP_SYS_ADMIN` to logger |
-| `observability.independent_observer` | No | `false` | Run execve tracer and network monitor in an independent sidecar container outside the agent's PID/mount namespace. Agent cannot see or interfere with observer. Cross-references events at session end |
+| `observability.independent_observer` | No | `false` | Run execve tracer and network monitor in an independent sidecar container outside the agent's PID/mount namespace. Observer events are authenticated via a shared token on `/state/` (inaccessible to the agent). Always enables execve tracing regardless of `execve_tracing` setting. Cross-references events at session end as a best-effort heuristic |
 
 ### Runtime resolution
 

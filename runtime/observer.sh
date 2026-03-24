@@ -12,8 +12,27 @@ AGENT_CONTAINER_NAME="${AGENT_CONTAINER_NAME:-}"
 NETWORK_LOGGING="${NETWORK_LOGGING:-}"
 NETWORK_INTERVAL="${NETWORK_INTERVAL:-5}"
 
+OBSERVER_TOKEN=""
+
 timestamp() {
   date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+# Read the observer authentication token from /state/ (written by logger).
+# This token proves to the logger that events came from the observer, not the agent.
+_read_observer_token() {
+  local token_file="/state/${SESSION_ID}.observer-token"
+  local attempts=0
+  while [ "$attempts" -lt 30 ]; do
+    if [ -f "$token_file" ]; then
+      OBSERVER_TOKEN="$(cat "$token_file" 2>/dev/null)"
+      [ -n "$OBSERVER_TOKEN" ] && return 0
+    fi
+    sleep 0.5
+    attempts=$((attempts + 1))
+  done
+  echo "observer: token file not found after 15s" >&2
+  return 1
 }
 
 # Source the shared strace parser
@@ -58,18 +77,25 @@ _find_agent_host_pid() {
     return 1
   fi
 
-  # Search /proc for a process in the agent's cgroup
+  # Search /proc for all processes in the agent's cgroup, then select the
+  # lowest host PID. The container's init process (PID 1 inside the namespace)
+  # gets the lowest host PID among siblings, and strace -f from PID 1 will
+  # trace all descendants.
+  local lowest_pid=""
   local pid_dir
   for pid_dir in /proc/[0-9]*; do
     local p="${pid_dir##*/}"
-    # Check if this process's cgroup contains the container ID
     if grep -q "$container_id" "$pid_dir/cgroup" 2>/dev/null; then
-      # Found a process in the agent container — return PID 1's namespace leader
-      # (the init process of the container)
-      printf '%s' "$p"
-      return 0
+      if [ -z "$lowest_pid" ] || [ "$p" -lt "$lowest_pid" ]; then
+        lowest_pid="$p"
+      fi
     fi
   done
+
+  if [ -n "$lowest_pid" ]; then
+    printf '%s' "$lowest_pid"
+    return 0
+  fi
 
   echo "observer: no process found for container $container_id" >&2
   return 1
@@ -80,7 +106,7 @@ _start_observer_tracer() {
   local agent_pid="$1"
 
   if ! command -v strace >/dev/null 2>&1; then
-    local deg="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"degraded\",\"reason\":\"strace_unavailable\"}"
+    local deg="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"degraded\",\"reason\":\"strace_unavailable\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
     printf '%s\n' "$deg" > "$FIFO_PATH"
     return
   fi
@@ -159,7 +185,7 @@ _start_observer_network_monitor() {
   local net_tcp6="/proc/$agent_pid/net/tcp6"
 
   if [ ! -r "$net_tcp" ]; then
-    local deg="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"degraded\",\"reason\":\"network_logging_unavailable\"}"
+    local deg="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"degraded\",\"reason\":\"network_logging_unavailable\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
     printf '%s\n' "$deg" > "$FIFO_PATH"
     return
   fi
@@ -179,7 +205,7 @@ _start_observer_network_monitor() {
     new_conns="$(comm -23 "$current_file" "$prev_file")"
     if [ -n "$new_conns" ]; then
       while IFS=' ' read -r ip port state; do
-        local event="{\"type\":\"network_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"dest_ip\":\"$ip\",\"dest_port\":$port,\"protocol\":\"tcp\",\"state\":\"$state\"}"
+        local event="{\"type\":\"network_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"dest_ip\":\"$ip\",\"dest_port\":$port,\"protocol\":\"tcp\",\"state\":\"$state\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
         printf '%s\n' "$event" > "$FIFO_PATH"
       done <<< "$new_conns"
     fi
@@ -194,14 +220,20 @@ _start_observer_network_monitor() {
 
 _wait_for_fifo
 
+# Read authentication token (written by logger to /state/)
+_read_observer_token || {
+  echo "observer: cannot authenticate without token, exiting" >&2
+  exit 1
+}
+
 AGENT_PID=""
 AGENT_PID="$(_find_agent_host_pid)" || {
-  DEG="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"degraded\",\"reason\":\"agent_pid_not_found\"}"
+  DEG="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"degraded\",\"reason\":\"agent_pid_not_found\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
   printf '%s\n' "$DEG" > "$FIFO_PATH"
   exit 0
 }
 
-OBSERVER_START="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"observer_start\",\"agent_pid\":$AGENT_PID}"
+OBSERVER_START="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"observer_start\",\"agent_pid\":$AGENT_PID,\"_observer_token\":\"$OBSERVER_TOKEN\"}"
 printf '%s\n' "$OBSERVER_START" > "$FIFO_PATH"
 
 TRACER_PID=""
@@ -226,7 +258,7 @@ done
 [ -n "$TRACER_PID" ] && kill "$TRACER_PID" 2>/dev/null || true
 [ -n "$NETMON_PID" ] && kill "$NETMON_PID" 2>/dev/null || true
 
-OBSERVER_STOP="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"observer_stop\"}"
+OBSERVER_STOP="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"observer_stop\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
 printf '%s\n' "$OBSERVER_STOP" > "$FIFO_PATH" 2>/dev/null || true
 
 exit 0

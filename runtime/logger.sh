@@ -32,6 +32,11 @@ CHECKSUM_FILE="/state/${SESSION_ID}.checksums"
 SESSION_START_TS=""
 PREV_FIFO_TS=""
 
+# Observer token for authenticating observer-sourced FIFO events (Phase 5.1).
+# Written to /state/ (accessible to logger and observer, not agent).
+OBSERVER_TOKEN_FILE="/state/${SESSION_ID}.observer-token"
+OBSERVER_TOKEN=""
+
 # --- Helpers ---
 
 timestamp() {
@@ -215,9 +220,18 @@ _validate_fifo_event() {
   case "$source" in
     shell-wrapper|"") ;; # expected FIFO sources
     observer)
-      # Observer writes to FIFO by design when independent_observer is active
+      # Observer must present a valid token to authenticate its events.
+      # The token lives on /state/ which the agent cannot access.
       if [ "${INDEPENDENT_OBSERVER:-}" != "true" ]; then
         issues="${issues:+$issues,}source_impersonation"
+      else
+        local event_token
+        event_token="$(printf '%s' "$line" | grep -o '"_observer_token":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
+        if [ "$event_token" != "$OBSERVER_TOKEN" ]; then
+          issues="${issues:+$issues,}observer_token_invalid"
+        fi
+        # Strip the token field before logging (internal-only)
+        line="$(printf '%s' "$line" | sed 's/,"_observer_token":"[^"]*"//g; s/"_observer_token":"[^"]*",\?//g')"
       fi
       ;;
     strace|inotifywait|fswatch|carranca|fanotify)
@@ -255,6 +269,14 @@ fi
 
 # Generate HMAC key for this session
 generate_hmac_key
+
+# Generate observer token if independent observer is enabled (Phase 5.1).
+# The token lives on /state/, which only logger and observer can access.
+if [ "${INDEPENDENT_OBSERVER:-}" = "true" ]; then
+  OBSERVER_TOKEN="$(openssl rand -hex 16)"
+  printf '%s\n' "$OBSERVER_TOKEN" > "$OBSERVER_TOKEN_FILE"
+  chmod 0600 "$OBSERVER_TOKEN_FILE"
+fi
 
 # Record session start timestamp for FIFO validation (Phase 5.2)
 SESSION_START_TS="$(timestamp)"
@@ -731,62 +753,81 @@ if [ "${MAX_DURATION:-0}" != "0" ] && [ -n "${MAX_DURATION:-}" ]; then
 fi
 
 # --- Cross-reference events (Phase 5.1) ---
-# Scans the log for shell_command events with no corresponding execve_event
-# and execve_events with no corresponding shell_command.
+# Heuristic comparison of shell_command vs execve_event counts and timing.
+# This is a best-effort anomaly signal, not a proof of forgery. A single
+# background exec can only satisfy one shell_command (greedy 1:1 matching),
+# and timestamp resolution is ±3s, so both false positives and false negatives
+# are possible. Integrity events from cross-referencing should be treated as
+# indicators for human review, not as definitive evidence.
 
 _cross_reference_events() {
   [ "${INDEPENDENT_OBSERVER:-}" = "true" ] || return 0
   [ -f "$LOG_FILE" ] || return 0
 
-  # Collect shell_command timestamps (epoch)
-  local cmd_times=""
+  # Collect shell_command timestamps (epoch) into a temp file for 1:1 consumption
+  local cmd_file exec_file
+  cmd_file="$(mktemp /tmp/carranca-xref-cmd.XXXXXX)"
+  exec_file="$(mktemp /tmp/carranca-xref-exec.XXXXXX)"
+
   while IFS= read -r line; do
     local ts
     ts="$(printf '%s' "$line" | grep -o '"ts":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
-    [ -n "$ts" ] && cmd_times="$cmd_times $(_ts_to_epoch "$ts")"
+    [ -n "$ts" ] && _ts_to_epoch "$ts" >> "$cmd_file"
   done < <(grep '"type":"shell_command"' "$LOG_FILE" 2>/dev/null || true)
 
-  # Collect execve_event timestamps (epoch)
-  local exec_times=""
   while IFS= read -r line; do
     local ts
     ts="$(printf '%s' "$line" | grep -o '"ts":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
-    [ -n "$ts" ] && exec_times="$exec_times $(_ts_to_epoch "$ts")"
+    [ -n "$ts" ] && _ts_to_epoch "$ts" >> "$exec_file"
   done < <(grep '"type":"execve_event"' "$LOG_FILE" 2>/dev/null || true)
 
-  # Check each shell_command for a corresponding execve_event within ±3s
-  for cmd_t in $cmd_times; do
-    local found=false
-    for exec_t in $exec_times; do
+  # Sort both lists for greedy matching
+  sort -n "$cmd_file" -o "$cmd_file"
+  sort -n "$exec_file" -o "$exec_file"
+
+  # Greedy 1:1 match: for each shell_command, consume the nearest execve_event
+  # within ±3s. Unmatched entries on either side are flagged.
+  local matched_exec_file
+  matched_exec_file="$(mktemp /tmp/carranca-xref-matched.XXXXXX)"
+
+  while IFS= read -r cmd_t; do
+    [ -z "$cmd_t" ] && continue
+    local best_line="" best_diff=999999
+    local line_num=0
+    while IFS= read -r exec_t; do
+      line_num=$((line_num + 1))
+      [ -z "$exec_t" ] && continue
+      # Skip already-consumed exec times
+      if grep -q "^${line_num}$" "$matched_exec_file" 2>/dev/null; then
+        continue
+      fi
       local diff=$((cmd_t - exec_t))
       [ "$diff" -lt 0 ] && diff=$((-diff))
-      if [ "$diff" -le 3 ]; then
-        found=true
-        break
+      if [ "$diff" -le 3 ] && [ "$diff" -lt "$best_diff" ]; then
+        best_diff="$diff"
+        best_line="$line_num"
       fi
-    done
-    if [ "$found" = false ]; then
-      local event="{\"type\":\"integrity_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"reason\":\"shell_command_without_execve\",\"detail\":\"command at epoch $cmd_t has no matching execve\"}"
+    done < "$exec_file"
+    if [ -n "$best_line" ]; then
+      echo "$best_line" >> "$matched_exec_file"
+    else
+      local event="{\"type\":\"integrity_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"reason\":\"shell_command_without_execve\",\"detail\":\"command at epoch $cmd_t has no matching execve (best-effort heuristic)\"}"
       write_log "$event"
     fi
-  done
+  done < "$cmd_file"
 
-  # Check each execve_event for a corresponding shell_command within ±3s
-  for exec_t in $exec_times; do
-    local found=false
-    for cmd_t in $cmd_times; do
-      local diff=$((exec_t - cmd_t))
-      [ "$diff" -lt 0 ] && diff=$((-diff))
-      if [ "$diff" -le 3 ]; then
-        found=true
-        break
-      fi
-    done
-    if [ "$found" = false ]; then
-      local event="{\"type\":\"integrity_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"reason\":\"unmatched_execve_activity\",\"detail\":\"execve at epoch $exec_t has no matching shell_command\"}"
+  # Check for unmatched execve_events
+  local line_num=0
+  while IFS= read -r exec_t; do
+    line_num=$((line_num + 1))
+    [ -z "$exec_t" ] && continue
+    if ! grep -q "^${line_num}$" "$matched_exec_file" 2>/dev/null; then
+      local event="{\"type\":\"integrity_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"reason\":\"unmatched_execve_activity\",\"detail\":\"execve at epoch $exec_t has no matching shell_command (best-effort heuristic)\"}"
       write_log "$event"
     fi
-  done
+  done < "$exec_file"
+
+  rm -f "$cmd_file" "$exec_file" "$matched_exec_file"
 }
 
 # --- SIGTERM handler ---

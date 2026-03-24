@@ -183,10 +183,11 @@ Malformed data received on the FIFO.
 ### `execve_event`
 
 Process execution captured by strace. When
-`observability.independent_observer: true`, the observer sidecar runs strace
-from outside the agent's PID namespace (source: `observer`). Otherwise, the
-logger runs strace internally (source: `strace`). Requires
-`observability.execve_tracing: true`.
+`observability.independent_observer: true`, the observer sidecar always runs
+strace from outside the agent's PID namespace (source: `observer`) regardless
+of the `execve_tracing` setting. When `independent_observer` is not enabled,
+requires `observability.execve_tracing: true` for the logger to run strace
+internally (source: `strace`).
 
 ```json
 {"type":"execve_event","source":"strace","ts":"2026-03-22T09:45:03Z","session_id":"abc12345","pid":42,"binary":"/usr/bin/npm","argv":"[\"npm\", \"test\"]","seq":9}
@@ -266,8 +267,9 @@ fail structural or temporal validation. These events are always emitted
 | `timestamp_regression` | Event `ts` regresses more than 60 seconds from the previous FIFO event |
 | `seq_injection_attempt` | FIFO event contains `seq` or `hmac` fields (logger is sole authority) |
 | `source_impersonation` | FIFO event claims a `source` that only writes directly to the log (`strace`, `inotifywait`, `carranca`, etc.) |
-| `shell_command_without_execve` | Shell command reported by agent has no corresponding execve event from the observer (cross-referencing) |
-| `unmatched_execve_activity` | Execve event observed by the observer has no corresponding shell command from the agent (cross-referencing) |
+| `observer_token_invalid` | FIFO event claims `source:"observer"` but does not carry a valid authentication token |
+| `shell_command_without_execve` | Shell command reported by agent has no corresponding execve event from the observer within ±3s (best-effort heuristic; review recommended) |
+| `unmatched_execve_activity` | Execve event observed by the observer has no corresponding shell command from the agent within ±3s (best-effort heuristic; review recommended) |
 
 ### Session timeline
 

@@ -164,7 +164,19 @@ _validate_fifo_event() {
   source="$(printf '%s' "$line" | grep -o '"source":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
   case "$source" in
     shell-wrapper|"") ;;
-    strace|inotifywait|fswatch|carranca|fanotify|observer)
+    observer)
+      if [ "${INDEPENDENT_OBSERVER:-}" != "true" ]; then
+        issues="${issues:+$issues,}source_impersonation"
+      else
+        local event_token
+        event_token="$(printf '%s' "$line" | grep -o '"_observer_token":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
+        if [ "$event_token" != "$OBSERVER_TOKEN" ]; then
+          issues="${issues:+$issues,}observer_token_invalid"
+        fi
+        line="$(printf '%s' "$line" | sed 's/,"_observer_token":"[^"]*"//g; s/"_observer_token":"[^"]*",\?//g')"
+      fi
+      ;;
+    strace|inotifywait|fswatch|carranca|fanotify)
       issues="${issues:+$issues,}source_impersonation"
       ;;
   esac
@@ -267,6 +279,46 @@ STRIPPED="$(_strip_fifo_injected_fields "$INJECTED_LINE")"
 assert_not_contains "seq removed" "\"seq\"" "$STRIPPED"
 assert_not_contains "hmac removed" "\"hmac\"" "$STRIPPED"
 assert_contains "data preserved" "\"data\":\"ok\"" "$STRIPPED"
+
+# --- Test: observer with valid token accepted ---
+echo "--- observer with valid token ---"
+> "$LOG_FILE"
+echo "0" > "$SEQ_FILE"
+PREV_FIFO_TS=""
+INDEPENDENT_OBSERVER="true"
+OBSERVER_TOKEN="secret123"
+
+VALID_OBS="{\"type\":\"execve_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"_observer_token\":\"secret123\"}"
+result="$(_validate_fifo_event "$VALID_OBS")"
+INTEGRITY_COUNT="$(grep -c 'integrity_event' "$LOG_FILE" 2>/dev/null)" || true
+assert_eq "valid observer token produces no integrity_event" "0" "$INTEGRITY_COUNT"
+assert_not_contains "token stripped from output" "_observer_token" "$result"
+
+# --- Test: observer with invalid token flagged ---
+echo "--- observer with invalid token ---"
+> "$LOG_FILE"
+echo "0" > "$SEQ_FILE"
+PREV_FIFO_TS=""
+
+FAKE_OBS="{\"type\":\"execve_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"_observer_token\":\"wrong\"}"
+_validate_fifo_event "$FAKE_OBS" > /dev/null
+LOG_CONTENT="$(cat "$LOG_FILE")"
+assert_contains "invalid observer token flagged" "observer_token_invalid" "$LOG_CONTENT"
+
+# --- Test: observer with missing token flagged ---
+echo "--- observer with missing token ---"
+> "$LOG_FILE"
+echo "0" > "$SEQ_FILE"
+PREV_FIFO_TS=""
+
+NO_TOK_OBS="{\"type\":\"execve_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\"}"
+_validate_fifo_event "$NO_TOK_OBS" > /dev/null
+LOG_CONTENT="$(cat "$LOG_FILE")"
+assert_contains "missing observer token flagged" "observer_token_invalid" "$LOG_CONTENT"
+
+# Reset
+INDEPENDENT_OBSERVER=""
+OBSERVER_TOKEN=""
 
 # --- Cleanup ---
 rm -rf "$TMPDIR"

@@ -23,7 +23,7 @@ cross-referencing to detect unreported or forged activity.
 | Checksum hardening | Verified evidence | Parallel SHA-256 checksum file for tamper detection without `chattr +a` |
 | Log export | Archival | Self-contained signed tar archive for compliance and forensics |
 | execve tracing | Ground truth | strace captures all process execution in agent PID namespace |
-| Independent observer | Ground truth | Execve/network monitoring in separate sidecar outside agent's namespaces; cross-references events to detect forgery |
+| Independent observer | Ground truth | Execve/network monitoring in separate sidecar outside agent's namespaces; observer events authenticated via shared token on `/state/` (agent cannot access). Cross-referencing at session end is a best-effort heuristic (±3s window, greedy 1:1 match) that flags anomalies for human review |
 | Network logging | Ground truth | `/proc/net/tcp` polling captures outbound connections |
 | Secret read monitoring | Ground truth | fanotify captures file reads on watched paths |
 | Resource tracking | Transparency tool | cgroup v2 stats sample CPU, memory, and PID count |
@@ -43,7 +43,7 @@ cross-referencing to detect unreported or forged activity.
 |----------|--------|--------------------|
 | Verified audit evidence | Provided | HMAC-signed event chain + checksum file (Phase 2) |
 | Complete operation capture | Provided | execve tracing via strace (Phase 3); requires `observability.execve_tracing: true` |
-| Forgery resistance | Provided | FIFO validation detects structural/temporal forgery; strace provides independent ground truth (Phase 5) |
+| Forgery resistance | Provided | FIFO validation detects structural/temporal forgery; observer events authenticated via token; cross-referencing is best-effort anomaly detection for human review (Phase 5) |
 | Secret read monitoring | Provided | fanotify captures file reads on `watched_paths` (Phase 3); requires `observability.secret_monitoring: true` |
 | Technical policy enforcement | Provided | Resource limits, time-boxed sessions, filesystem access control, git policy hooks, network filtering (Phase 4) |
 | Capability hardening | Provided | All Linux capabilities dropped by default; agent runs with minimal privileges (Phase 5) |
@@ -54,9 +54,9 @@ cross-referencing to detect unreported or forged activity.
 | Threat | Status | Notes |
 |--------|--------|-------|
 | Agent edits/deletes session log | Mitigated | Agent container has no mount to log directory |
-| Agent forges shell events via FIFO | Mitigated | Structural and temporal validation detects forgery (Phase 5); strace provides independent ground truth for cross-referencing (Phase 3) |
+| Agent forges shell events via FIFO | Partially mitigated | Structural/temporal validation detects malformed forgeries (Phase 5); observer events are token-authenticated; cross-referencing flags timing anomalies but uses a ±3s heuristic |
 | Agent suppresses events (kills FIFO) | Mitigated | Shell wrapper exits on broken pipe → agent stops |
-| Agent bypasses shell wrapper | Mitigated | Independent observer captures all execve calls from outside agent namespace; cross-referencing detects unreported activity (Phase 5) |
+| Agent bypasses shell wrapper | Partially mitigated | Independent observer captures execve calls from outside agent namespace; cross-referencing flags unreported activity as a heuristic for review (Phase 5). Observer must attach to the container init process to trace all descendants |
 | Agent reads secrets from repo | Mitigated | fanotify captures file reads on `watched_paths` when `observability.secret_monitoring: true` |
 | Agent exfiltrates over network | Partially mitigated | Network logging records outbound connections; set `runtime.network: false` to disable entirely |
 | Agent writes malicious code | Allowed by design | Review via session log + git diff |
@@ -82,9 +82,12 @@ runtime. It makes sessions reviewable with cryptographic tamper detection,
 kernel-observed telemetry, and technical controls such as resource limits, time
 bounds, read-only root filesystem, capability drop, seccomp filtering, and
 network restrictions. FIFO forgery detection validates event structure and
-timing, and the independent observer sidecar provides kernel-level ground truth
-outside the agent's namespaces. Cross-referencing at session end flags
-unreported or forged activity as `integrity_event` entries. Post-session log
-tampering is detectable via the HMAC chain and parallel checksum file. The
-current value proposition is not blind trust, but observable execution with
-enforceable guardrails, adversarial hardening, and verifiable evidence.
+timing. The independent observer sidecar provides kernel-level ground truth
+outside the agent's namespaces, with observer events authenticated via a shared
+token on `/state/` that the agent cannot access. Cross-referencing at session
+end is a best-effort heuristic (±3s timestamp window, greedy 1:1 matching)
+that flags anomalies for human review — it is not a proof of forgery.
+Post-session log tampering is detectable via the HMAC chain and parallel
+checksum file. The current value proposition is not blind trust, but observable
+execution with enforceable guardrails, adversarial hardening, and verifiable
+evidence.
