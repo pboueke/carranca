@@ -4,33 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$SCRIPT_DIR/cli/lib/common.sh"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$TEST_DIR/../lib/assert.sh"
 
-PASS=0
-FAIL=0
-
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_match() {
-  local desc="$1" pattern="$2" actual="$3"
-  if [[ "$actual" =~ $pattern ]]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected match '$pattern', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "=== test_common.sh ==="
+suite_header "test_common.sh"
 
 # Test carranca_random_hex produces 16 hex chars
 hex="$(carranca_random_hex)"
@@ -79,6 +56,27 @@ die_out="$(carranca_die "fatal error" 2>&1)" && die_rc=0 || die_rc=$?
 assert_match "carranca_die outputs error message" "fatal error" "$die_out"
 assert_eq "carranca_die exits with code 1" "1" "$die_rc"
 
+# --- Test carranca_validate_extra_flags ---
+
+# Safe flags pass
+rc=0; carranca_validate_extra_flags "test" "--env FOO=bar --label x=y" 2>/dev/null || rc=$?
+assert_eq "validate_extra_flags allows safe flags" "0" "$rc"
+
+# Denied flag --privileged
+rc=0; carranca_validate_extra_flags "test" "--privileged" 2>/dev/null || rc=$?
+assert_eq "validate_extra_flags denies --privileged" "1" "$rc"
+
+# Denied flag --cap-add
+rc=0; carranca_validate_extra_flags "test" "--cap-add SYS_ADMIN" 2>/dev/null || rc=$?
+assert_eq "validate_extra_flags denies --cap-add" "1" "$rc"
+
+# Unknown flag rejected
+rc=0; carranca_validate_extra_flags "test" "--unknown-flag" 2>/dev/null || rc=$?
+assert_eq "validate_extra_flags rejects unknown flag" "1" "$rc"
+
+# Empty flags pass
+rc=0; carranca_validate_extra_flags "test" "" 2>/dev/null || rc=$?
+assert_eq "validate_extra_flags allows empty string" "0" "$rc"
+
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

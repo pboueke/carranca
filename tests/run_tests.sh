@@ -14,6 +14,9 @@ SUITES_SKIP=0
 TESTS_PASS=0
 TESTS_FAIL=0
 
+TEST_LOG="$PROJECT_DIR/test.log"
+exec > >(tee "$TEST_LOG") 2>&1
+
 _record_suite_output() {
   local output="$1"
   local rc="$2"
@@ -39,7 +42,7 @@ run_suite_sequential() {
   local test_file output rc
 
   echo ""
-  echo "━━━ $suite ━━━"
+  echo "━━━ $suite ━━━ ($(date -u '+%Y-%m-%dT%H:%M:%SZ'))"
 
   for test_file in "$dir"/test_*.sh; do
     [ -f "$test_file" ] || continue
@@ -59,7 +62,7 @@ run_suite_parallel() {
   local -a pids=()
 
   echo ""
-  echo "━━━ $suite ━━━"
+  echo "━━━ $suite ━━━ ($(date -u '+%Y-%m-%dT%H:%M:%SZ'))"
 
   for test_file in "$dir"/test_*.sh; do
     [ -f "$test_file" ] || continue
@@ -115,6 +118,7 @@ run_suite() {
 echo "╔══════════════════════════════════╗"
 echo "║   carranca test suite            ║"
 echo "╚══════════════════════════════════╝"
+echo "Started: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
 if [ -z "$TEST_RUNTIME" ]; then
   if podman info >/dev/null 2>&1; then
@@ -152,7 +156,7 @@ TOTAL_FUNCS=0
 TESTED_FUNCS=0
 
 # Collect all function names from source files
-for src in "$PROJECT_DIR"/cli/lib/*.sh "$PROJECT_DIR"/runtime/*.sh; do
+for src in "$PROJECT_DIR"/cli/lib/*.sh "$PROJECT_DIR"/runtime/*.sh "$PROJECT_DIR"/runtime/lib/*.sh; do
   [ -f "$src" ] || continue
   while IFS= read -r fname; do
     TOTAL_FUNCS=$((TOTAL_FUNCS + 1))
@@ -172,12 +176,29 @@ fi
 TESTS_TOTAL=$((TESTS_PASS + TESTS_FAIL))
 
 echo ""
-echo "╔══════════════════════════════════╗"
-echo "║   Results                        ║"
-echo "║   Tests:  $TESTS_PASS/$TESTS_TOTAL passed"
-echo "║   Suites: $SUITES_PASS passed, $SUITES_FAIL failed, $SUITES_SKIP skipped"
-echo "║   Coverage: $TESTED_FUNCS/$TOTAL_FUNCS functions ($COVERAGE_PCT%)"
-echo "╚══════════════════════════════════╝"
+
+# Build result lines and compute dynamic box width
+_result_lines=(
+  "  Results"
+  "  Tests:    $TESTS_PASS/$TESTS_TOTAL passed"
+  "  Suites:   $SUITES_PASS passed, $SUITES_FAIL failed, $SUITES_SKIP skipped"
+  "  Coverage: $TESTED_FUNCS/$TOTAL_FUNCS functions ($COVERAGE_PCT%)"
+)
+_box_width=0
+for _line in "${_result_lines[@]}"; do
+  _len=${#_line}
+  [ "$_len" -gt "$_box_width" ] && _box_width="$_len"
+done
+_box_width=$((_box_width + 4)) # padding for borders and spacing
+
+_border=""
+for (( _i=0; _i<_box_width; _i++ )); do _border+="═"; done
+
+echo "╔${_border}╗"
+for _line in "${_result_lines[@]}"; do
+  printf '║%-*s║\n' "$_box_width" "$_line"
+done
+echo "╚${_border}╝"
 
 # Write badge data for README consumption
 BADGE_DIR="$PROJECT_DIR/tests"
@@ -195,7 +216,7 @@ if [ "$COVERAGE_PCT" -lt 100 ]; then
   echo ""
   echo "FAILED: function coverage is ${COVERAGE_PCT}%, required 100%"
   echo "Untested functions:"
-  for src in "$PROJECT_DIR"/cli/lib/*.sh "$PROJECT_DIR"/runtime/*.sh; do
+  for src in "$PROJECT_DIR"/cli/lib/*.sh "$PROJECT_DIR"/runtime/*.sh "$PROJECT_DIR"/runtime/lib/*.sh; do
     [ -f "$src" ] || continue
     while IFS= read -r fname; do
       if ! grep -rq "$fname" "$SCRIPT_DIR"/unit/ "$SCRIPT_DIR"/integration/ "$SCRIPT_DIR"/failure/ 2>/dev/null; then

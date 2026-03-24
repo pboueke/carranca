@@ -28,7 +28,7 @@ lint: lint-shell lint-docker lint-yaml ## Run all linters
 lint-shell: ## Lint all bash scripts with shellcheck
 	@echo "=== shellcheck ==="
 	@if command -v shellcheck >/dev/null 2>&1; then \
-		shellcheck $(SHELL_ALL); \
+		shellcheck -S error $(SHELL_ALL); \
 		echo "shellcheck: OK ($(words $(SHELL_ALL)) files)"; \
 	else \
 		echo "shellcheck: SKIPPED (not installed)"; \

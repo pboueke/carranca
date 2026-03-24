@@ -4,33 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CLI="$SCRIPT_DIR/cli/carranca"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$TEST_DIR/../lib/assert.sh"
 
-PASS=0
-FAIL=0
-
-assert_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -Fq -- "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "=== test_help.sh ==="
+suite_header "test_help.sh"
 
 main_help="$(bash "$CLI" help 2>&1)"
 assert_contains "main help shows help subcommand usage" "carranca help <command>" "$main_help"
@@ -121,5 +98,4 @@ assert_eq "status without session value exits non-zero" "1" "$status_missing_ses
 assert_contains "status without session value reports error" "Missing value for --session" "$status_missing_session_output"
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

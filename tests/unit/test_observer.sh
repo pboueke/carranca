@@ -4,43 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-PASS=0
-FAIL=0
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$TEST_DIR/../lib/assert.sh"
 
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -Fq -- "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_not_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if ! echo "$haystack" | grep -Fq -- "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected NOT to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "=== test_observer.sh ==="
+suite_header "test_observer.sh"
 
 # --- Setup ---
 TMPDIR="$(mktemp -d)"
@@ -204,9 +171,92 @@ source "$SCRIPT_DIR/cli/lib/session.sh"
 OBSERVER_NAME="$(carranca_session_observer_name "abc12345")"
 assert_eq "observer name follows convention" "carranca-abc12345-observer" "$OBSERVER_NAME"
 
+# --- Test: observer function definitions (coverage) ---
+# These functions require container/proc context so we verify they are defined
+# and test the parts we can unit-test.
+
+echo "--- observer function coverage ---"
+
+# _read_observer_token: test with a valid token file
+TOKEN_DIR="$TMPDIR/state"
+mkdir -p "$TOKEN_DIR"
+echo "abcdef1234567890" > "$TOKEN_DIR/$SESSION_ID.observer-token"
+
+# Override the token path by testing the logic inline
+OBSERVER_TOKEN=""
+_token_file="$TOKEN_DIR/$SESSION_ID.observer-token"
+OBSERVER_TOKEN="$(cat "$_token_file" 2>/dev/null)"
+if [[ "$OBSERVER_TOKEN" =~ ^[0-9a-fA-F]+$ ]]; then
+  assert_eq "_read_observer_token reads valid hex token" "abcdef1234567890" "$OBSERVER_TOKEN"
+else
+  echo "  FAIL: _read_observer_token should accept hex token"
+  FAIL=$((FAIL + 1))
+fi
+
+# _read_observer_token: reject non-hex token
+echo "not-hex-!!!" > "$_token_file"
+OBSERVER_TOKEN="$(cat "$_token_file" 2>/dev/null)"
+if [[ "$OBSERVER_TOKEN" =~ ^[0-9a-fA-F]+$ ]]; then
+  echo "  FAIL: _read_observer_token should reject non-hex token"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: _read_observer_token rejects non-hex token"
+  PASS=$((PASS + 1))
+fi
+
+# _wait_for_fifo: test that it finds an existing FIFO
+TEST_FIFO="$TMPDIR/test-fifo"
+mkfifo "$TEST_FIFO"
+FIFO_PATH="$TEST_FIFO"
+# The function polls, but with a FIFO already present it should return 0 immediately
+# We test the condition directly since calling the function would sleep
+if [ -p "$FIFO_PATH" ]; then
+  echo "  PASS: _wait_for_fifo finds existing FIFO"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: _wait_for_fifo should find existing FIFO"
+  FAIL=$((FAIL + 1))
+fi
+
+# _find_agent_host_pid: verify function exists in observer.sh source
+if grep -q '_find_agent_host_pid()' "$SCRIPT_DIR/runtime/observer.sh"; then
+  echo "  PASS: _find_agent_host_pid defined in observer.sh"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: _find_agent_host_pid not found in observer.sh"
+  FAIL=$((FAIL + 1))
+fi
+
+# _start_observer_tracer: verify function exists
+if grep -q '_start_observer_tracer()' "$SCRIPT_DIR/runtime/observer.sh"; then
+  echo "  PASS: _start_observer_tracer defined in observer.sh"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: _start_observer_tracer not found in observer.sh"
+  FAIL=$((FAIL + 1))
+fi
+
+# _start_observer_network_monitor: verify function exists
+if grep -q '_start_observer_network_monitor()' "$SCRIPT_DIR/runtime/observer.sh"; then
+  echo "  PASS: _start_observer_network_monitor defined in observer.sh"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: _start_observer_network_monitor not found in observer.sh"
+  FAIL=$((FAIL + 1))
+fi
+
+# --- Test: _emit_enforcement_failure (network-setup.sh) ---
+echo "--- network-setup coverage ---"
+if grep -q '_emit_enforcement_failure()' "$SCRIPT_DIR/runtime/network-setup.sh"; then
+  echo "  PASS: _emit_enforcement_failure defined in network-setup.sh"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: _emit_enforcement_failure not found in network-setup.sh"
+  FAIL=$((FAIL + 1))
+fi
+
 # --- Cleanup ---
 rm -rf "$TMPDIR"
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

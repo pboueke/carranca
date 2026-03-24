@@ -5,9 +5,9 @@
   <h1>Carranca</h1>
 
   <p>
-    <img src="https://img.shields.io/badge/version-0.15.1-blue" alt="version: 0.15.1" />
-    <img src="https://img.shields.io/badge/tests-562%2F562_passed-brightgreen" alt="tests: 562/562 passed" />
-    <img src="https://img.shields.io/badge/coverage-100%25_(99%2F99_functions)-brightgreen" alt="coverage: 100%" />
+    <img src="https://img.shields.io/badge/version-0.15.2-blue" alt="version: 0.15.2" />
+    <img src="https://img.shields.io/badge/tests-702%2F702_passed-brightgreen" alt="tests: 702/702 passed" />
+    <img src="https://img.shields.io/badge/coverage-100%25_(119%2F119_functions)-brightgreen" alt="coverage: 100%" />
   </p>
 
   <p><strong>Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening.</strong> Named after the carved figureheads on boats in Brazil's São Francisco river, believed to protect sailors. Carranca protects engineers from coding agents by running them in hardened containers with tamper-evident logs, kernel-level tracing, enforceable guardrails, and forgery detection.

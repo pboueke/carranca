@@ -2,21 +2,10 @@
 # Unit tests for watched_paths matching logic
 set -euo pipefail
 
-PASS=0
-FAIL=0
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$TEST_DIR/../lib/assert.sh"
 
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "=== test_watched_paths.sh ==="
+suite_header "test_watched_paths.sh"
 
 # Source only the path_is_watched function from logger.sh
 # We extract it to avoid running the logger's main body
@@ -119,5 +108,4 @@ else
 fi
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

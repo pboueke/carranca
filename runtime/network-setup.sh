@@ -23,8 +23,10 @@ _log() {
 
 _emit_enforcement_failure() {
   local reason="$1"
+  local ts
+  ts="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
   if [ -p "/fifo/events" ]; then
-    echo "{\"type\":\"policy_event\",\"event\":\"network_enforcement_failed\",\"reason\":\"${reason}\"}" > /fifo/events 2>/dev/null
+    echo "{\"type\":\"policy_event\",\"source\":\"network-setup\",\"ts\":\"${ts}\",\"session_id\":\"${SESSION_ID:-unknown}\",\"event\":\"network_enforcement_failed\",\"reason\":\"${reason}\"}" > /fifo/events 2>/dev/null
   fi
 }
 

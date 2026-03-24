@@ -7,21 +7,10 @@ source "$SCRIPT_DIR/cli/lib/common.sh"
 source "$SCRIPT_DIR/cli/lib/config.sh"
 source "$SCRIPT_DIR/cli/lib/runtime.sh"
 
-PASS=0
-FAIL=0
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$TEST_DIR/../lib/assert.sh"
 
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "=== test_config.sh ==="
+suite_header "test_config.sh"
 
 TMPDIR="$(mktemp -d)"
 CONFIG="$TMPDIR/.carranca.yml"
@@ -545,8 +534,56 @@ assert_eq "both configs missing: list returns empty" "" "$items"
 CARRANCA_CONFIG_FILE="$_save_config"
 CARRANCA_GLOBAL_CONFIG="$_save_global"
 
+# --- Test carranca_config_validate_values ---
+
+VALIDATE_CONFIG="$TMPDIR/validate.yml"
+
+# Valid network boolean
+cat > "$VALIDATE_CONFIG" <<'EOF'
+agents:
+  - name: codex
+    command: codex
+runtime:
+  network: true
+EOF
+rc=0; carranca_config_validate_values "$VALIDATE_CONFIG" 2>/dev/null || rc=$?
+assert_eq "validate_values accepts valid network boolean" "0" "$rc"
+
+# Invalid network string (run in subshell — carranca_die calls exit)
+cat > "$VALIDATE_CONFIG" <<'EOF'
+agents:
+  - name: codex
+    command: codex
+runtime:
+  network: maybe
+EOF
+rc=0; (carranca_config_validate_values "$VALIDATE_CONFIG" 2>/dev/null) || rc=$?
+assert_eq "validate_values rejects invalid network value" "1" "$rc"
+
+# Invalid max_duration
+cat > "$VALIDATE_CONFIG" <<'EOF'
+agents:
+  - name: codex
+    command: codex
+policy:
+  max_duration: -5
+EOF
+rc=0; (carranca_config_validate_values "$VALIDATE_CONFIG" 2>/dev/null) || rc=$?
+assert_eq "validate_values rejects negative max_duration" "1" "$rc"
+
+# Invalid cap_add entry
+cat > "$VALIDATE_CONFIG" <<'EOF'
+agents:
+  - name: codex
+    command: codex
+runtime:
+  cap_add:
+    - invalid_lowercase
+EOF
+rc=0; (carranca_config_validate_values "$VALIDATE_CONFIG" 2>/dev/null) || rc=$?
+assert_eq "validate_values rejects lowercase cap_add" "1" "$rc"
+
 rm -rf "$TMPDIR"
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

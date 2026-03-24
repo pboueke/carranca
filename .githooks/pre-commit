@@ -36,7 +36,7 @@ if ! git diff --quiet README.md 2>/dev/null; then
 fi
 
 # Stage generated docs page
-git add doc/index.html doc/page/index.html
+git add doc/page/index.html
 echo "pre-commit: staged generated docs page"
 
 echo "=== pre-commit passed ==="

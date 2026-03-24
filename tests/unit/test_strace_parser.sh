@@ -3,33 +3,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$TEST_DIR/../lib/assert.sh"
 
-PASS=0
-FAIL=0
-
-assert_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -Fq -- "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "=== test_strace_parser.sh ==="
+suite_header "test_strace_parser.sh"
 
 # Setup: mock environment for the parser
 TMPDIR="$(mktemp -d)"
@@ -57,7 +34,7 @@ LINE="$(cat "$LOG_FILE")"
 assert_contains "type is execve_event" '"type":"execve_event"' "$LINE"
 assert_contains "source is strace" '"source":"strace"' "$LINE"
 assert_contains "binary is /usr/bin/ls" '"binary":"/usr/bin/ls"' "$LINE"
-assert_contains "argv contains ls" '["ls", "-la"]' "$LINE"
+assert_contains "argv contains ls" '[\"ls\", \"-la\"]' "$LINE"
 
 # --- Test: pid extraction ---
 echo "--- pid extraction ---"
@@ -96,5 +73,4 @@ assert_eq "empty binary produces no output" "0" "$COUNT"
 rm -rf "$TMPDIR"
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

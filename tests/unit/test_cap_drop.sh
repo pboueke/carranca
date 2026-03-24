@@ -4,43 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-PASS=0
-FAIL=0
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$TEST_DIR/../lib/assert.sh"
 
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -Fq -- "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_not_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if ! echo "$haystack" | grep -Fq -- "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected NOT to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "=== test_cap_drop.sh ==="
+suite_header "test_cap_drop.sh"
 
 # Helper: simulate flag generation logic from cli/run.sh
 _build_cap_drop_flag() {
@@ -94,5 +61,4 @@ assert_not_contains "no --cap-drop when disabled" "--cap-drop" "$COMBINED"
 assert_contains "cap-add still present" "--cap-add SYS_PTRACE" "$COMBINED"
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

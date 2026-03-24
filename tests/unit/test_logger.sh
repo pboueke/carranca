@@ -3,33 +3,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$TEST_DIR/../lib/assert.sh"
 
-PASS=0
-FAIL=0
-
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -Fq "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "=== test_logger.sh ==="
+suite_header "test_logger.sh"
 
 # We cannot source logger.sh directly (it runs as an entrypoint).
 # Instead, extract the functions we need to test and define stubs
@@ -133,12 +110,14 @@ result="$(cat "$LOG_FILE")"
 assert_contains "_handle_file_event tags directory prefix match" '"watched":true' "$result"
 
 # --- Test _start_inotifywait format ---
-# We test that the function is defined and produces correctly formatted events
-# by verifying the inotifywait command format string
+# inotifywait now outputs TSV; JSON is constructed in the post-processing loop.
+# Verify the TSV format and that the JSON construction includes required fields.
 
-inotifywait_format="$(grep -A3 '_start_inotifywait()' "$SCRIPT_DIR/runtime/logger.sh" | grep -- '--format' | head -1)"
-assert_contains "_start_inotifywait uses JSON format" '"type":"file_event"' "$inotifywait_format"
-assert_contains "_start_inotifywait includes source field" '"source":"inotifywait"' "$inotifywait_format"
+inotifywait_format="$(grep -A10 '_start_inotifywait()' "$SCRIPT_DIR/runtime/logger.sh" | grep -- '--format' | head -1 || true)"
+assert_contains "_start_inotifywait uses TSV format" '%e' "$inotifywait_format"
+
+inotifywait_json="$(grep 'file_event.*inotifywait' "$SCRIPT_DIR/runtime/logger.sh" | head -1 || true)"
+assert_contains "_start_inotifywait constructs file_event JSON" 'file_event' "$inotifywait_json"
 
 # --- Test _start_fswatch format ---
 # Verify the function constructs valid JSON events.
@@ -210,5 +189,4 @@ fi
 rm -rf "$TMPDIR"
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

@@ -6,7 +6,7 @@
 # The caller sets STRACE_EVENT_SOURCE to control the "source" field in events.
 
 # shellcheck source=json.sh
-source "${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/lib/json.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/json.sh"
 
 STRACE_EVENT_SOURCE="${STRACE_EVENT_SOURCE:-strace}"
 

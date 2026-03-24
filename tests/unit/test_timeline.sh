@@ -6,21 +6,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$SCRIPT_DIR/cli/lib/log.sh"
 source "$SCRIPT_DIR/cli/lib/timeline.sh"
 
-PASS=0
-FAIL=0
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$TEST_DIR/../lib/assert.sh"
 
-assert_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -Fq "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "=== test_timeline.sh ==="
+suite_header "test_timeline.sh"
 
 TMPDIR="$(mktemp -d)"
 
@@ -123,5 +112,4 @@ assert_contains "unknown shows ? glyph" "?  completely_unknown" "$output"
 rm -rf "$TMPDIR"
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

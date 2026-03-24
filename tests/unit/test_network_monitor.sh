@@ -4,43 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-PASS=0
-FAIL=0
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$TEST_DIR/../lib/assert.sh"
 
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -Fq "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_not_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -Fq "$needle"; then
-    echo "  FAIL: $desc (should not contain '$needle')"
-    FAIL=$((FAIL + 1))
-  else
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  fi
-}
-
-echo "=== test_network_monitor.sh ==="
+suite_header "test_network_monitor.sh"
 
 # Extract network monitor functions from logger.sh
 eval "$(sed -n '/^_hex_to_ip()/,/^}/p' "$SCRIPT_DIR/runtime/logger.sh")"
@@ -146,5 +113,4 @@ assert_eq "non-matching states return empty" "" "$result"
 rm -rf "$TMPDIR"
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

@@ -518,6 +518,7 @@ carranca_runtime_run -d --rm \
   -e "NETWORK_MODE=${NETWORK_MODE:-full}" \
   -e "NETWORK_POLICY_RULES=${NETWORK_POLICY_RULES:-}" \
   -e "INDEPENDENT_OBSERVER=${INDEPENDENT_OBSERVER:-}" \
+  -e "AGENT_GID=$HOST_GID" \
   $SECRETMON_CAP_FLAG \
   $LOGGER_EXTRA_FLAGS \
   "$LOGGER_IMAGE" >/dev/null
@@ -631,13 +632,12 @@ carranca_runtime_run $TTY_FLAGS --rm \
   $EXTRA_FLAGS \
   "$AGENT_IMAGE" || AGENT_EXIT_CODE=$?
 
-# Detect logger loss — if the logger container is gone but the agent exited
-# non-zero, the session lost its audit trail and must fail closed.
-if [ "$AGENT_EXIT_CODE" -ne 0 ]; then
-  LOGGER_RUNNING="$(carranca_runtime_call inspect --format '{{.State.Running}}' "$LOGGER_NAME" 2>/dev/null || true)"
-  if [ "$LOGGER_RUNNING" != "true" ]; then
-    carranca_log error "Logger lost during session — fail closed (audit trail interrupted)"
-  fi
+# Detect logger loss — if the logger container is gone, the session lost its
+# audit trail and must fail closed regardless of agent exit code.
+LOGGER_RUNNING="$(carranca_runtime_call inspect --format '{{.State.Running}}' "$LOGGER_NAME" 2>/dev/null || true)"
+if [ "$LOGGER_RUNNING" != "true" ]; then
+  carranca_log error "Logger lost during session — fail closed (audit trail interrupted)"
+  AGENT_EXIT_CODE=71  # EX_OSERR — audit trail lost
 fi
 
 if carranca_session_is_active "$SESSION_ID"; then

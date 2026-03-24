@@ -4,43 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-PASS=0
-FAIL=0
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$TEST_DIR/../lib/assert.sh"
 
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -Fq "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_not_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if ! echo "$haystack" | grep -Fq "$needle"; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected NOT to contain '$needle')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "=== test_execve_parser.sh ==="
+suite_header "test_execve_parser.sh"
 
 TMPDIR="$(mktemp -d)"
 LOG_FILE="$TMPDIR/test.jsonl"
@@ -78,7 +45,7 @@ assert_contains "contains type execve_event" '"type":"execve_event"' "$OUTPUT"
 assert_contains "contains source strace" '"source":"strace"' "$OUTPUT"
 assert_contains "contains pid 42" '"pid":42' "$OUTPUT"
 assert_contains "contains binary /usr/bin/npm" '"binary":"/usr/bin/npm"' "$OUTPUT"
-assert_contains "contains argv with npm" '"npm", "test"' "$OUTPUT"
+assert_contains "contains argv with npm" '\"npm\", \"test\"' "$OUTPUT"
 assert_contains "contains session_id" '"session_id":"test-session-123"' "$OUTPUT"
 assert_contains "contains timestamp" '"ts":"2026-01-15T12:00:00Z"' "$OUTPUT"
 
@@ -92,7 +59,7 @@ OUTPUT="$(cat "$LOG_FILE")"
 assert_contains "contains type execve_event" '"type":"execve_event"' "$OUTPUT"
 assert_contains "default pid is 0" '"pid":0' "$OUTPUT"
 assert_contains "contains binary /bin/sh" '"binary":"/bin/sh"' "$OUTPUT"
-assert_contains "contains argv with sh" '"/bin/sh", "-c", "echo hello"' "$OUTPUT"
+assert_contains "contains argv with sh" '\"/bin/sh\", \"-c\", \"echo hello\"' "$OUTPUT"
 
 # --- Test: execve with error return (ENOENT) ---
 
@@ -103,7 +70,7 @@ _strace_to_event '[pid 99] execve("/usr/bin/git", ["git", "status"], 0x7fff /* 2
 OUTPUT="$(cat "$LOG_FILE")"
 assert_contains "contains pid 99" '"pid":99' "$OUTPUT"
 assert_contains "contains binary /usr/bin/git" '"binary":"/usr/bin/git"' "$OUTPUT"
-assert_contains "contains argv with git" '"git", "status"' "$OUTPUT"
+assert_contains "contains argv with git" '\"git\", \"status\"' "$OUTPUT"
 
 # --- Test: non-execve lines are skipped ---
 
@@ -122,8 +89,4 @@ assert_eq "no output for non-execve lines" "" "$OUTPUT"
 rm -rf "$TMPDIR"
 
 echo ""
-echo "=== Results: $PASS passed, $FAIL failed ==="
-
-if [ "$FAIL" -gt 0 ]; then
-  exit 1
-fi
+print_results

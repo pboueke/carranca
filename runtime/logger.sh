@@ -266,15 +266,13 @@ _validate_fifo_event() {
 # Initialize seq counter
 echo "0" > "$SEQ_FILE"
 
-# Create FIFO with restricted permissions (owner rw, group write-only).
-# The agent container must run with a UID/GID that has group-write access.
+# Create FIFO. If AGENT_GID is set, restrict to 0620 with the agent's group
+# for write access. Otherwise fall back to 0666 so sessions don't break.
 mkfifo "$FIFO_PATH"
-chmod 0620 "$FIFO_PATH"
-
-# If AGENT_GID is set, ensure the FIFO's group matches the agent's group
-# so the agent process can write events to it.
-if [ -n "${AGENT_GID:-}" ]; then
-  chgrp "$AGENT_GID" "$FIFO_PATH" 2>/dev/null || true
+if [ -n "${AGENT_GID:-}" ] && chgrp "$AGENT_GID" "$FIFO_PATH" 2>/dev/null; then
+  chmod 0620 "$FIFO_PATH"
+else
+  chmod 0666 "$FIFO_PATH"
 fi
 
 # Create log file and try to make it append-only

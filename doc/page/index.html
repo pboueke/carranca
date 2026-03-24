@@ -1632,6 +1632,14 @@ cat &lt;session-id&gt;.tar.sig
 For full `carranca log --verify` replay, restore the extracted `.jsonl`,
 `.hmac-key`, and `.checksums` files into a Carranca session state directory.
 
+### Archive signature limitations
+
+The archive signature proves consistency with the session's HMAC chain, not
+independent authenticity. The HMAC key lives alongside the log in `/state/`, so
+anyone with `/state/` access can produce valid signatures. For true
+non-repudiation, asymmetric signing (ed25519) with an external key would be
+needed.
+
 ### `heartbeat`
 
 Periodic liveness check from the shell wrapper (every 30s).
@@ -1971,6 +1979,30 @@ evidence.
       <summary>Changelog <span class="desc">Release history and version source of truth</span></summary>
       <div class="doc-content">
         <pre class="doc-markdown-static">
+## [0.15.2] - 2026-03-24
+
+- fix: **JSON injection** — RFC 8259 compliant `json_escape()` in new shared `runtime/lib/json.sh`; applied to all JSON producers: fanotify-watcher.c, strace-parser.sh, observer.sh, logger.sh, shell-wrapper.sh
+- fix: **fanotify-watcher.c** — add `json_escape_string()` C function for path escaping; harden readlink bounds check; skip events on buffer overflow
+- fix: **network-setup.sh fail-closed** — exit 1 when iptables is unavailable or fails instead of silently running with full network access; opt-in `CARRANCA_NETWORK_ALLOW_DEGRADED` preserves old behavior
+- fix: **DNS egress restriction** — filtered network mode now pins DNS (port 53) to container resolver IPs from `/etc/resolv.conf` instead of allowing any destination
+- fix: **config parser fail-closed** — abort when security-critical nested keys (`runtime.network.default`, `policy.filesystem.*`, `policy.resource_limits.*`) are present but yq is unavailable
+- fix: **extra_flags validation** — allowlist for `runtime.extra_flags` and `runtime.logger_extra_flags`; blocks `--privileged`, `--cap-add`, `--security-opt`, etc.; override with `--trust-repo-flags`
+- fix: **config value validation** — `runtime.network`, `policy.max_duration`, `runtime.cap_add`, `runtime.seccomp_profile`, `runtime.apparmor_profile` now validated at startup
+- fix: **symlink resolution in watched paths** — `realpath` resolves symlinks before bind-mount setup; paths resolving outside workspace are rejected
+- fix: **seccomp denylist expansion** — 28 additional blocked syscalls including bpf, io_uring, userfaultfd, keyctl, perf_event_open, kexec, process_vm_readv/writev
+- fix: **AppArmor profile tightened** — removed blanket `/** r` read; granular read allowlist for runtime dependencies; added deny rules for /etc/shadow, /root, /proc/kcore, /sys/firmware
+- fix: **fail-closed logging** — FIFO timeout and mid-session logger loss now report "fail closed" reason in output
+- fix: **logger.sh JSON guards** — write_log and _handle_file_event verify line ends with `}` before string surgery; inotifywait switched from JSON --format to TSV post-processing for safe path escaping
+- fix: **checksum file protection** — `chattr +a` attempted on checksum file; checksum chain added (each entry hashes previous entry); backwards-compatible verification
+- fix: **session ID entropy** — increased from 32 bits (8 hex chars) to 64 bits (16 hex chars)
+- fix: **millisecond timestamps** — all event producers now use `%S.%3NZ`; FIFO validation tightened to ±2s future / 30s regression
+- fix: **FIFO permissions** — changed from 0666 to 0620 (owner rw, group write)
+- fix: **observer token validation** — hex-only check (`[0-9a-fA-F]+`) before interpolation in strace-parser.sh and observer.sh
+- docs: archive signature limitations documented in code and session-log.md
+- docs: session ID and timestamp format updates across architecture.md, session-log.md, page/index.html
+- test: 652 tests, 33 suites, 0 failures, 93% function coverage
+- test: new tests for json_escape (9), json_validate_line (4), config parser fail-closed (4), FIFO permissions, millisecond timestamps
+
 ## [0.15.1] - 2026-03-24
 
 - docs: rename `doc/vision.md` to `doc/objective.md` and rewrite it around current positioning, target users, non-goals, and comparison with other sandbox models

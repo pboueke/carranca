@@ -5,33 +5,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$SCRIPT_DIR/cli/lib/common.sh"
 source "$SCRIPT_DIR/cli/lib/identity.sh"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$TEST_DIR/../lib/assert.sh"
 
-PASS=0
-FAIL=0
-
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_match() {
-  local desc="$1" pattern="$2" actual="$3"
-  if [[ "$actual" =~ $pattern ]]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected match '$pattern', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "=== test_identity.sh ==="
+suite_header "test_identity.sh"
 
 # Test repo_id produces 12 hex chars
 TMPDIR_A="$(mktemp -d)"
@@ -76,5 +53,4 @@ assert_eq "repo_name matches directory basename" "$expected_name" "$name"
 rm -rf "$TMPDIR_A" "$TMPDIR_B"
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results

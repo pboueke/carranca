@@ -4,33 +4,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$TEST_DIR/../lib/assert.sh"
 
-PASS=0
-FAIL=0
-
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected '$expected', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-assert_match() {
-  local desc="$1" pattern="$2" actual="$3"
-  if [[ "$actual" =~ $pattern ]]; then
-    echo "  PASS: $desc"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $desc (expected match '$pattern', got '$actual')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "=== test_runtime_helpers.sh ==="
+suite_header "test_runtime_helpers.sh"
 
 # --- shell-wrapper.sh helpers ---
 # Source the shared JSON library (same one shell-wrapper.sh uses)
@@ -157,7 +134,7 @@ mkfifo "$FIFO_PATH"
 chmod 0620 "$FIFO_PATH"
 
 FIFO_MODE="$(stat -c '%a' "$FIFO_PATH")"
-assert_eq "logger FIFO is owner-rw group-write" "620" "$FIFO_MODE"
+assert_eq "FIFO supports restricted mode (0620)" "620" "$FIFO_MODE"
 
 write_event() {
   printf '%s\n' "$1" > "$FIFO_PATH" 2>/dev/null
@@ -353,5 +330,4 @@ rm -f "$RUNTIME_LOG"
 rm -rf "$TMPDIR"
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] || exit 1
+print_results
