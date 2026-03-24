@@ -4,28 +4,23 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export CARRANCA_HOME="$SCRIPT_DIR"
-RUNTIME="${CARRANCA_CONTAINER_RUNTIME:-podman}"
+source "$SCRIPT_DIR/tests/lib/integration.sh"
 
 PASS=0
 FAIL=0
 
+integration_init
+trap integration_cleanup EXIT
+
 echo "=== test_fail_closed.sh (requires $RUNTIME) ==="
 
-# Check runtime is available
-if ! "$RUNTIME" info >/dev/null 2>&1; then
-  echo "  SKIP: $RUNTIME not available"
-  exit 0
-fi
+integration_require_runtime
 
 # Test 1: carranca run without Docker running
 # (Can't easily test this without stopping Docker, so we test other preconditions)
 
 # Test 2: carranca run without .carranca.yml
-TMPDIR="$(mktemp -d)"
-TMPSTATE="$(mktemp -d)"
-export CARRANCA_STATE="$TMPSTATE"
-cd "$TMPDIR"
-git init --quiet
+integration_create_repo
 
 if bash "$CARRANCA_HOME/cli/run.sh" 2>/dev/null; then
   echo "  FAIL: run without .carranca.yml should fail"
@@ -265,9 +260,6 @@ else
     FAIL=$((FAIL + 1))
   fi
 fi
-
-# Cleanup
-rm -rf "$TMPDIR" "$TMPSTATE"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
