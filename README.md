@@ -5,7 +5,7 @@
   <h1>Carranca</h1>
 
   <p>
-    <img src="https://img.shields.io/badge/version-0.15.0-blue" alt="version: 0.15.0" />
+    <img src="https://img.shields.io/badge/version-0.15.1-blue" alt="version: 0.15.1" />
     <img src="https://img.shields.io/badge/tests-562%2F562_passed-brightgreen" alt="tests: 562/562 passed" />
     <img src="https://img.shields.io/badge/coverage-100%25_(99%2F99_functions)-brightgreen" alt="coverage: 100%" />
   </p>
@@ -98,7 +98,7 @@ Run `carranca help <command>` for command-specific options. See
 | [Configuration](doc/configuration.md) | `.carranca.yml` reference, Containerfile, init flags |
 | [Session log](doc/session-log.md) | JSONL schema, event types, `jq` query examples |
 | [Trust model](doc/trust-model.md) | Threat table, failure behavior, honest scope |
-| [Vision](doc/vision.md) | Current product position, future phases, and target audiences |
+| [Objective](doc/objective.md) | Current product position, intended users, non-goals, and comparison with other sandbox models |
 | [Versioning](doc/versioning.md) | Semver policy, changelog format |
 
 ## Platform support

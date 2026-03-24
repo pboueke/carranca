@@ -149,7 +149,7 @@ This creates two files alongside the session log:
 
 The tar archive bundles the `.jsonl`, `.hmac-key`, and `.checksums` files. The
 `.sig` file contains an HMAC-SHA256 signature of the tar computed with the
-session key. If the HMAC key is missing (pre-Phase 2 sessions), the signature
+session key. If the HMAC key is missing (older sessions), the signature
 is an unsigned SHA-256 digest.
 
 To verify an exported archive independently:
@@ -227,7 +227,7 @@ logger container.
 
 ### `policy_event`
 
-Policy enforcement events produced by Phase 4 enforcement mechanisms. These
+Policy enforcement events produced by Carranca's enforcement mechanisms. These
 record when policies are configured, enforced, violated, or degraded.
 
 ```json

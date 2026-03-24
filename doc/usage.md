@@ -198,7 +198,7 @@ runtime:
     default: deny
     allow:
       - registry.npmjs.org:443
-  # Phase 5 hardening (these are all defaults, shown for clarity)
+  # Hardening defaults (shown for clarity)
   cap_drop_all: true
   read_only: true
   seccomp_profile: default

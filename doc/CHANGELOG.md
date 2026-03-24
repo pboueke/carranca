@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.1] - 2026-03-24
+
+- docs: rename `doc/vision.md` to `doc/objective.md` and rewrite it around current positioning, target users, non-goals, and comparison with other sandbox models
+- docs: remove phased-development framing from all docs except `doc/roadmap.md`; present Carranca as a current-state runtime across README, trust model, usage, session log, and generated reference page
+- docs: restructure the trust model so limitations and non-goals no longer list already-shipped capabilities under "does not provide"
+- docs: regenerate `doc/page/index.html` from the updated markdown sources
+- docs: add search/social metadata and JSON-LD to the generated docs page for better discoverability without hidden text
+
 ## [0.15.0] - 2026-03-24
 
 - feat: **capability drop** — `runtime.cap_drop_all: true` (default) adds `--cap-drop ALL` to the agent container; `runtime.cap_add` becomes a strict allowlist applied after the drop
@@ -13,7 +21,7 @@
 - feat: `integrity_event` JSONL event type with `reason` and `raw_source` fields; `!` glyph in `--timeline`
 - feat: observer lifecycle events (`observer_start`, `observer_stop`) in session log
 - feat: session cleanup updated to stop observer container between agent and logger teardown
-- docs: all Phase 5 roadmap items (5.1–5.5) marked complete
+- docs: roadmap updated to reflect completed hardening work
 - docs: trust model updated — design assumption expanded for untrusted agents; threat table reflects honest scope of each mitigation
 - docs: architecture updated with observer sidecar and agent hardening flags
 - docs: session-log updated with `integrity_event` type, observer source provenance, and cross-reference reasons
@@ -35,10 +43,10 @@
 - feat: rootless Podman graceful degradation for network policies (falls back to `--network=none`; clears policy env vars so logger does not emit false-positive enforcement events)
 - feat: `policy.*` keys added to global config fallback alongside `runtime.*`, `volumes.*`, and `observability.*`
 - docs: `policy_event` documented in session-log.md with field reference and provenance table entries for `pre-commit-hook` and `network-setup` sources
-- docs: all Phase 4 policy fields documented in configuration.md; `runtime.network.default` restricted to `deny` only
+- docs: all policy fields documented in configuration.md; `runtime.network.default` restricted to `deny` only
 - docs: trust model updated — "Technical policy enforcement" moved from "Not provided" to "Provided"
 - docs: architecture.md updated with `network-setup.sh` conditional entrypoint
-- docs: all Phase 4 roadmap items (4.1–4.5) marked complete
+- docs: roadmap updated to reflect completed policy-enforcement work
 - docs: move the changelog to `doc/CHANGELOG.md` and update contributor/versioning docs to use the new canonical path
 - test: 504 tests, 23 unit suites, 100% function coverage
 - test: new suites — `test_policy_resource_limits.sh`, `test_policy_timer.sh`, `test_policy_filesystem.sh`, `test_policy_hooks.sh`, `test_policy_network.sh`
@@ -54,10 +62,10 @@
 - feat: add `observability.*` config namespace with global fallback support
 - feat: PID namespace sharing (`--pid=container`) when execve tracing or network logging is enabled
 - feat: multi-stage Containerfile.logger build for fanotify-watcher C binary
-- docs: add Phase 3 event types to session-log.md (execve_event, network_event, resource_event, file_access_event)
+- docs: add observability event types to session-log.md (execve_event, network_event, resource_event, file_access_event)
 - docs: update trust model with deep observability capabilities and updated threat table
 - docs: add observability config keys to configuration.md
-- docs: mark all Phase 3 roadmap items (3.1–3.5) as complete
+- docs: roadmap updated to reflect completed observability work
 - test: add coverage for timeline rendering, strace parser, network monitor, resource sampler, and fanotify integration
 - test: 392 tests, 17 suites, 0 failures
 
@@ -74,7 +82,7 @@
 - fix: install OpenCode from the official release binary instead of the broken npm wrapper package
 - docs: update trust model with verified audit evidence, HMAC chain, checksum hardening, and log export
 - docs: add event provenance trust table to session-log.md
-- docs: mark all Phase 2 roadmap items as complete
+- docs: roadmap updated to reflect completed audit-trail work
 - docs: document `opencode` starter and adapter support across README and configuration docs
 - docs: add `doc/vision.md` and link it from the README documentation index
 - test: add coverage for HMAC functions, checksum verification, export archive, and provenance tagging

@@ -37,26 +37,26 @@ cross-referencing to detect unreported or forged activity.
 | Seccomp filtering | Hard boundary | Default seccomp profile blocks dangerous syscalls (ptrace, mount, unshare, module loading, etc.) |
 | AppArmor confinement | Opt-in hardening | Reference AppArmor profile restricts file access, mounts, and ptrace; user must load and configure |
 
-## What carranca does NOT provide
+## Current limitations and non-goals
 
-| Property | Status | Path to resolution |
-|----------|--------|--------------------|
-| Verified audit evidence | Provided | HMAC-signed event chain + checksum file (Phase 2) |
-| Complete operation capture | Provided | execve tracing via strace (Phase 3); requires `observability.execve_tracing: true` |
-| Forgery resistance | Provided | FIFO validation detects structural/temporal forgery; observer events authenticated via token; cross-referencing is best-effort anomaly detection for human review (Phase 5) |
-| Secret read monitoring | Provided | fanotify captures file reads on `watched_paths` (Phase 3); requires `observability.secret_monitoring: true` |
-| Technical policy enforcement | Provided | Resource limits, time-boxed sessions, filesystem access control, git policy hooks, network filtering (Phase 4) |
-| Capability hardening | Provided | All Linux capabilities dropped by default; agent runs with minimal privileges (Phase 5) |
-| Cross-platform file events | Supported | inotifywait (Linux) with fswatch fallback |
+| Limitation | Status | Notes |
+|------------|--------|-------|
+| Formal proof of agent honesty | Not provided | FIFO validation, token-authenticated observer events, and cross-referencing raise evidence quality, but the end-of-session matching remains a best-effort heuristic for human review |
+| Remote attestation of the host, kernel, or container runtime | Not provided | Carranca trusts the operator-controlled machine and runtime; it does not produce third-party-verifiable attestation today |
+| Complete semantic capture of every file change | Not provided | Carranca logs shell activity, execve events, file mutations, and watched-path reads, but it does not record a syscall-level proof of every byte written |
+| Guaranteed fine-grained egress filtering in every runtime mode | Partially provided | Filtered allow-lists use iptables and require a mode that can apply those rules; rootless Podman falls back to `--network=none` instead of filtered allow-list enforcement |
+| Strong cross-platform parity | Not provided | Linux has the most complete observability and enforcement model; macOS and Windows remain experimental |
+| Protection from a malicious host operator or host root | Not provided | A host user with sufficient privilege can alter the runtime environment, inspect mounts, or interfere with containers outside Carranca's boundary |
+| Prevention of bad code or bad intent | Not provided | Carranca constrains and records agent behavior; it does not decide whether the resulting code is safe or correct |
 
 ## Threat table
 
 | Threat | Status | Notes |
 |--------|--------|-------|
 | Agent edits/deletes session log | Mitigated | Agent container has no mount to log directory |
-| Agent forges shell events via FIFO | Partially mitigated | Structural/temporal validation detects malformed forgeries (Phase 5); observer events are token-authenticated; cross-referencing flags timing anomalies but uses a ±3s heuristic |
+| Agent forges shell events via FIFO | Partially mitigated | Structural/temporal validation detects malformed forgeries; observer events are token-authenticated; cross-referencing flags timing anomalies but uses a ±3s heuristic |
 | Agent suppresses events (kills FIFO) | Mitigated | Shell wrapper exits on broken pipe → agent stops |
-| Agent bypasses shell wrapper | Partially mitigated | Independent observer captures execve calls from outside agent namespace; cross-referencing flags unreported activity as a heuristic for review (Phase 5). Observer must attach to the container init process to trace all descendants |
+| Agent bypasses shell wrapper | Partially mitigated | Independent observer captures execve calls from outside agent namespace; cross-referencing flags unreported activity as a heuristic for review. Observer must attach to the container init process to trace all descendants |
 | Agent reads secrets from repo | Mitigated | fanotify captures file reads on `watched_paths` when `observability.secret_monitoring: true` |
 | Agent exfiltrates over network | Partially mitigated | Network logging records outbound connections; set `runtime.network: false` to disable entirely |
 | Agent writes malicious code | Allowed by design | Review via session log + git diff |

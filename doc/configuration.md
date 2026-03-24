@@ -250,7 +250,7 @@ runtime:
 
 ## Configuration examples
 
-The examples below map the roles in [vision.md](vision.md) to concrete Carranca
+The examples below map the personas in [objective.md](objective.md) to concrete Carranca
 setups. Each one includes both `.carranca.yml` and `.carranca/Containerfile`
 because operator intent affects both runtime policy and the tools installed in
 the agent image.
