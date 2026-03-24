@@ -15,7 +15,7 @@ NETWORK_INTERVAL="${NETWORK_INTERVAL:-5}"
 OBSERVER_TOKEN=""
 
 timestamp() {
-  date -u +%Y-%m-%dT%H:%M:%SZ
+  date -u +%Y-%m-%dT%H:%M:%S.%3NZ
 }
 
 # Read the observer authentication token from /state/ (written by logger).
@@ -26,7 +26,15 @@ _read_observer_token() {
   while [ "$attempts" -lt 30 ]; do
     if [ -f "$token_file" ]; then
       OBSERVER_TOKEN="$(cat "$token_file" 2>/dev/null)"
-      [ -n "$OBSERVER_TOKEN" ] && return 0
+      if [ -n "$OBSERVER_TOKEN" ]; then
+        # Validate token is hex-only (reject injection attempts)
+        if [[ ! "$OBSERVER_TOKEN" =~ ^[0-9a-fA-F]+$ ]]; then
+          echo "observer: token contains non-hex characters, rejecting" >&2
+          OBSERVER_TOKEN=""
+          return 1
+        fi
+        return 0
+      fi
     fi
     sleep 0.5
     attempts=$((attempts + 1))
@@ -35,8 +43,10 @@ _read_observer_token() {
   return 1
 }
 
-# Source the shared strace parser
+# Source shared libraries
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/json.sh
+source "$SCRIPT_DIR/lib/json.sh"
 STRACE_EVENT_SOURCE="observer"
 STRACE_WRITE_FIFO="true"
 # shellcheck source=lib/strace-parser.sh
@@ -106,7 +116,7 @@ _start_observer_tracer() {
   local agent_pid="$1"
 
   if ! command -v strace >/dev/null 2>&1; then
-    local deg="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"degraded\",\"reason\":\"strace_unavailable\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
+    local deg="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$(json_escape "$SESSION_ID")\",\"event\":\"degraded\",\"reason\":\"strace_unavailable\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
     printf '%s\n' "$deg" > "$FIFO_PATH"
     return
   fi
@@ -185,7 +195,7 @@ _start_observer_network_monitor() {
   local net_tcp6="/proc/$agent_pid/net/tcp6"
 
   if [ ! -r "$net_tcp" ]; then
-    local deg="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"degraded\",\"reason\":\"network_logging_unavailable\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
+    local deg="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$(json_escape "$SESSION_ID")\",\"event\":\"degraded\",\"reason\":\"network_logging_unavailable\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
     printf '%s\n' "$deg" > "$FIFO_PATH"
     return
   fi
@@ -205,7 +215,7 @@ _start_observer_network_monitor() {
     new_conns="$(comm -23 "$current_file" "$prev_file")"
     if [ -n "$new_conns" ]; then
       while IFS=' ' read -r ip port state; do
-        local event="{\"type\":\"network_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"dest_ip\":\"$ip\",\"dest_port\":$port,\"protocol\":\"tcp\",\"state\":\"$state\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
+        local event="{\"type\":\"network_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$(json_escape "$SESSION_ID")\",\"dest_ip\":\"$(json_escape "$ip")\",\"dest_port\":$port,\"protocol\":\"tcp\",\"state\":\"$(json_escape "$state")\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
         printf '%s\n' "$event" > "$FIFO_PATH"
       done <<< "$new_conns"
     fi
@@ -228,12 +238,12 @@ _read_observer_token || {
 
 AGENT_PID=""
 AGENT_PID="$(_find_agent_host_pid)" || {
-  DEG="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"degraded\",\"reason\":\"agent_pid_not_found\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
+  DEG="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$(json_escape "$SESSION_ID")\",\"event\":\"degraded\",\"reason\":\"agent_pid_not_found\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
   printf '%s\n' "$DEG" > "$FIFO_PATH"
   exit 0
 }
 
-OBSERVER_START="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"observer_start\",\"agent_pid\":$AGENT_PID,\"_observer_token\":\"$OBSERVER_TOKEN\"}"
+OBSERVER_START="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$(json_escape "$SESSION_ID")\",\"event\":\"observer_start\",\"agent_pid\":$AGENT_PID,\"_observer_token\":\"$OBSERVER_TOKEN\"}"
 printf '%s\n' "$OBSERVER_START" > "$FIFO_PATH"
 
 TRACER_PID=""
@@ -258,7 +268,7 @@ done
 [ -n "$TRACER_PID" ] && kill "$TRACER_PID" 2>/dev/null || true
 [ -n "$NETMON_PID" ] && kill "$NETMON_PID" 2>/dev/null || true
 
-OBSERVER_STOP="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"event\":\"observer_stop\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
+OBSERVER_STOP="{\"type\":\"session_event\",\"source\":\"observer\",\"ts\":\"$(timestamp)\",\"session_id\":\"$(json_escape "$SESSION_ID")\",\"event\":\"observer_stop\",\"_observer_token\":\"$OBSERVER_TOKEN\"}"
 printf '%s\n' "$OBSERVER_STOP" > "$FIFO_PATH" 2>/dev/null || true
 
 exit 0

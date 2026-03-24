@@ -37,7 +37,7 @@ SESSION_ID="test1234"
 LOG_FILE="$TMPDIR/test.jsonl"
 
 timestamp() {
-  date -u +%Y-%m-%dT%H:%M:%SZ
+  date -u +%Y-%m-%dT%H:%M:%S.%3NZ
 }
 
 write_log() {

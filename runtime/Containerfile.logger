@@ -14,6 +14,7 @@ RUN apk add --no-cache \
       strace
 
 COPY --from=builder /tmp/fanotify-watcher /usr/local/bin/fanotify-watcher
+COPY lib/json.sh /usr/local/bin/lib/json.sh
 COPY lib/strace-parser.sh /usr/local/bin/lib/strace-parser.sh
 COPY logger.sh /usr/local/bin/logger.sh
 COPY observer.sh /usr/local/bin/observer.sh

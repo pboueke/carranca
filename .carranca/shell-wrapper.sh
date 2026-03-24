@@ -17,7 +17,7 @@ AGENT_COMMAND="${AGENT_COMMAND:-bash}"
 # --- Helpers ---
 
 timestamp() {
-  date -u +%Y-%m-%dT%H:%M:%SZ
+  date -u +%Y-%m-%dT%H:%M:%S.%3NZ
 }
 
 ms_now() {

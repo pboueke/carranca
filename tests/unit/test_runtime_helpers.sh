@@ -33,13 +33,10 @@ assert_match() {
 echo "=== test_runtime_helpers.sh ==="
 
 # --- shell-wrapper.sh helpers ---
-# Source only the pure functions (override FIFO-dependent parts)
+# Source the shared JSON library (same one shell-wrapper.sh uses)
+source "$SCRIPT_DIR/runtime/lib/json.sh"
 
-# json_escape: escapes backslashes, quotes, tabs and strips newlines
-json_escape() {
-  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr -d '\n'
-}
-
+# json_escape: RFC 8259 compliant escaping
 val="$(json_escape 'hello "world"')"
 assert_eq "json_escape escapes double quotes" 'hello \"world\"' "$val"
 
@@ -52,13 +49,48 @@ assert_eq "json_escape escapes tabs" 'tab\there' "$val"
 val="$(json_escape 'no special chars')"
 assert_eq "json_escape passes plain text through" 'no special chars' "$val"
 
-# timestamp: produces ISO 8601 UTC
+val="$(json_escape "")"
+assert_eq "json_escape handles empty string" '' "$val"
+
+val="$(json_escape "line1
+line2")"
+assert_eq "json_escape escapes newlines" 'line1\nline2' "$val"
+
+val="$(json_escape "$(printf 'ret\rhere')")"
+assert_eq "json_escape escapes carriage return" 'ret\rhere' "$val"
+
+val="$(json_escape "$(printf 'ctrl\x01char')")"
+assert_eq "json_escape escapes control char U+0001" 'ctrl\u0001char' "$val"
+
+val="$(json_escape "$(printf 'a\tb\nc\"d\\e\x02f')")"
+assert_eq "json_escape handles combined special chars" 'a\tb\nc\"d\\e\u0002f' "$val"
+
+# json_validate_line
+json_validate_line '{"type":"test"}'
+assert_eq "json_validate_line accepts valid JSON object" "0" "$?"
+
+json_validate_line '  {"spaced": true}  '
+assert_eq "json_validate_line accepts padded JSON object" "0" "$?"
+
+if json_validate_line '"not an object"'; then
+  assert_eq "json_validate_line rejects non-object" "0" "1"
+else
+  assert_eq "json_validate_line rejects non-object" "0" "0"
+fi
+
+if json_validate_line ''; then
+  assert_eq "json_validate_line rejects empty string" "0" "1"
+else
+  assert_eq "json_validate_line rejects empty string" "0" "0"
+fi
+
+# timestamp: produces ISO 8601 UTC with milliseconds
 timestamp() {
-  date -u +%Y-%m-%dT%H:%M:%SZ
+  date -u +%Y-%m-%dT%H:%M:%S.%3NZ
 }
 
 ts="$(timestamp)"
-assert_match "timestamp is ISO 8601 UTC" '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' "$ts"
+assert_match "timestamp is ISO 8601 UTC with millis" '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$' "$ts"
 
 # ms_now: produces millisecond or second epoch
 ms_now() {
@@ -122,10 +154,10 @@ assert_match "write_log preserves JSON fields" '"msg":"first"' "$(sed -n '1p' "$
 
 FIFO_PATH="$TMPDIR/fifo"
 mkfifo "$FIFO_PATH"
-chmod 0666 "$FIFO_PATH"
+chmod 0620 "$FIFO_PATH"
 
 FIFO_MODE="$(stat -c '%a' "$FIFO_PATH")"
-assert_eq "logger FIFO is world-readable and writable" "666" "$FIFO_MODE"
+assert_eq "logger FIFO is owner-rw group-write" "620" "$FIFO_MODE"
 
 write_event() {
   printf '%s\n' "$1" > "$FIFO_PATH" 2>/dev/null
@@ -198,7 +230,7 @@ fi
 FIFO_TEST_DIR="$(mktemp -d)"
 FIFO_PATH="$FIFO_TEST_DIR/events"
 mkfifo "$FIFO_PATH"
-chmod 0666 "$FIFO_PATH"
+chmod 0620 "$FIFO_PATH"
 
 source /dev/stdin <<FIFO_FUNC
 $(grep -A3 '^fifo_is_healthy()' "$SCRIPT_DIR/runtime/shell-wrapper.sh")

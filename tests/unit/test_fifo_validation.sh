@@ -55,7 +55,7 @@ echo "0" > "$SEQ_FILE"
 SESSION_ID="test1234"
 
 timestamp() {
-  date -u +%Y-%m-%dT%H:%M:%SZ
+  date -u +%Y-%m-%dT%H:%M:%S.%3NZ
 }
 
 _ts_to_epoch() {
@@ -137,13 +137,13 @@ _validate_fifo_event() {
         if [ "$event_epoch" -lt "$start_epoch" ] 2>/dev/null; then
           issues="${issues:+$issues,}timestamp_before_session"
         fi
-        if [ "$((event_epoch - now_epoch))" -gt 5 ] 2>/dev/null; then
+        if [ "$((event_epoch - now_epoch))" -gt 2 ] 2>/dev/null; then
           issues="${issues:+$issues,}timestamp_future"
         fi
         if [ -n "$PREV_FIFO_TS" ]; then
           local prev_epoch
           prev_epoch="$(_ts_to_epoch "$PREV_FIFO_TS")"
-          if [ "$prev_epoch" -gt 0 ] 2>/dev/null && [ "$((prev_epoch - event_epoch))" -gt 60 ] 2>/dev/null; then
+          if [ "$prev_epoch" -gt 0 ] 2>/dev/null && [ "$((prev_epoch - event_epoch))" -gt 30 ] 2>/dev/null; then
             issues="${issues:+$issues,}timestamp_regression"
           fi
         fi

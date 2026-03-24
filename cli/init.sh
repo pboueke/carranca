@@ -87,9 +87,11 @@ cp "$CARRANCA_HOME/skills/plan/SKILL.md" ".carranca/skills/carranca/plan/SKILL.m
 cp "$CARRANCA_HOME/skills/confiskill/SKILL.md" ".carranca/skills/carranca/confiskill/SKILL.md"
 carranca_log info "Created .carranca/skills/"
 
-# Copy agent Containerfile and shell wrapper
+# Copy agent Containerfile, shell wrapper, and shared libraries
 cp "$CARRANCA_HOME/templates/Containerfile" ".carranca/Containerfile"
 cp "$CARRANCA_HOME/runtime/shell-wrapper.sh" ".carranca/shell-wrapper.sh"
+mkdir -p ".carranca/lib"
+cp "$CARRANCA_HOME/runtime/lib/json.sh" ".carranca/lib/json.sh"
 
 # Inject agent snippet into Containerfile and set command in config
 SNIPPET="$CARRANCA_HOME/templates/agents/${AGENT}.containerfile"

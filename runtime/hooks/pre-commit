@@ -10,7 +10,7 @@ POLICY_DOCS_BEFORE_CODE="${POLICY_DOCS_BEFORE_CODE:-off}"
 POLICY_TESTS_BEFORE_IMPL="${POLICY_TESTS_BEFORE_IMPL:-off}"
 
 timestamp() {
-  date -u +%Y-%m-%dT%H:%M:%SZ
+  date -u +%Y-%m-%dT%H:%M:%S.%3NZ
 }
 
 write_policy_event() {

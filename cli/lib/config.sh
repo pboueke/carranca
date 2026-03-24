@@ -184,6 +184,46 @@ carranca_config_check_parser_compatibility() {
     issues=$((issues + 1))
   fi
 
+  # Fail closed: security-critical nested keys require yq for correct parsing.
+  # The awk fallback cannot reliably parse 2+-level nesting; misparse here
+  # could silently weaken network isolation, filesystem, or resource policies.
+  local security_key_prefixes=(
+    "runtime.network.default"
+    "runtime.network.allow"
+    "policy.filesystem."
+    "policy.resource_limits."
+  )
+  local yaml_prefixes=(
+    "network:"       # under runtime: → network: → default:/allow:
+    "filesystem:"    # under policy: → filesystem:
+    "resource_limits:" # under policy: → resource_limits:
+  )
+  local found_security_keys=0
+  local prefix
+  for prefix in "${yaml_prefixes[@]}"; do
+    if grep -qE "^[[:space:]]+${prefix}" "$file" 2>/dev/null; then
+      # Confirm parent context to reduce false positives
+      case "$prefix" in
+        "network:")
+          # Only flag if there are nested keys under runtime.network (default/allow)
+          if grep -qE '^[[:space:]]+(default|allow):' "$file" 2>/dev/null; then
+            found_security_keys=1
+            break
+          fi
+          ;;
+        *)
+          found_security_keys=1
+          break
+          ;;
+      esac
+    fi
+  done
+
+  if [ "$found_security_keys" -eq 1 ]; then
+    carranca_log error "ERROR: Security configuration requires 'yq' for correct parsing. Install yq or flatten the config. Refusing to proceed with potentially incorrect security settings."
+    return 1
+  fi
+
   return 0
 }
 
@@ -422,6 +462,70 @@ carranca_config_network_mode() {
   esac
 }
 
+# Validate configuration values for correctness and safety.
+# Called after structural validation to catch bad values early.
+carranca_config_validate_values() {
+  local file="${1:-$CARRANCA_CONFIG_FILE}"
+
+  # --- runtime.network: must be true, false, or an object (has sub-keys) ---
+  local net_val
+  net_val="$(carranca_config_get runtime.network "$file" 2>/dev/null || true)"
+  if [ -n "$net_val" ]; then
+    case "$net_val" in
+      true|false) ;;  # valid booleans
+      *)
+        # Check if it's an object form (has sub-keys like .default)
+        local net_default
+        net_default="$(carranca_config_get runtime.network.default "$file" 2>/dev/null || true)"
+        if [ -z "$net_default" ]; then
+          carranca_die "Invalid runtime.network value '$net_val' in $file — must be 'true', 'false', or an object with sub-keys (e.g., runtime.network.default: deny)"
+        fi
+        ;;
+    esac
+  fi
+
+  # --- policy.max_duration: must be a positive integer ---
+  local max_dur
+  max_dur="$(carranca_config_get policy.max_duration "$file" 2>/dev/null || true)"
+  if [ -n "$max_dur" ]; then
+    if ! [[ "$max_dur" =~ ^[1-9][0-9]*$ ]]; then
+      carranca_die "Invalid policy.max_duration value '$max_dur' in $file — must be a positive integer (seconds)"
+    fi
+  fi
+
+  # --- runtime.cap_add: entries must be valid Linux capability names ---
+  local cap
+  while IFS= read -r cap; do
+    [ -z "$cap" ] && continue
+    if ! [[ "$cap" =~ ^[A-Z_]+$ ]]; then
+      carranca_die "Invalid runtime.cap_add entry '$cap' in $file — must be a valid Linux capability name (e.g., SYS_PTRACE, NET_ADMIN)"
+    fi
+  done < <(carranca_config_get_list runtime.cap_add "$file" 2>/dev/null || true)
+
+  # --- runtime.seccomp_profile: if a path, must point to an existing file ---
+  local seccomp
+  seccomp="$(carranca_config_get runtime.seccomp_profile "$file" 2>/dev/null || true)"
+  if [ -n "$seccomp" ] && [ "$seccomp" != "default" ] && [ "$seccomp" != "unconfined" ]; then
+    if [ ! -f "$seccomp" ]; then
+      carranca_die "runtime.seccomp_profile points to a non-existent file: $seccomp"
+    fi
+  fi
+
+  # --- runtime.apparmor_profile: if a path (contains /), must point to an existing file ---
+  local apparmor
+  apparmor="$(carranca_config_get runtime.apparmor_profile "$file" 2>/dev/null || true)"
+  if [ -n "$apparmor" ] && [ "$apparmor" != "unconfined" ]; then
+    case "$apparmor" in
+      /*)
+        # Absolute path — must exist as a file
+        if [ ! -f "$apparmor" ]; then
+          carranca_die "runtime.apparmor_profile points to a non-existent file: $apparmor"
+        fi
+        ;;
+    esac
+  fi
+}
+
 carranca_config_validate() {
   local file="${1:-$CARRANCA_CONFIG_FILE}"
   local count name command adapter network engine
@@ -464,5 +568,9 @@ carranca_config_validate() {
     carranca_die "Unsupported runtime.engine in $file: $engine (expected auto, docker, or podman)"
   fi
 
-  carranca_config_check_parser_compatibility "$file"
+  if ! carranca_config_check_parser_compatibility "$file"; then
+    carranca_die "Config parser compatibility check failed — aborting"
+  fi
+
+  carranca_config_validate_values "$file"
 }

@@ -5,6 +5,9 @@
 # Requires: $SESSION_ID, timestamp(), write_log() or a FIFO_PATH to be set by the caller.
 # The caller sets STRACE_EVENT_SOURCE to control the "source" field in events.
 
+# shellcheck source=json.sh
+source "${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/lib/json.sh"
+
 STRACE_EVENT_SOURCE="${STRACE_EVENT_SOURCE:-strace}"
 
 # Parse a single strace output line and emit an execve_event.
@@ -37,12 +40,19 @@ strace_line_to_event() {
   argv_str="$(printf '%s' "$line" | sed -n 's/.*execve([^,]*, \(\[[^]]*\]\).*/\1/p')"
   [ -z "$argv_str" ] && argv_str="[]"
 
+  # JSON-escape untrusted values before interpolation
+  binary="$(json_escape "$binary")"
+  argv_str="$(json_escape "$argv_str")"
+
   local token_field=""
   if [ -n "${OBSERVER_TOKEN:-}" ]; then
-    token_field=",\"_observer_token\":\"$OBSERVER_TOKEN\""
+    # Validate that OBSERVER_TOKEN contains only hex characters
+    if [[ "$OBSERVER_TOKEN" =~ ^[0-9a-fA-F]+$ ]]; then
+      token_field=",\"_observer_token\":\"$OBSERVER_TOKEN\""
+    fi
   fi
 
-  local event="{\"type\":\"execve_event\",\"source\":\"$STRACE_EVENT_SOURCE\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"pid\":$pid,\"binary\":\"$binary\",\"argv\":\"$argv_str\"$token_field}"
+  local event="{\"type\":\"execve_event\",\"source\":\"$(json_escape "$STRACE_EVENT_SOURCE")\",\"ts\":\"$(timestamp)\",\"session_id\":\"$(json_escape "$SESSION_ID")\",\"pid\":$pid,\"binary\":\"$binary\",\"argv\":\"$argv_str\"$token_field}"
 
   if [ "${STRACE_WRITE_FIFO:-}" = "true" ] && [ -p "${FIFO_PATH:-}" ]; then
     printf '%s\n' "$event" > "$FIFO_PATH"

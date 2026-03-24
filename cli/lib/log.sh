@@ -58,7 +58,7 @@ carranca_session_display_ts() {
   if [ -n "$ts" ]; then
     printf '%s' "$ts"
   else
-    date -u -r "$log_file" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || printf '%s' "unknown"
+    date -u -r "$log_file" +%Y-%m-%dT%H:%M:%S.%3NZ 2>/dev/null || printf '%s' "unknown"
   fi
 }
 
@@ -340,19 +340,30 @@ carranca_session_verify() {
     local checksum_line_no=0
     local checksum_errors=0
     local log_line expected_hash actual_hash
+    local prev_checksum_hash=""
 
     exec 8< "$checksum_file"
     while IFS= read -r log_line; do
       [ -z "$log_line" ] && continue
       checksum_line_no=$((checksum_line_no + 1))
       if IFS= read -r expected_hash <&8; then
-        actual_hash="$(printf '%s' "$log_line" | openssl dgst -sha256 -hex 2>/dev/null | awk '{print $NF}')"
+        # Chained checksum: hash includes previous checksum hash (empty for first entry)
+        actual_hash="$(printf '%s' "${prev_checksum_hash}${log_line}" | openssl dgst -sha256 -hex 2>/dev/null | awk '{print $NF}')"
         if [ "$actual_hash" != "$expected_hash" ]; then
+          # Fall back to unchained hash for backward compatibility with older sessions
+          local unchained_hash
+          unchained_hash="$(printf '%s' "$log_line" | openssl dgst -sha256 -hex 2>/dev/null | awk '{print $NF}')"
+          if [ "$unchained_hash" = "$expected_hash" ]; then
+            # Older session without chained checksums — reset chain tracking
+            prev_checksum_hash="$expected_hash"
+            continue
+          fi
           echo "FAIL: Checksum mismatch at line $checksum_line_no (seq=$(carranca_json_get_number "$log_line" "seq"))"
           echo "  expected: $expected_hash"
           echo "  got:      $actual_hash"
           checksum_errors=$((checksum_errors + 1))
         fi
+        prev_checksum_hash="$expected_hash"
       else
         echo "WARN: Checksum file has fewer entries than log ($checksum_line_no < $line_no)"
         checksum_errors=$((checksum_errors + 1))
@@ -406,6 +417,11 @@ carranca_session_export() {
   tar -cf "$archive_tar" -C "$archive_dir" "$session_id"
 
   # Create detached HMAC signature
+  # The archive signature proves consistency with the session's HMAC chain,
+  # not independent authenticity. The HMAC key lives alongside the log in
+  # /state/, so anyone with /state/ access can produce valid signatures.
+  # For true non-repudiation, asymmetric signing (ed25519) with an external
+  # key would be needed.
   sig_file="${archive_tar}.sig"
   if [ -f "$key_file" ]; then
     local hmac_key

@@ -17,30 +17,36 @@ STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
 # --- Parse args ---
 
 SELECTED_AGENT=""
+TRUST_REPO_FLAGS="false"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     help)
-      echo "Usage: carranca run [--agent <name>]"
+      echo "Usage: carranca run [--agent <name>] [--trust-repo-flags]"
       echo "  Start an agent session in a containerized runtime."
       echo "  Requires .carranca.yml in the current directory."
       echo ""
       echo "Options:"
-      echo "  --agent <name>  Run the named configured agent instead of the default first agent"
+      echo "  --agent <name>       Run the named configured agent instead of the default first agent"
+      echo "  --trust-repo-flags   Skip validation of runtime.extra_flags and runtime.logger_extra_flags"
       exit 0
       ;;
     -h|--help)
-      echo "Usage: carranca run [--agent <name>]"
+      echo "Usage: carranca run [--agent <name>] [--trust-repo-flags]"
       echo "  Start an agent session in a containerized runtime."
       echo "  Requires .carranca.yml in the current directory."
       echo ""
       echo "Options:"
-      echo "  --agent <name>  Run the named configured agent instead of the default first agent"
+      echo "  --agent <name>       Run the named configured agent instead of the default first agent"
+      echo "  --trust-repo-flags   Skip validation of runtime.extra_flags and runtime.logger_extra_flags"
       exit 0
       ;;
     --agent)
       shift
       [ "$#" -gt 0 ] || carranca_die "Missing value for --agent"
       SELECTED_AGENT="$1"
+      ;;
+    --trust-repo-flags)
+      TRUST_REPO_FLAGS="true"
       ;;
     *)
       carranca_die "Unknown argument: $1"
@@ -81,6 +87,23 @@ NETWORK="$(carranca_config_get_with_global runtime.network)"
 NETWORK_MODE="$(carranca_config_network_mode)"
 EXTRA_FLAGS="$(carranca_config_get_with_global runtime.extra_flags)"
 LOGGER_EXTRA_FLAGS="$(carranca_config_get_with_global runtime.logger_extra_flags)"
+
+# Validate extra flags against allowlist (D1 hardening)
+if [ "$TRUST_REPO_FLAGS" != "true" ]; then
+  if [ -n "$EXTRA_FLAGS" ]; then
+    carranca_validate_extra_flags "runtime.extra_flags" "$EXTRA_FLAGS" || \
+      carranca_die "Unsafe runtime flag in .carranca.yml — use --trust-repo-flags to override"
+  fi
+  if [ -n "$LOGGER_EXTRA_FLAGS" ]; then
+    carranca_validate_extra_flags "runtime.logger_extra_flags" "$LOGGER_EXTRA_FLAGS" || \
+      carranca_die "Unsafe runtime flag in .carranca.yml — use --trust-repo-flags to override"
+  fi
+else
+  if [ -n "$EXTRA_FLAGS" ] || [ -n "$LOGGER_EXTRA_FLAGS" ]; then
+    carranca_log warn "Skipping extra_flags validation (--trust-repo-flags)"
+  fi
+fi
+
 RESOURCE_INTERVAL="$(carranca_config_get_with_global observability.resource_interval)"
 SECRET_MONITORING="$(carranca_config_get_with_global observability.secret_monitoring)"
 
@@ -185,7 +208,27 @@ if [ "$ENFORCE_WATCHED_PATHS" = "true" ]; then
       */)
         # Directory: overlay bind mount as read-only
         if [ -d "$WORKSPACE/$wp" ]; then
-          FILESYSTEM_RO_FLAGS="$FILESYSTEM_RO_FLAGS -v $WORKSPACE/$wp:/workspace/$wp:ro"
+          # D3: Resolve symlinks in watched paths
+          local_resolved="$(realpath "$WORKSPACE/$wp" 2>/dev/null || true)"
+          if [ -z "$local_resolved" ]; then
+            carranca_log warn "watched_paths: could not resolve '$wp' — skipping"
+            continue
+          fi
+          if [ -L "$WORKSPACE/$wp" ]; then
+            carranca_log info "watched_paths: '$wp' is a symlink -> $local_resolved"
+          fi
+          # Ensure resolved path is within the workspace
+          case "$local_resolved" in
+            "$WORKSPACE"/*)
+              ;;
+            "$WORKSPACE")
+              ;;
+            *)
+              carranca_log warn "watched_paths: '$wp' resolves to '$local_resolved' which is outside the workspace — skipping"
+              continue
+              ;;
+          esac
+          FILESYSTEM_RO_FLAGS="$FILESYSTEM_RO_FLAGS -v $local_resolved:/workspace/$wp:ro"
           if [ -z "$ENFORCED_PATHS" ]; then
             ENFORCED_PATHS="$wp"
           else
@@ -196,7 +239,27 @@ if [ "$ENFORCE_WATCHED_PATHS" = "true" ]; then
       *)
         # Specific file: overlay bind mount as read-only
         if [ -e "$WORKSPACE/$wp" ]; then
-          FILESYSTEM_RO_FLAGS="$FILESYSTEM_RO_FLAGS -v $WORKSPACE/$wp:/workspace/$wp:ro"
+          # D3: Resolve symlinks in watched paths
+          local_resolved="$(realpath "$WORKSPACE/$wp" 2>/dev/null || true)"
+          if [ -z "$local_resolved" ]; then
+            carranca_log warn "watched_paths: could not resolve '$wp' — skipping"
+            continue
+          fi
+          if [ -L "$WORKSPACE/$wp" ]; then
+            carranca_log info "watched_paths: '$wp' is a symlink -> $local_resolved"
+          fi
+          # Ensure resolved path is within the workspace
+          case "$local_resolved" in
+            "$WORKSPACE"/*)
+              ;;
+            "$WORKSPACE")
+              ;;
+            *)
+              carranca_log warn "watched_paths: '$wp' resolves to '$local_resolved' which is outside the workspace — skipping"
+              continue
+              ;;
+          esac
+          FILESYSTEM_RO_FLAGS="$FILESYSTEM_RO_FLAGS -v $local_resolved:/workspace/$wp:ro"
           if [ -z "$ENFORCED_PATHS" ]; then
             ENFORCED_PATHS="$wp"
           else
@@ -472,7 +535,7 @@ while [ "$WAIT" -lt 30 ]; do
 done
 
 if [ "$WAIT" -ge 30 ]; then
-  carranca_die "Logger FIFO not ready after 15s"
+  carranca_die "Logger FIFO not ready after 15s — fail closed (session cannot proceed without logging)"
 fi
 
 # --- Start observer sidecar (Phase 5.1, optional) ---
@@ -567,6 +630,15 @@ carranca_runtime_run $TTY_FLAGS --rm \
   $NETWORK_POLICY_ENTRYPOINT \
   $EXTRA_FLAGS \
   "$AGENT_IMAGE" || AGENT_EXIT_CODE=$?
+
+# Detect logger loss — if the logger container is gone but the agent exited
+# non-zero, the session lost its audit trail and must fail closed.
+if [ "$AGENT_EXIT_CODE" -ne 0 ]; then
+  LOGGER_RUNNING="$(carranca_runtime_call inspect --format '{{.State.Running}}' "$LOGGER_NAME" 2>/dev/null || true)"
+  if [ "$LOGGER_RUNNING" != "true" ]; then
+    carranca_log error "Logger lost during session — fail closed (audit trail interrupted)"
+  fi
+fi
 
 if carranca_session_is_active "$SESSION_ID"; then
   _cleanup

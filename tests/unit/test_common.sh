@@ -32,10 +32,10 @@ assert_match() {
 
 echo "=== test_common.sh ==="
 
-# Test carranca_random_hex produces 8 hex chars
+# Test carranca_random_hex produces 16 hex chars
 hex="$(carranca_random_hex)"
-assert_eq "random_hex length is 8" "8" "${#hex}"
-assert_match "random_hex is hex chars" "^[0-9a-f]{8}$" "$hex"
+assert_eq "random_hex length is 16" "16" "${#hex}"
+assert_match "random_hex is hex chars" "^[0-9a-f]{16}$" "$hex"
 
 # Test two calls produce different values
 hex2="$(carranca_random_hex)"

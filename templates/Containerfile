@@ -29,6 +29,7 @@ RUN mkdir -p /home/carranca && chmod 0777 /home/carranca
 # ──────────────────────────────────────────────
 # Carranca shell wrapper (do not remove)
 # ──────────────────────────────────────────────
+COPY lib/json.sh /usr/local/bin/lib/json.sh
 COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
 RUN chmod +x /usr/local/bin/shell-wrapper.sh
 WORKDIR /workspace

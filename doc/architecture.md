@@ -20,7 +20,7 @@ Runtime selection precedence is:
 Projects are configured through `.carranca.yml` using an ordered `agents:` list.
 The first configured agent is the default execution target for `run` and
 `config`, and `--agent <name>` selects a different configured agent explicitly.
-Session ids are 8-char hex values and name all ephemeral runtime resources for a
+Session ids are 16-char hex values and name all ephemeral runtime resources for a
 single run: the agent container, logger container, FIFO tmpfs volume, and
 transient images.
 

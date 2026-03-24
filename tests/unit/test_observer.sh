@@ -55,7 +55,7 @@ INDEPENDENT_OBSERVER="true"
 echo "0" > "$SEQ_FILE"
 
 timestamp() {
-  date -u +%Y-%m-%dT%H:%M:%SZ
+  date -u +%Y-%m-%dT%H:%M:%S.%3NZ
 }
 
 _ts_to_epoch() {

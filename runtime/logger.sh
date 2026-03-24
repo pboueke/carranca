@@ -12,6 +12,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# shellcheck source=lib/json.sh
+source "$SCRIPT_DIR/lib/json.sh"
+
 FIFO_PATH="/fifo/events"
 SESSION_ID="${SESSION_ID:-unknown}"
 REPO_ID="${REPO_ID:-unknown}"
@@ -40,7 +43,7 @@ OBSERVER_TOKEN=""
 # --- Helpers ---
 
 timestamp() {
-  date -u +%Y-%m-%dT%H:%M:%SZ
+  date -u +%Y-%m-%dT%H:%M:%S.%3NZ
 }
 
 # Convert ISO 8601 timestamp to epoch seconds (portable).
@@ -73,6 +76,12 @@ write_log() {
     seq=$(cat "$SEQ_FILE" 2>/dev/null || echo 0)
     seq=$((seq + 1))
     echo "$seq" > "$SEQ_FILE"
+    # Guard: verify the line ends with } before performing string surgery.
+    # If it doesn't, skip this line to avoid producing broken JSON.
+    if [[ "$line" != *"}" ]]; then
+      echo "write_log: WARNING: skipping line not ending with '}': ${line:0:120}" >&2
+      return
+    fi
     # Inject seq into the JSON object
     local line_with_seq="${line%\}},\"seq\":$seq}"
     # Extract ts for HMAC input
@@ -148,10 +157,13 @@ compute_hmac() {
 
 # Write SHA-256 checksum of a log line to parallel checksum file.
 # This provides tamper detection even when chattr +a is unavailable.
+# Each checksum chains the previous hash, so reordering or deletion is detectable.
+_PREV_CHECKSUM_HASH=""
 write_checksum() {
   local line="$1"
   local hash
-  hash="$(printf '%s' "$line" | openssl dgst -sha256 -hex 2>/dev/null | awk '{print $NF}')"
+  hash="$(printf '%s' "${_PREV_CHECKSUM_HASH}${line}" | openssl dgst -sha256 -hex 2>/dev/null | awk '{print $NF}')"
+  _PREV_CHECKSUM_HASH="$hash"
   printf '%s\n' "$hash" >> "$CHECKSUM_FILE"
 }
 
@@ -188,15 +200,15 @@ _validate_fifo_event() {
         if [ "$event_epoch" -lt "$start_epoch" ] 2>/dev/null; then
           issues="${issues:+$issues,}timestamp_before_session"
         fi
-        # More than 5s in the future
-        if [ "$((event_epoch - now_epoch))" -gt 5 ] 2>/dev/null; then
+        # More than 2s in the future
+        if [ "$((event_epoch - now_epoch))" -gt 2 ] 2>/dev/null; then
           issues="${issues:+$issues,}timestamp_future"
         fi
-        # Regression > 60s from previous event
+        # Regression > 30s from previous event
         if [ -n "$PREV_FIFO_TS" ]; then
           local prev_epoch
           prev_epoch="$(_ts_to_epoch "$PREV_FIFO_TS")"
-          if [ "$prev_epoch" -gt 0 ] 2>/dev/null && [ "$((prev_epoch - event_epoch))" -gt 60 ] 2>/dev/null; then
+          if [ "$prev_epoch" -gt 0 ] 2>/dev/null && [ "$((prev_epoch - event_epoch))" -gt 30 ] 2>/dev/null; then
             issues="${issues:+$issues,}timestamp_regression"
           fi
         fi
@@ -254,9 +266,16 @@ _validate_fifo_event() {
 # Initialize seq counter
 echo "0" > "$SEQ_FILE"
 
-# Create FIFO
+# Create FIFO with restricted permissions (owner rw, group write-only).
+# The agent container must run with a UID/GID that has group-write access.
 mkfifo "$FIFO_PATH"
-chmod 0666 "$FIFO_PATH"
+chmod 0620 "$FIFO_PATH"
+
+# If AGENT_GID is set, ensure the FIFO's group matches the agent's group
+# so the agent process can write events to it.
+if [ -n "${AGENT_GID:-}" ]; then
+  chgrp "$AGENT_GID" "$FIFO_PATH" 2>/dev/null || true
+fi
 
 # Create log file and try to make it append-only
 touch "$LOG_FILE"
@@ -265,6 +284,13 @@ if chattr +a "$LOG_FILE" 2>/dev/null; then
   APPEND_ONLY=true
 else
   APPEND_ONLY=false
+fi
+
+# Try to make checksum file append-only (same protection as log file)
+if ! chattr +a "$CHECKSUM_FILE" 2>/dev/null; then
+  CHECKSUM_APPEND_ONLY=false
+else
+  CHECKSUM_APPEND_ONLY=true
 fi
 
 # Generate HMAC key for this session
@@ -281,8 +307,13 @@ fi
 # Record session start timestamp for FIFO validation (Phase 5.2)
 SESSION_START_TS="$(timestamp)"
 
-# Write session start event
-START_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"start\",\"ts\":\"$SESSION_START_TS\",\"session_id\":\"$SESSION_ID\",\"repo_id\":\"$REPO_ID\",\"repo_name\":\"$REPO_NAME\",\"repo_path\":\"$REPO_PATH\",\"agent\":\"$AGENT_NAME\",\"adapter\":\"$AGENT_ADAPTER\",\"engine\":\"$ENGINE\"}"
+# Write session start event (escape config-derived fields for JSON safety)
+_esc_repo_name="$(json_escape "$REPO_NAME")"
+_esc_repo_path="$(json_escape "$REPO_PATH")"
+_esc_agent_name="$(json_escape "$AGENT_NAME")"
+_esc_adapter="$(json_escape "$AGENT_ADAPTER")"
+_esc_engine="$(json_escape "$ENGINE")"
+START_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"start\",\"ts\":\"$SESSION_START_TS\",\"session_id\":\"$SESSION_ID\",\"repo_id\":\"$REPO_ID\",\"repo_name\":\"$_esc_repo_name\",\"repo_path\":\"$_esc_repo_path\",\"agent\":\"$_esc_agent_name\",\"adapter\":\"$_esc_adapter\",\"engine\":\"$_esc_engine\"}"
 write_log "$START_EVENT"
 
 # Log degraded mode for append-only if needed
@@ -291,21 +322,30 @@ if [ "$APPEND_ONLY" = false ]; then
   write_log "$DEG_EVENT"
 fi
 
+# Log degraded mode for checksum file append-only if needed
+if [ "$CHECKSUM_APPEND_ONLY" = false ]; then
+  DEG_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"degraded\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"reason\":\"checksum_append_only_unavailable\"}"
+  write_log "$DEG_EVENT"
+fi
+
 # Log filesystem enforcement policy events (4.2)
 if [ "${ENFORCE_WATCHED_PATHS:-}" = "true" ]; then
   if [ -n "${ENFORCED_PATHS:-}" ]; then
-    FS_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"filesystem\",\"action\":\"enforced\",\"detail\":\"read-only: ${ENFORCED_PATHS}\"}"
+    _esc_enforced="$(json_escape "$ENFORCED_PATHS")"
+    FS_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"filesystem\",\"action\":\"enforced\",\"detail\":\"read-only: ${_esc_enforced}\"}"
     write_log "$FS_EVENT"
   fi
   if [ -n "${DEGRADED_GLOBS:-}" ]; then
-    FS_DEG_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"filesystem\",\"action\":\"degraded\",\"detail\":\"glob patterns not enforced: ${DEGRADED_GLOBS}\"}"
+    _esc_degraded="$(json_escape "$DEGRADED_GLOBS")"
+    FS_DEG_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"filesystem\",\"action\":\"degraded\",\"detail\":\"glob patterns not enforced: ${_esc_degraded}\"}"
     write_log "$FS_DEG_EVENT"
   fi
 fi
 
 # Log network policy events (4.1)
 if [ "$NETWORK_MODE" = "filtered" ] && [ -n "$NETWORK_POLICY_RULES" ]; then
-  NET_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"network\",\"action\":\"configured\",\"detail\":\"mode:filtered rules:${NETWORK_POLICY_RULES}\"}"
+  _esc_netrules="$(json_escape "$NETWORK_POLICY_RULES")"
+  NET_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"network\",\"action\":\"configured\",\"detail\":\"mode:filtered rules:${_esc_netrules}\"}"
   write_log "$NET_EVENT"
 fi
 
@@ -318,17 +358,25 @@ _handle_file_event() {
     local local_path
     local_path="$(printf '%s' "$line" | grep -o '"path":"[^"]*"' | head -1 | cut -d'"' -f4)"
     if [ -n "$local_path" ] && path_is_watched "$local_path"; then
-      line="${line%\}},\"watched\":true}"
+      if [[ "$line" == *"}" ]]; then
+        line="${line%\}},\"watched\":true}"
+      fi
     fi
   fi
   write_log "$line"
 }
 
 _start_inotifywait() {
+  # Output TSV (ts\tevent\tpath) to avoid injecting raw paths into JSON.
+  # Post-process each line: parse fields, json_escape the path, then
+  # reconstruct proper JSON.
   inotifywait -m -r -e create,modify,delete \
-    --format '{"type":"file_event","source":"inotifywait","ts":"%T","event":"%e","path":"%w%f","session_id":"'"$SESSION_ID"'"}' \
-    --timefmt '%Y-%m-%dT%H:%M:%SZ' \
-    /workspace 2>/dev/null | while IFS= read -r line; do
+    --format $'%e\t%w%f' \
+    /workspace 2>/dev/null | while IFS=$'\t' read -r evt_type evt_path; do
+      local escaped_path evt_ts
+      escaped_path="$(json_escape "$evt_path")"
+      evt_ts="$(timestamp)"
+      local line="{\"type\":\"file_event\",\"source\":\"inotifywait\",\"ts\":\"$evt_ts\",\"event\":\"$evt_type\",\"path\":\"$escaped_path\",\"session_id\":\"$SESSION_ID\"}"
       _handle_file_event "$line"
     done
 }
@@ -347,9 +395,10 @@ _start_fswatch() {
         # new files show as Updated too. We accept MODIFY as default.
         event_type="MODIFY"
       fi
-      local ts
-      ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      local line="{\"type\":\"file_event\",\"source\":\"fswatch\",\"ts\":\"$ts\",\"event\":\"$event_type\",\"path\":\"$filepath\",\"session_id\":\"$SESSION_ID\"}"
+      local ts escaped_path
+      ts="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
+      escaped_path="$(json_escape "$filepath")"
+      local line="{\"type\":\"file_event\",\"source\":\"fswatch\",\"ts\":\"$ts\",\"event\":\"$event_type\",\"path\":\"$escaped_path\",\"session_id\":\"$SESSION_ID\"}"
       _handle_file_event "$line"
     done
 }
@@ -371,7 +420,9 @@ _start_secret_monitor() {
     pid="$(printf '%s' "$line" | grep -o '"pid":[0-9]*' | head -1 | cut -d: -f2)"
     [ -z "$path" ] && continue
     if path_is_watched "$path"; then
-      local event="{\"type\":\"file_access_event\",\"source\":\"fanotify\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"path\":\"$path\",\"pid\":${pid:-0},\"watched\":true}"
+      local escaped_path
+      escaped_path="$(json_escape "$path")"
+      local event="{\"type\":\"file_access_event\",\"source\":\"fanotify\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"path\":\"$escaped_path\",\"pid\":${pid:-0},\"watched\":true}"
       write_log "$event"
     fi
   done
@@ -520,7 +571,9 @@ _start_resource_sampler() {
     local cur_oom_count
     cur_oom_count="$(_read_oom_kill_count "$cgroup_dir")"
     if [ "$cur_oom_count" -gt "$prev_oom_count" ] 2>/dev/null; then
-      local oom_event="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"resource_limits\",\"action\":\"oom_kill\",\"detail\":\"OOM kill detected (limit: ${RESOURCE_MEMORY_LIMIT:-unset})\"}"
+      local _esc_memlimit
+      _esc_memlimit="$(json_escape "${RESOURCE_MEMORY_LIMIT:-unset}")"
+      local oom_event="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"resource_limits\",\"action\":\"oom_kill\",\"detail\":\"OOM kill detected (limit: ${_esc_memlimit})\"}"
       write_log "$oom_event"
       prev_oom_count="$cur_oom_count"
     fi

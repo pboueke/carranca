@@ -448,7 +448,7 @@ Runtime selection precedence is:
 Projects are configured through `.carranca.yml` using an ordered `agents:` list.
 The first configured agent is the default execution target for `run` and
 `config`, and `--agent &lt;name&gt;` selects a different configured agent explicitly.
-Session ids are 8-char hex values and name all ephemeral runtime resources for a
+Session ids are 16-char hex values and name all ephemeral runtime resources for a
 single run: the agent container, logger container, FIFO tmpfs volume, and
 transient images.
 
@@ -1778,7 +1778,7 @@ data.
 | `ts` | string | ISO 8601 UTC timestamp |
 | `type` | string | Event type (see above) |
 | `source` | string | Component that produced the event |
-| `session_id` | string | 8-char hex session identifier |
+| `session_id` | string | 16-char hex session identifier |
 | `repo_id` | string | 12-char hex repo identifier |
 | `hmac` | string | SHA-256 HMAC of the event chain (see HMAC chain section) |
 

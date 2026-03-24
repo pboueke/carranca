@@ -10,6 +10,8 @@
 # 6. Exits immediately if the FIFO breaks (fail closed)
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 FIFO_PATH="/fifo/events"
 SESSION_ID="${SESSION_ID:-unknown}"
 AGENT_COMMAND="${AGENT_COMMAND:-bash}"
@@ -17,7 +19,7 @@ AGENT_COMMAND="${AGENT_COMMAND:-bash}"
 # --- Helpers ---
 
 timestamp() {
-  date -u +%Y-%m-%dT%H:%M:%SZ
+  date -u +%Y-%m-%dT%H:%M:%S.%3NZ
 }
 
 ms_now() {
@@ -47,9 +49,8 @@ write_event() {
   fi
 }
 
-json_escape() {
-  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr -d '\n'
-}
+# shellcheck source=lib/json.sh
+source "$SCRIPT_DIR/lib/json.sh"
 
 # --- Wait for FIFO ---
 
@@ -108,7 +109,8 @@ END_MS="$(ms_now)"
 DURATION=$((END_MS - START_MS))
 
 ESCAPED_CMD="$(json_escape "$AGENT_COMMAND")"
-write_event "{\"type\":\"shell_command\",\"source\":\"shell-wrapper\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"command\":\"$ESCAPED_CMD\",\"exit_code\":$AGENT_EXIT,\"duration_ms\":$DURATION,\"cwd\":\"$(pwd)\"}"
+ESCAPED_CWD="$(json_escape "$(pwd)")"
+write_event "{\"type\":\"shell_command\",\"source\":\"shell-wrapper\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"command\":\"$ESCAPED_CMD\",\"exit_code\":$AGENT_EXIT,\"duration_ms\":$DURATION,\"cwd\":\"$ESCAPED_CWD\"}"
 
 # --- Session stop event ---
 

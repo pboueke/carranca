@@ -239,7 +239,7 @@ if [ -z "$CONFIG_DIFF$CONTAINER_DIFF" ]; then
   echo ""
   carranca_log ok "No configuration changes proposed."
   printf '{"type":"config_event","event":"no_changes","ts":"%s","repo_id":"%s","session_id":"%s"}\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$REPO_ID" "$SESSION_ID" >> "$AUDIT_LOG"
+    "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$REPO_ID" "$SESSION_ID" >> "$AUDIT_LOG"
   exit 0
 fi
 
@@ -255,7 +255,7 @@ fi
 if [ "$SKIP_CONFIRMATION" = true ]; then
   carranca_log warn "WARNING: applying configurator-generated changes without user confirmation (--dangerously-skip-confirmation)"
   printf '{"type":"config_event","event":"confirmation_bypassed","ts":"%s","repo_id":"%s","session_id":"%s"}\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$REPO_ID" "$SESSION_ID" >> "$AUDIT_LOG"
+    "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$REPO_ID" "$SESSION_ID" >> "$AUDIT_LOG"
 else
   echo ""
   printf 'Apply these changes? [y/N] '
@@ -266,7 +266,7 @@ else
     *)
       carranca_log info "No changes applied."
       printf '{"type":"config_event","event":"proposal_rejected","ts":"%s","repo_id":"%s","session_id":"%s"}\n' \
-        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$REPO_ID" "$SESSION_ID" >> "$AUDIT_LOG"
+        "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$REPO_ID" "$SESSION_ID" >> "$AUDIT_LOG"
       exit 0
       ;;
   esac
@@ -277,4 +277,4 @@ cp "$PROPOSAL_DIR/Containerfile" ".carranca/Containerfile"
 
 carranca_log ok "Applied configurator proposal."
 printf '{"type":"config_event","event":"applied","ts":"%s","repo_id":"%s","session_id":"%s"}\n' \
-  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$REPO_ID" "$SESSION_ID" >> "$AUDIT_LOG"
+  "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$REPO_ID" "$SESSION_ID" >> "$AUDIT_LOG"

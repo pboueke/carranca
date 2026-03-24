@@ -16,7 +16,47 @@
         "sethostname",
         "setdomainname",
         "unshare",
-        "setns"
+        "setns",
+
+        "bpf",
+        "userfaultfd",
+        "perf_event_open",
+
+        "keyctl",
+        "add_key",
+        "request_key",
+
+        "personality",
+
+        "process_vm_readv",
+        "process_vm_writev",
+
+        "kcmp",
+
+        "kexec_load",
+        "kexec_file_load",
+
+        "open_by_handle_at",
+        "name_to_handle_at",
+
+        "lookup_dcookie",
+
+        "clock_settime",
+        "settimeofday",
+        "adjtimex",
+
+        "nfsservctl",
+        "acct",
+
+        "create_module",
+        "get_kernel_syms",
+        "query_module",
+
+        "io_uring_setup",
+        "io_uring_enter",
+        "io_uring_register",
+
+        "fanotify_init"
       ],
       "action": "SCMP_ACT_ERRNO",
       "errnoRet": 1

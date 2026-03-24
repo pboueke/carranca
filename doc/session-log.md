@@ -164,6 +164,14 @@ cat <session-id>.tar.sig
 For full `carranca log --verify` replay, restore the extracted `.jsonl`,
 `.hmac-key`, and `.checksums` files into a Carranca session state directory.
 
+### Archive signature limitations
+
+The archive signature proves consistency with the session's HMAC chain, not
+independent authenticity. The HMAC key lives alongside the log in `/state/`, so
+anyone with `/state/` access can produce valid signatures. For true
+non-repudiation, asymmetric signing (ed25519) with an external key would be
+needed.
+
 ### `heartbeat`
 
 Periodic liveness check from the shell wrapper (every 30s).
@@ -310,7 +318,7 @@ data.
 | `ts` | string | ISO 8601 UTC timestamp |
 | `type` | string | Event type (see above) |
 | `source` | string | Component that produced the event |
-| `session_id` | string | 8-char hex session identifier |
+| `session_id` | string | 16-char hex session identifier |
 | `repo_id` | string | 12-char hex repo identifier |
 | `hmac` | string | SHA-256 HMAC of the event chain (see HMAC chain section) |
 

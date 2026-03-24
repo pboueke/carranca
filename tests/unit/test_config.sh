@@ -376,6 +376,102 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# --- Fail-closed: security-critical keys without yq must abort ---
+
+# Config with runtime.network.default (filtered network) should fail without yq
+cat > "$COMPAT_CONFIG" <<'EOF'
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+runtime:
+  network:
+    default: deny
+    allow:
+      - api.example.com:443
+EOF
+
+if carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>/dev/null; then
+  echo "  FAIL: security-critical network keys did not cause abort without yq"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: security-critical network keys cause non-zero exit without yq"
+  PASS=$((PASS + 1))
+fi
+
+compat_output="$(carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>&1 || true)"
+if echo "$compat_output" | grep -Fq "Security configuration requires 'yq'"; then
+  echo "  PASS: security-critical error message emitted for network keys"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: security-critical error message not emitted for network keys"
+  FAIL=$((FAIL + 1))
+fi
+
+# Config with policy.resource_limits should fail without yq
+cat > "$COMPAT_CONFIG" <<'EOF'
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+runtime:
+  network: true
+policy:
+  resource_limits:
+    memory: 512m
+    cpus: "2"
+EOF
+
+if carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>/dev/null; then
+  echo "  FAIL: security-critical resource_limits keys did not cause abort without yq"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: security-critical resource_limits keys cause non-zero exit without yq"
+  PASS=$((PASS + 1))
+fi
+
+# Config with policy.filesystem should fail without yq
+cat > "$COMPAT_CONFIG" <<'EOF'
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+runtime:
+  network: true
+policy:
+  filesystem:
+    enforce_watched_paths: true
+EOF
+
+if carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>/dev/null; then
+  echo "  FAIL: security-critical filesystem keys did not cause abort without yq"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: security-critical filesystem keys cause non-zero exit without yq"
+  PASS=$((PASS + 1))
+fi
+
+# Config without security-critical keys should still pass (return 0)
+cat > "$COMPAT_CONFIG" <<'EOF'
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+runtime:
+  network: true
+  engine: auto
+volumes:
+  cache: true
+EOF
+
+if carranca_config_check_parser_compatibility "$COMPAT_CONFIG" 2>/dev/null; then
+  echo "  PASS: non-security config without yq still passes"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: non-security config without yq should not abort"
+  FAIL=$((FAIL + 1))
+fi
+
 # Restore
 _CARRANCA_HAS_YQ="$_save_has_yq"
 
