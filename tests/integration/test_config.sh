@@ -37,6 +37,9 @@ printf '%s' "$PROMPT" > /proposal/request.txt
 test -f /carranca-skills/confiskill/SKILL.md
 test -f /user-skills/custom/SKILL.md
 
+# Dump what the agent sees for redaction verification
+cp /workspace/.carranca.yml /proposal/visible-config.yml
+
 cp /workspace/.carranca.yml /proposal/.carranca.yml
 awk '
   BEGIN {
@@ -165,17 +168,9 @@ EOF
 ORIGINAL_CONFIG="$(cat .carranca.yml)"
 ORIGINAL_CONTAINERFILE="$(cat .carranca/Containerfile)"
 
-# Test: rejecting the trust warning cancels without running the agent
+# Test: rejecting the apply prompt
 test_start
-TRUST_REJECT_OUTPUT="$(printf 'n\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent shell --prompt "install claude" 2>&1)" || true
-assert_contains "config warns about policy exposure" "READ access to .carranca.yml" "$TRUST_REJECT_OUTPUT"
-assert_contains "trust rejection cancels config" "Config generation cancelled" "$TRUST_REJECT_OUTPUT"
-assert_not_contains "trust rejection does not reach apply prompt" "Apply these changes" "$TRUST_REJECT_OUTPUT"
-assert_eq "trust rejection keeps config unchanged" "$ORIGINAL_CONFIG" "$(cat .carranca.yml)"
-
-# Test: accepting trust, then rejecting the apply prompt
-test_start
-REJECT_OUTPUT="$(printf 'y\nn\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent shell --prompt "install claude" 2>&1)" || true
+REJECT_OUTPUT="$(printf 'n\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent shell --prompt "install claude" 2>&1)" || true
 assert_contains "proposal asks for confirmation" "Apply these changes" "$REJECT_OUTPUT"
 assert_contains "proposal references confiskill" "confiskill" "$REJECT_OUTPUT"
 assert_contains "config command reports selected agent" "Config agent: shell" "$REJECT_OUTPUT"
@@ -204,6 +199,15 @@ assert_contains "agent prompt includes exact operator request text" "install cla
 assert_contains "audit log records confirmation bypass" '"event":"confirmation_bypassed"' "$(cat "$AUDIT_LOG")"
 assert_contains "audit log records apply event" '"event":"applied"' "$(cat "$AUDIT_LOG")"
 
+# Verify config agent saw redacted .carranca.yml (policy fields stripped)
+VISIBLE_CONFIG_FILE="$(find "$TMPSTATE/config/$REPO_ID" -name visible-config.yml | sort | tail -1)"
+test_start
+VISIBLE_CONFIG="$(cat "$VISIBLE_CONFIG_FILE")"
+assert_contains "config agent sees agents section" "agents:" "$VISIBLE_CONFIG"
+assert_contains "config agent sees runtime section" "runtime:" "$VISIBLE_CONFIG"
+assert_not_contains "config agent cannot see policy.docs_before_code" "docs_before_code" "$VISIBLE_CONFIG"
+assert_not_contains "config agent cannot see policy.tests_before_impl" "tests_before_impl" "$VISIBLE_CONFIG"
+
 cat > ".carranca.yml" <<'EOF'
 agents:
   - name: opencode
@@ -220,7 +224,7 @@ policy:
 EOF
 
 test_start
-OPENCODE_OUTPUT="$(printf 'y\nn\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent opencode --prompt "install opencode deps" 2>&1)" || true
+OPENCODE_OUTPUT="$(printf 'n\n' | bash "$CARRANCA_HOME/cli/config.sh" --agent opencode --prompt "install opencode deps" 2>&1)" || true
 assert_contains "config command reports opencode driver" "Config agent driver: opencode -> opencode" "$OPENCODE_OUTPUT"
 OPENCODE_REQUEST_FILE="$(find "$TMPSTATE/config/$REPO_ID" -name request.txt -exec grep -l "install opencode deps" {} + 2>/dev/null | head -1 || true)"
 assert_contains "opencode config agent receives exact operator request text" "install opencode deps" "$(cat "$OPENCODE_REQUEST_FILE")"

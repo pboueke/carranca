@@ -7,6 +7,8 @@ AGENT_DRIVER="${CARRANCA_AGENT_DRIVER:-stdin}"
 
 PROMPT="$(cat "$PROMPT_FILE")"
 
+# CARRANCA_AGENT_COMMAND is operator-authored (from .carranca.yml), not agent-controlled.
+# eval is required to support shell syntax (pipes, &&, env vars, subshells).
 case "$AGENT_DRIVER" in
   claude)
     printf -v ESCAPED_PROMPT '%q' "$PROMPT"

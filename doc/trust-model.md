@@ -60,6 +60,8 @@ cross-referencing to detect unreported or forged activity.
 | Agent reads secrets from repo | Mitigated | fanotify captures file reads on `watched_paths` when `observability.secret_monitoring: true` |
 | Agent exfiltrates over network | Partially mitigated | Network logging records outbound connections; set `runtime.network: false` to disable entirely |
 | Agent writes malicious code | Allowed by design | Review via session log + git diff |
+| Malicious `.carranca.yml` (repo compromise) | Operator-scoped risk | `.carranca.yml` is operator-authored trusted input; `eval` of `AGENT_COMMAND` is by design to support shell syntax. If an attacker controls `.carranca.yml` they control the agent command — same as controlling any shell script in the repo. Config is hidden from the agent at runtime via `/dev/null` bind mount |
+| Agent reads runtime policy config | Mitigated | `.carranca.yml` and `.carranca/` are hidden from the agent container via bind-mount overlays; `carranca config` redacts policy-sensitive fields before exposing config to the config agent |
 | User tampers with log after session | Mitigated | HMAC chain + checksum file detect post-session tampering; `chattr +a` when available |
 
 ## Failure behavior

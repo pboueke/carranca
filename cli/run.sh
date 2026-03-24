@@ -62,6 +62,10 @@ done
 carranca_config_validate
 carranca_runtime_require
 
+# Track security features that degrade in the current environment.
+# Printed as a consolidated summary before the agent session starts.
+DEGRADATION_WARNINGS=""
+
 # --- Compute identifiers ---
 
 REPO_ID="$(carranca_repo_id)"
@@ -274,6 +278,12 @@ if [ "$ENFORCE_WATCHED_PATHS" = "true" ]; then
         ;;
     esac
   done < <(carranca_config_get_list watched_paths 2>/dev/null || true)
+
+  if [ -n "$DEGRADED_GLOBS" ]; then
+    carranca_log warn "Glob patterns cannot be enforced as read-only: $DEGRADED_GLOBS"
+    carranca_log warn "Files matching these patterns remain writable by the agent."
+    DEGRADATION_WARNINGS="${DEGRADATION_WARNINGS}  - filesystem: glob patterns not enforced ($DEGRADED_GLOBS)\n"
+  fi
 fi
 
 # --- Policy: technical policy hooks (4.3) ---
@@ -346,6 +356,7 @@ AGENT_IDENTITY_FLAGS="$(carranca_runtime_agent_identity_flags "$HOST_UID" "$HOST
 if [ -n "$NETWORK_POLICY_FLAGS" ] && \
    [ "$CONTAINER_RUNTIME" = "podman" ] && carranca_runtime_is_rootless "$CONTAINER_RUNTIME"; then
   carranca_log warn "Network policy: rootless Podman cannot enforce allow-list — falling back to --network=none"
+  DEGRADATION_WARNINGS="${DEGRADATION_WARNINGS}  - network: filtered -> none (rootless Podman cannot apply iptables)\n"
   NETWORK="false"
   NETWORK_MODE="none"
   NETWORK_POLICY_RULES=""
@@ -571,6 +582,11 @@ fi
 NETWORK_FLAG=""
 if [ "$NETWORK" = "false" ]; then
   NETWORK_FLAG="--network=none"
+fi
+
+if [ -n "$DEGRADATION_WARNINGS" ]; then
+  carranca_log warn "Security features degraded in current runtime:"
+  printf '%b' "$DEGRADATION_WARNINGS" >&2
 fi
 
 carranca_log ok "Agent ready — entering interactive session"

@@ -46,6 +46,13 @@ done
 FIRST_SESSION="$(printf '%s\n' "$SESSION_IDS" | sed -n '1p')"
 SECOND_SESSION="$(printf '%s\n' "$SESSION_IDS" | sed -n '2p')"
 
+# Wait for both agent containers to be running (not just loggers)
+for _ in $(seq 1 30); do
+  AGENT_COUNT="$("$RUNTIME" ps --format '{{.Names}}' | grep -c 'carranca-.*-agent' || true)"
+  [ "$AGENT_COUNT" = "2" ] && break
+  sleep 0.5
+done
+
 test_start
 KILL_ONE_OUTPUT="$(printf 'y\n' | bash "$CARRANCA_HOME/cli/kill.sh" --session "$FIRST_SESSION" 2>&1)"
 assert_contains "kill specific confirms stopped session" "Stopped session $FIRST_SESSION" "$KILL_ONE_OUTPUT"

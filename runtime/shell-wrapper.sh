@@ -103,6 +103,9 @@ fi
 # events in MVP (that requires execve tracing, Phase 3).
 
 START_MS="$(ms_now)"
+# AGENT_COMMAND is operator-authored (from .carranca.yml), not agent-controlled.
+# eval is required to support shell syntax (pipes, &&, env vars, subshells).
+# .carranca.yml is trusted operator input, hidden from the agent at runtime.
 eval "$AGENT_COMMAND"
 AGENT_EXIT=$?
 END_MS="$(ms_now)"

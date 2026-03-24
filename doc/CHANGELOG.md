@@ -3,15 +3,19 @@
 ## [0.15.4] - 2026-03-24
 
 - fix: **config trust boundary** — agent container can no longer read `.carranca.yml` or `.carranca/` during `carranca run`; `.carranca/` hidden via tmpfs overlay, `.carranca.yml` hidden via `/dev/null` bind mount; prevents agents from learning network rules, watched paths, hooks, and timer limits
-- fix: **config command warning** — `carranca config` now warns that the config agent will have READ access to runtime policies and requires explicit confirmation; suggests manual editing or a trusted agent as alternatives; `--dangerously-skip-confirmation` bypasses both prompts
+- fix: **config agent policy redaction** — `carranca config` now strips policy-sensitive fields (watched_paths, policy.*, observability.*) from `.carranca.yml` before mounting into the config agent container; agent sees only agents, runtime, and volumes sections
 - chore: remove unused `plan` skill — was copied to `.carranca/skills/carranca/plan/` on init but never referenced by any agent prompt; `confiskill` (actively used by `cli/config.sh`) is preserved
 - chore: remove orphan `.carranca/skills/plan/SKILL.md` (duplicate outside managed subdirectory)
 - test: new `test_config_runner.sh` — 10 tests covering all 5 driver branches, missing prompt file, special chars, empty prompt
 - test: new `test_shell_wrapper.sh` — 19 tests covering fail_closed behavior, write_event FIFO paths, FIFO wait loop, event JSON structure, heartbeat format
 - test: new `test_network_setup.sh` — 29 tests covering _log, _fail_closed, _emit_enforcement_failure behavior, and full script structure verification
 - test: `test_run.sh` updated — verifies agent sees empty `.carranca/` and empty `.carranca.yml`
-- test: `test_config.sh` updated — verifies trust warning, rejection cancellation, two-prompt flow
-- test: 684 tests, 34 suites, 0 failures, 100% function coverage
+- fix: **glob degradation warning** — `carranca run` now prints a visible warning at session start when glob patterns in `watched_paths` cannot be enforced as read-only
+- fix: **degradation summary** — consolidated warning before "Agent ready" when security features degrade (rootless Podman network fallback, glob enforcement gaps)
+- fix: **eval trust documentation** — `shell-wrapper.sh` and `config-runner.sh` `eval` usage documented as intentional (operator-authored config, not agent-controlled); added to `doc/trust-model.md` threat table
+- fix: **test_kill.sh flaky timing** — wait for both agent containers before testing kill; prevents race where second session isn't ready
+- test: `test_config.sh` updated — verifies policy redaction (agent cannot see docs_before_code, tests_before_impl)
+- test: 767 tests, 39 suites, 0 failures, 100% function coverage
 
 ## [0.15.3] - 2026-03-24
 

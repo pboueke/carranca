@@ -6,6 +6,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="$ROOT_DIR/doc/page"
 OUT_FILE="$OUT_DIR/index.html"
 TMP_FILE="$(mktemp)"
+CHANGELOG_FILE="$ROOT_DIR/doc/CHANGELOG.md"
+
+VERSION="$(grep -m1 '## \[' "$CHANGELOG_FILE" 2>/dev/null | sed 's/.*\[\(.*\)\].*/\1/' || true)"
+SOURCE_LABEL="source"
+[ -n "$VERSION" ] && SOURCE_LABEL="${SOURCE_LABEL} ${VERSION}"
 
 mkdir -p "$OUT_DIR"
 
@@ -331,7 +336,7 @@ cat > "$TMP_FILE" <<'EOF'
       enforceable guardrails, and forgery detection.
     </p>
     <div class="links">
-      <a href="https://github.com/pboueke/carranca">GitHub</a>
+      <a href="https://github.com/pboueke/carranca">__SOURCE_LABEL__</a>
     </div>
   </div>
 
@@ -386,6 +391,8 @@ cat >> "$TMP_FILE" <<'EOF'
 </body>
 </html>
 EOF
+
+sed -i "s|__SOURCE_LABEL__|$SOURCE_LABEL|g" "$TMP_FILE"
 
 mv "$TMP_FILE" "$OUT_FILE"
 chmod 0644 "$OUT_FILE"

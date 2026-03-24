@@ -188,35 +188,13 @@ if [ -n "$USER_PROMPT" ]; then
   } >> "$PROMPT_FILE"
 fi
 
-# --- Trust boundary warning ---
-# The config agent reads the full workspace (including .carranca.yml and
-# .carranca/Containerfile) to propose configuration changes. This means the
-# agent can see the current runtime policies (network rules, watched paths,
-# hooks, resource limits).
-#
-# In normal `carranca run` sessions, .carranca/ is hidden from the agent via
-# a tmpfs overlay. The config command is the only path that exposes it.
-
-if [ "$SKIP_CONFIRMATION" != true ]; then
-  echo ""
-  carranca_log warn "The config agent will have READ access to .carranca.yml and .carranca/"
-  carranca_log warn "This exposes runtime policies (network rules, watched paths, hooks, etc.)."
-  echo ""
-  echo "  If you don't trust the bound agent with this information, you can:"
-  echo "    1. Edit .carranca.yml and .carranca/Containerfile manually"
-  echo "    2. Run 'carranca config' with a trusted agent (--agent <name>)"
-  echo ""
-  printf 'Proceed with config agent? [y/N] '
-  read -r reply
-  case "$reply" in
-    y|Y|yes|YES)
-      ;;
-    *)
-      carranca_log info "Config generation cancelled."
-      exit 0
-      ;;
-  esac
-fi
+# --- Redact policy-sensitive fields from .carranca.yml ---
+# The config agent needs to see agents, runtime.engine, and volumes to propose
+# changes, but should not see network rules, watched paths, hooks, timer limits,
+# or observability settings. Create a filtered copy.
+REDACTED_CONFIG="$CONFIG_STATE_DIR/redacted-carranca.yml"
+grep -vE '^\s*(watched_paths:|  - "\*|  - \*|  - \.env|policy:|  docs_before_code:|  tests_before_impl:|  max_duration:|  filesystem:|    enforce_watched_paths:|  resource_limits:|    memory:|    cpus:|    pids:|observability:|  execve_tracing:|  network_logging:|  network_interval:|  secret_monitoring:|  resource_interval:|  independent_observer:|  cross_ref_)' \
+  "$WORKSPACE/.carranca.yml" > "$REDACTED_CONFIG"
 
 carranca_log info "Building agent image..."
 carranca_runtime_build -q -t "$CONFIG_IMAGE" -f ".carranca/Containerfile" ".carranca" >/dev/null
@@ -227,6 +205,7 @@ carranca_runtime_run $TTY_FLAGS --rm \
   --name "carranca-config-${SESSION_ID}" \
   $AGENT_IDENTITY_FLAGS \
   -v "$WORKSPACE:/workspace:ro" \
+  -v "$REDACTED_CONFIG:/workspace/.carranca.yml:ro" \
   -v "$PROPOSAL_DIR:/proposal:rw" \
   -v "$PROMPT_FILE:/carranca-config/prompt.txt:ro" \
   -v "$CARRANCA_SKILLS_DIR:/carranca-skills:ro" \
