@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.14.0] - 2026-03-23
+
+- feat: **resource limits** — `policy.resource_limits.{memory,cpus,pids}` passed as `--memory`, `--cpus`, `--pids-limit` container runtime flags; kernel enforces via cgroup limits
+- feat: **OOM kill detection** — resource sampler polls cgroup `memory.events` for `oom_kill` counter increments; emits `policy_event` with `action: oom_kill`
+- feat: **time-boxed sessions** — `policy.max_duration` (seconds) triggers FIFO removal after the wall-clock limit, which activates the agent's fail-closed watchdog and terminates the session
+- feat: **filesystem access control** — `policy.filesystem.enforce_watched_paths: true` bind-mounts `watched_paths` directories and files as read-only overlays; glob patterns degrade gracefully (monitored but not enforced)
+- feat: **technical policy hooks** — `policy.docs_before_code` and `policy.tests_before_impl` now accept `enforce` (block commit), `warn` (allow + log), or `off`; enforced via git `core.hooksPath` pointing to carranca-managed pre-commit hook injected into the agent container
+- feat: **fine-grained network policies** — `runtime.network` supports an object form (`default: deny` + `allow:` list) alongside the existing boolean; implemented via iptables OUTPUT DROP + per-IP allow rules in `network-setup.sh`, a privilege-dropping entrypoint wrapper
+- feat: **`policy_event` event type** — new JSONL event for all enforcement actions with `policy`, `action`, and `detail` fields; `P` glyph in `--timeline`; counted in session summary
+- feat: **`network-setup.sh`** — agent entrypoint wrapper that runs as root, applies iptables rules, creates a matching user via `adduser`, then drops privileges with `su` before exec-ing shell-wrapper
+- feat: rootless Podman graceful degradation for network policies (falls back to `--network=none`; clears policy env vars so logger does not emit false-positive enforcement events)
+- feat: `policy.*` keys added to global config fallback alongside `runtime.*`, `volumes.*`, and `observability.*`
+- docs: `policy_event` documented in session-log.md with field reference and provenance table entries for `pre-commit-hook` and `network-setup` sources
+- docs: all Phase 4 policy fields documented in configuration.md; `runtime.network.default` restricted to `deny` only
+- docs: trust model updated — "Technical policy enforcement" moved from "Not provided" to "Provided"
+- docs: architecture.md updated with `network-setup.sh` conditional entrypoint
+- docs: all Phase 4 roadmap items (4.1–4.5) marked complete
+- test: 504 tests, 23 unit suites, 100% function coverage
+- test: new suites — `test_policy_resource_limits.sh`, `test_policy_timer.sh`, `test_policy_filesystem.sh`, `test_policy_hooks.sh`, `test_policy_network.sh`
+- test: updated suites — `test_timeline.sh` (policy P glyph), `test_resource_sampler.sh` (policy_event counting in summary), `test_config.sh` (policy global fallback)
+
 ## [0.13.0] - 2026-03-23
 
 - feat: add `carranca log --timeline` for ASCII timeline rendering of session events

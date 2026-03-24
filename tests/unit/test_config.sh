@@ -327,9 +327,9 @@ assert_eq "project overrides global: cap_add[0]" "NET_ADMIN" "${items[0]}"
 val="$(carranca_config_get_with_global volumes.cache)"
 assert_eq "project overrides global: volumes.cache" "true" "$val"
 
-# Non-runtime keys don't fall back to global
+# Policy key absent from both configs returns empty
 val="$(carranca_config_get_with_global policy.docs_before_code)"
-assert_eq "non-runtime key returns empty (no global fallback)" "" "$val"
+assert_eq "policy key absent from both configs returns empty" "" "$val"
 
 # Restore defaults for any subsequent tests
 CARRANCA_CONFIG_FILE=".carranca.yml"

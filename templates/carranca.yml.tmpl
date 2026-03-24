@@ -10,6 +10,12 @@ agents:
 runtime:
   engine: auto
   network: true
+  # Fine-grained network policy (replaces boolean; requires yq):
+  # network:
+  #   default: deny
+  #   allow:
+  #     - "*.anthropic.com:443"
+  #     - "registry.npmjs.org:443"
   # Extra container runtime flags for the agent container (e.g. --gpus all)
   # extra_flags: --gpus all
   # Extra container runtime flags for the logger container
@@ -25,8 +31,15 @@ volumes:
   #   - ~/docs:/reference:ro
 
 policy:
-  docs_before_code: warn
-  tests_before_impl: warn
+  docs_before_code: warn              # warn, enforce, or off — git pre-commit hook
+  tests_before_impl: warn             # warn, enforce, or off — git pre-commit hook
+  # max_duration: 3600                # Kill agent after N seconds (0 = no limit)
+  # resource_limits:                  # Requires yq
+  #   memory: "2g"
+  #   cpus: "2.0"
+  #   pids: 256
+  # filesystem:                       # Requires yq
+  #   enforce_watched_paths: false    # Make watched_paths read-only
 
 watched_paths:
   - .env

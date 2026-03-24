@@ -219,6 +219,27 @@ logger container.
 {"type":"file_access_event","source":"fanotify","ts":"2026-03-22T09:45:03Z","session_id":"abc12345","path":"/workspace/.env","pid":42,"watched":true,"seq":12}
 ```
 
+### `policy_event`
+
+Policy enforcement events produced by Phase 4 enforcement mechanisms. These
+record when policies are configured, enforced, violated, or degraded.
+
+```json
+{"type":"policy_event","source":"carranca","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","policy":"resource_limits","action":"oom_kill","detail":"OOM kill detected (limit: 2g)","seq":13}
+{"type":"policy_event","source":"carranca","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","policy":"max_duration","action":"timeout","detail":"session killed after 3600s","seq":14}
+{"type":"policy_event","source":"carranca","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","policy":"filesystem","action":"enforced","detail":"read-only: .env,secrets/","seq":15}
+{"type":"policy_event","source":"carranca","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","policy":"filesystem","action":"degraded","detail":"glob patterns not enforced: *.key","seq":16}
+{"type":"policy_event","source":"pre-commit-hook","ts":"2026-03-22T09:45:05Z","session_id":"abc12345","policy":"docs_before_code","action":"blocked","detail":"commit modifies src/app.js without documentation changes","seq":17}
+{"type":"policy_event","source":"pre-commit-hook","ts":"2026-03-22T09:45:05Z","session_id":"abc12345","policy":"tests_before_impl","action":"warn","detail":"commit modifies lib/parser.sh without test changes","seq":18}
+{"type":"policy_event","source":"carranca","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","policy":"network","action":"configured","detail":"mode:filtered rules:1.2.3.4:443,5.6.7.8:443","seq":19}
+```
+
+| Field | Values |
+|-------|--------|
+| `policy` | `resource_limits`, `max_duration`, `filesystem`, `docs_before_code`, `tests_before_impl`, `network` |
+| `action` | `enforced`, `blocked`, `warn`, `timeout`, `oom_kill`, `configured`, `degraded` |
+| `source` | `carranca` (logger-side), `pre-commit-hook` (git hook), `network-setup` (iptables) |
+
 ### Session timeline
 
 `carranca log --timeline` renders an ASCII timeline of all session events:
@@ -228,7 +249,8 @@ carranca log --timeline --session abc12345
 ```
 
 Each event type maps to a glyph: `>>` lifecycle, `$` command, `F+/F~/F-`
-file mutation, `X` execve, `N` network, `R` resource, `A` file access.
+file mutation, `X` execve, `N` network, `R` resource, `A` file access,
+`P` policy.
 
 ## Event provenance
 
@@ -244,6 +266,8 @@ data.
 | `strace` | Process execution tracer | Ground truth — kernel-level observation via ptrace |
 | `fanotify` | File access monitor | Ground truth — kernel-level observation via fanotify |
 | `shell-wrapper` | Agent container shell wrapper | Agent-reported — the agent can forge or suppress these |
+| `pre-commit-hook` | Carranca-injected git pre-commit hook | Agent-side — runs in agent container but managed by carranca |
+| `network-setup` | Network policy iptables setup | Agent-side — runs before agent command, managed by carranca |
 | `fifo` | Malformed data on the FIFO | Untrusted — raw data that failed validation |
 
 ## Schema fields

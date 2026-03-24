@@ -22,6 +22,11 @@ structure, not through verified guarantees.
 | Network logging | Ground truth | `/proc/net/tcp` polling captures outbound connections |
 | Secret read monitoring | Ground truth | fanotify captures file reads on watched paths |
 | Resource tracking | Transparency tool | cgroup v2 stats sample CPU, memory, and PID count |
+| Resource limits | Hard boundary | Container runtime enforces `--memory`, `--cpus`, `--pids-limit` via cgroup limits |
+| Time-boxed sessions | Hard boundary | Logger removes FIFO after `policy.max_duration` seconds, triggering agent fail-closed exit |
+| Filesystem access control | Hard boundary | Bind-mount `:ro` overlays prevent writes to `watched_paths` entries |
+| Policy hooks | Enforcement tool | Git `core.hooksPath` injects pre-commit hooks; `enforce` mode blocks policy-violating commits |
+| Network policies | Hard boundary | iptables rules restrict outbound traffic to allow-listed destinations (rootful mode only) |
 
 ## What carranca does NOT provide
 
@@ -31,7 +36,7 @@ structure, not through verified guarantees.
 | Complete operation capture | Provided | execve tracing via strace (Phase 3); requires `observability.execve_tracing: true` |
 | Forgery resistance | Partially mitigated | Agent can forge FIFO events, but strace-observed execve events provide independent ground truth for cross-referencing |
 | Secret read monitoring | Provided | fanotify captures file reads on `watched_paths` (Phase 3); requires `observability.secret_monitoring: true` |
-| Technical policy enforcement | Not provided | Phase 4: pre-commit hooks, blocked paths |
+| Technical policy enforcement | Provided | Resource limits, time-boxed sessions, filesystem access control, git policy hooks, network filtering (Phase 4) |
 | Cross-platform file events | Supported | inotifywait (Linux) with fswatch fallback |
 
 ## Threat table

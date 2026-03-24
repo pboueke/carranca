@@ -156,6 +156,24 @@ if [ "$APPEND_ONLY" = false ]; then
   write_log "$DEG_EVENT"
 fi
 
+# Log filesystem enforcement policy events (4.2)
+if [ "${ENFORCE_WATCHED_PATHS:-}" = "true" ]; then
+  if [ -n "${ENFORCED_PATHS:-}" ]; then
+    FS_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"filesystem\",\"action\":\"enforced\",\"detail\":\"read-only: ${ENFORCED_PATHS}\"}"
+    write_log "$FS_EVENT"
+  fi
+  if [ -n "${DEGRADED_GLOBS:-}" ]; then
+    FS_DEG_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"filesystem\",\"action\":\"degraded\",\"detail\":\"glob patterns not enforced: ${DEGRADED_GLOBS}\"}"
+    write_log "$FS_DEG_EVENT"
+  fi
+fi
+
+# Log network policy events (4.1)
+if [ "$NETWORK_MODE" = "filtered" ] && [ -n "$NETWORK_POLICY_RULES" ]; then
+  NET_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"network\",\"action\":\"configured\",\"detail\":\"mode:filtered rules:${NETWORK_POLICY_RULES}\"}"
+  write_log "$NET_EVENT"
+fi
+
 # --- File event watcher (background, best-effort) ---
 
 # Shared handler: tag watched paths and write to log
@@ -246,6 +264,13 @@ fi
 # --- Resource consumption sampler (background, best-effort) ---
 
 RESOURCE_INTERVAL="${RESOURCE_INTERVAL:-10}"
+RESOURCE_MEMORY_LIMIT="${RESOURCE_MEMORY_LIMIT:-}"
+MAX_DURATION="${MAX_DURATION:-0}"
+ENFORCE_WATCHED_PATHS="${ENFORCE_WATCHED_PATHS:-}"
+ENFORCED_PATHS="${ENFORCED_PATHS:-}"
+DEGRADED_GLOBS="${DEGRADED_GLOBS:-}"
+NETWORK_MODE="${NETWORK_MODE:-full}"
+NETWORK_POLICY_RULES="${NETWORK_POLICY_RULES:-}"
 AGENT_CONTAINER_NAME="${AGENT_CONTAINER_NAME:-}"
 
 _find_agent_cgroup() {
@@ -307,6 +332,15 @@ _read_cgroup_stats() {
   printf '%s' "$stats"
 }
 
+_read_oom_kill_count() {
+  local cgroup_dir="$1"
+  local events_file="$cgroup_dir/memory.events"
+  [ -f "$events_file" ] || { printf '0'; return; }
+  local count
+  count="$(awk '$1 == "oom_kill" { print $2 }' "$events_file" 2>/dev/null)"
+  printf '%s' "${count:-0}"
+}
+
 _start_resource_sampler() {
   local interval="$1"
   local container_name="$2"
@@ -335,6 +369,9 @@ _start_resource_sampler() {
     return
   fi
 
+  local prev_oom_count
+  prev_oom_count="$(_read_oom_kill_count "$cgroup_dir")"
+
   while true; do
     sleep "$interval"
     local stats
@@ -342,6 +379,15 @@ _start_resource_sampler() {
     if [ -n "$stats" ]; then
       local event="{\"type\":\"resource_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\"$stats}"
       write_log "$event"
+    fi
+
+    # Check for OOM kills
+    local cur_oom_count
+    cur_oom_count="$(_read_oom_kill_count "$cgroup_dir")"
+    if [ "$cur_oom_count" -gt "$prev_oom_count" ] 2>/dev/null; then
+      local oom_event="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"resource_limits\",\"action\":\"oom_kill\",\"detail\":\"OOM kill detected (limit: ${RESOURCE_MEMORY_LIMIT:-unset})\"}"
+      write_log "$oom_event"
+      prev_oom_count="$cur_oom_count"
     fi
   done
 }
@@ -564,11 +610,36 @@ if [ "${NETWORK_LOGGING:-}" = "true" ]; then
   NETMON_PID=$!
 fi
 
+# --- Session timer (4.5 time-boxed sessions) ---
+
+TIMER_PID=""
+
+_start_session_timer() {
+  local duration="${MAX_DURATION:-0}"
+  [ "$duration" -gt 0 ] 2>/dev/null || return 0
+
+  sleep "$duration"
+  TIMEOUT_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"max_duration\",\"action\":\"timeout\",\"detail\":\"session killed after ${duration}s\"}"
+  write_log "$TIMEOUT_EVENT"
+  # Remove the FIFO to trigger the agent's fail-closed watchdog.
+  # The shell-wrapper polls FIFO health every 1s and calls fail_closed()
+  # when it disappears, which kills the agent process. That causes the
+  # agent container to exit, which unblocks run.sh and triggers its
+  # cleanup trap (carranca_session_stop).
+  rm -f "$FIFO_PATH"
+}
+
+if [ "${MAX_DURATION:-0}" != "0" ] && [ -n "${MAX_DURATION:-}" ]; then
+  _start_session_timer &
+  TIMER_PID=$!
+fi
+
 # --- SIGTERM handler ---
 
 _cleanup() {
   STOP_EVENT="{\"type\":\"session_event\",\"source\":\"carranca\",\"event\":\"logger_stop\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\"}"
   write_log "$STOP_EVENT"
+  [ -n "$TIMER_PID" ] && kill "$TIMER_PID" 2>/dev/null
   [ -n "$NETMON_PID" ] && kill "$NETMON_PID" 2>/dev/null
   [ -n "$TRACER_PID" ] && kill "$TRACER_PID" 2>/dev/null
   [ -n "$WATCHER_PID" ] && kill "$WATCHER_PID" 2>/dev/null

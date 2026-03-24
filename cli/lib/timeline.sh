@@ -127,6 +127,14 @@ carranca_session_render_timeline() {
         path="$(carranca_json_get_string "$line" "path")"
         detail="$path read"
         ;;
+      policy_event)
+        glyph=" P"
+        local policy action p_detail
+        policy="$(carranca_json_get_string "$line" "policy")"
+        action="$(carranca_json_get_string "$line" "action")"
+        p_detail="$(carranca_json_get_string "$line" "detail")"
+        detail="[$policy] $action: $p_detail"
+        ;;
       invalid_event)
         glyph="??"
         detail="invalid event"

@@ -108,7 +108,8 @@ cat > "$TMPDIR/future.jsonl" <<'EOF'
 {"type":"network_event","source":"carranca","ts":"2026-03-22T09:00:02Z","session_id":"fut00001","dest_ip":"104.18.12.33","dest_port":443,"protocol":"tcp","state":"ESTABLISHED","seq":2}
 {"type":"resource_event","source":"carranca","ts":"2026-03-22T09:00:03Z","session_id":"fut00001","cpu_usage_us":1234567,"memory_bytes":52428800,"pids":12,"seq":3}
 {"type":"file_access_event","source":"fanotify","ts":"2026-03-22T09:00:04Z","session_id":"fut00001","path":"/workspace/.env","pid":42,"watched":true,"seq":4}
-{"type":"completely_unknown","ts":"2026-03-22T09:00:05Z","session_id":"fut00001","seq":5}
+{"type":"policy_event","source":"carranca","ts":"2026-03-22T09:00:05Z","session_id":"fut00001","policy":"resource_limits","action":"oom_kill","detail":"OOM kill detected","seq":5}
+{"type":"completely_unknown","ts":"2026-03-22T09:00:06Z","session_id":"fut00001","seq":6}
 EOF
 
 output="$(carranca_session_render_timeline "$TMPDIR/future.jsonl")"
@@ -116,6 +117,7 @@ assert_contains "execve shows X glyph" "X  /usr/bin/npm (pid=42)" "$output"
 assert_contains "network shows N glyph" "N  104.18.12.33:443 tcp ESTABLISHED" "$output"
 assert_contains "resource shows R glyph" "R  cpu=1234567us mem=52428800B pids=12" "$output"
 assert_contains "file access shows A glyph" "A  /workspace/.env read" "$output"
+assert_contains "policy shows P glyph" "P  [resource_limits] oom_kill: OOM kill detected" "$output"
 assert_contains "unknown shows ? glyph" "?  completely_unknown" "$output"
 
 rm -rf "$TMPDIR"

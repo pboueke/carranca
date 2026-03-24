@@ -78,6 +78,7 @@ AGENT_COMMAND="$(carranca_config_agent_field "$SELECTED_AGENT_NAME" command)"
 AGENT_ADAPTER="$(carranca_config_agent_driver_for "$SELECTED_AGENT_NAME")"
 NETWORK="$(carranca_config_get_with_global runtime.network)"
 [ -z "$NETWORK" ] && NETWORK="true"
+NETWORK_MODE="$(carranca_config_network_mode)"
 EXTRA_FLAGS="$(carranca_config_get_with_global runtime.extra_flags)"
 LOGGER_EXTRA_FLAGS="$(carranca_config_get_with_global runtime.logger_extra_flags)"
 RESOURCE_INTERVAL="$(carranca_config_get_with_global observability.resource_interval)"
@@ -94,9 +95,146 @@ EXECVE_TRACING="$(carranca_config_get_with_global observability.execve_tracing)"
 NETWORK_LOGGING="$(carranca_config_get_with_global observability.network_logging)"
 NETWORK_INTERVAL="$(carranca_config_get_with_global observability.network_interval)"
 
+# --- Policy: resource limits (4.4) ---
+RESOURCE_MEMORY="$(carranca_config_get_with_global policy.resource_limits.memory)"
+RESOURCE_CPUS="$(carranca_config_get_with_global policy.resource_limits.cpus)"
+RESOURCE_PIDS="$(carranca_config_get_with_global policy.resource_limits.pids)"
+
+RESOURCE_LIMIT_FLAGS=""
+if [ -n "$RESOURCE_MEMORY" ]; then
+  RESOURCE_LIMIT_FLAGS="$RESOURCE_LIMIT_FLAGS --memory $RESOURCE_MEMORY"
+fi
+if [ -n "$RESOURCE_CPUS" ]; then
+  RESOURCE_LIMIT_FLAGS="$RESOURCE_LIMIT_FLAGS --cpus $RESOURCE_CPUS"
+fi
+if [ -n "$RESOURCE_PIDS" ]; then
+  RESOURCE_LIMIT_FLAGS="$RESOURCE_LIMIT_FLAGS --pids-limit $RESOURCE_PIDS"
+fi
+
+# --- Policy: time-boxed sessions (4.5) ---
+MAX_DURATION="$(carranca_config_get_with_global policy.max_duration)"
+
+# --- Policy: filesystem access control (4.2) ---
+ENFORCE_WATCHED_PATHS="$(carranca_config_get_with_global policy.filesystem.enforce_watched_paths)"
+FILESYSTEM_RO_FLAGS=""
+ENFORCED_PATHS=""
+DEGRADED_GLOBS=""
+
+if [ "$ENFORCE_WATCHED_PATHS" = "true" ]; then
+  while IFS= read -r wp; do
+    [ -z "$wp" ] && continue
+    case "$wp" in
+      \*.*)
+        # Glob patterns cannot be bind-mounted; degrade gracefully
+        if [ -z "$DEGRADED_GLOBS" ]; then
+          DEGRADED_GLOBS="$wp"
+        else
+          DEGRADED_GLOBS="$DEGRADED_GLOBS,$wp"
+        fi
+        ;;
+      */)
+        # Directory: overlay bind mount as read-only
+        if [ -d "$WORKSPACE/$wp" ]; then
+          FILESYSTEM_RO_FLAGS="$FILESYSTEM_RO_FLAGS -v $WORKSPACE/$wp:/workspace/$wp:ro"
+          if [ -z "$ENFORCED_PATHS" ]; then
+            ENFORCED_PATHS="$wp"
+          else
+            ENFORCED_PATHS="$ENFORCED_PATHS,$wp"
+          fi
+        fi
+        ;;
+      *)
+        # Specific file: overlay bind mount as read-only
+        if [ -e "$WORKSPACE/$wp" ]; then
+          FILESYSTEM_RO_FLAGS="$FILESYSTEM_RO_FLAGS -v $WORKSPACE/$wp:/workspace/$wp:ro"
+          if [ -z "$ENFORCED_PATHS" ]; then
+            ENFORCED_PATHS="$wp"
+          else
+            ENFORCED_PATHS="$ENFORCED_PATHS,$wp"
+          fi
+        fi
+        ;;
+    esac
+  done < <(carranca_config_get_list watched_paths 2>/dev/null || true)
+fi
+
+# --- Policy: technical policy hooks (4.3) ---
+DOCS_BEFORE_CODE="$(carranca_config_get_with_global policy.docs_before_code)"
+TESTS_BEFORE_IMPL="$(carranca_config_get_with_global policy.tests_before_impl)"
+
+POLICY_HOOKS="false"
+POLICY_HOOKS_FLAGS=""
+POLICY_HOOKS_ENV=""
+if [ "$DOCS_BEFORE_CODE" = "warn" ] || [ "$DOCS_BEFORE_CODE" = "enforce" ] || \
+   [ "$TESTS_BEFORE_IMPL" = "warn" ] || [ "$TESTS_BEFORE_IMPL" = "enforce" ]; then
+  POLICY_HOOKS="true"
+  POLICY_HOOKS_FLAGS="-v $CARRANCA_HOME/runtime/hooks:/carranca-hooks:ro"
+  POLICY_HOOKS_ENV="-e POLICY_HOOKS=true -e POLICY_DOCS_BEFORE_CODE=${DOCS_BEFORE_CODE:-off} -e POLICY_TESTS_BEFORE_IMPL=${TESTS_BEFORE_IMPL:-off}"
+fi
+
+# --- Policy: fine-grained network policies (4.1) ---
+NETWORK_POLICY_FLAGS=""
+NETWORK_POLICY_ENV=""
+NETWORK_POLICY_ENTRYPOINT=""
+
+if [ "$NETWORK_MODE" = "filtered" ]; then
+  # Resolve DNS for allow-list entries and build iptables rules
+  NETWORK_POLICY_RULES=""
+  while IFS= read -r entry; do
+    [ -z "$entry" ] && continue
+    local_host="${entry%%:*}"
+    local_port="${entry##*:}"
+    [ -z "$local_port" ] && continue
+
+    # Strip wildcard prefix for DNS resolution
+    resolve_host="$local_host"
+    case "$resolve_host" in
+      \*.*) resolve_host="${resolve_host#\*.}" ;;
+    esac
+
+    # Resolve hostname to IP(s)
+    resolved_ips="$(getent ahosts "$resolve_host" 2>/dev/null | awk '{print $1}' | sort -u || true)"
+    if [ -z "$resolved_ips" ]; then
+      carranca_log warn "Network policy: could not resolve $local_host — skipping"
+      continue
+    fi
+
+    while IFS= read -r ip; do
+      [ -z "$ip" ] && continue
+      if [ -z "$NETWORK_POLICY_RULES" ]; then
+        NETWORK_POLICY_RULES="$ip:$local_port"
+      else
+        NETWORK_POLICY_RULES="$NETWORK_POLICY_RULES,$ip:$local_port"
+      fi
+    done <<< "$resolved_ips"
+  done < <(carranca_config_get_list runtime.network.allow 2>/dev/null || true)
+
+  if [ -n "$NETWORK_POLICY_RULES" ]; then
+    NETWORK_POLICY_FLAGS="--cap-add NET_ADMIN -v $CARRANCA_HOME/runtime/network-setup.sh:/usr/local/bin/network-setup.sh:ro"
+    NETWORK_POLICY_ENV="-e NETWORK_POLICY_RULES=$NETWORK_POLICY_RULES -e NETWORK_POLICY_USER=$HOST_UID:$HOST_GID"
+    NETWORK_POLICY_ENTRYPOINT="--entrypoint /usr/local/bin/network-setup.sh"
+    carranca_log info "Network policy: filtered (${NETWORK_POLICY_RULES})"
+  else
+    carranca_log warn "Network policy: no resolvable allow-list entries — falling back to full deny"
+    NETWORK="false"
+  fi
+fi
+
 CONTAINER_RUNTIME="$(carranca_runtime_cmd)"
 LOGGER_CAP_FLAGS="$(carranca_runtime_logger_cap_flags)"
 AGENT_IDENTITY_FLAGS="$(carranca_runtime_agent_identity_flags "$HOST_UID" "$HOST_GID")"
+
+# Degrade network policy for rootless Podman (cannot run iptables)
+if [ -n "$NETWORK_POLICY_FLAGS" ] && \
+   [ "$CONTAINER_RUNTIME" = "podman" ] && carranca_runtime_is_rootless "$CONTAINER_RUNTIME"; then
+  carranca_log warn "Network policy: rootless Podman cannot enforce allow-list — falling back to --network=none"
+  NETWORK="false"
+  NETWORK_MODE="none"
+  NETWORK_POLICY_RULES=""
+  NETWORK_POLICY_FLAGS=""
+  NETWORK_POLICY_ENV=""
+  NETWORK_POLICY_ENTRYPOINT=""
+fi
 
 # --- Volume config ---
 
@@ -247,6 +385,13 @@ carranca_runtime_run -d --rm \
   -e "SECRET_MONITORING=${SECRET_MONITORING:-}" \
   -e "NETWORK_LOGGING=${NETWORK_LOGGING:-}" \
   -e "NETWORK_INTERVAL=${NETWORK_INTERVAL:-}" \
+  -e "MAX_DURATION=${MAX_DURATION:-}" \
+  -e "RESOURCE_MEMORY_LIMIT=${RESOURCE_MEMORY:-}" \
+  -e "ENFORCE_WATCHED_PATHS=${ENFORCE_WATCHED_PATHS:-}" \
+  -e "ENFORCED_PATHS=${ENFORCED_PATHS:-}" \
+  -e "DEGRADED_GLOBS=${DEGRADED_GLOBS:-}" \
+  -e "NETWORK_MODE=${NETWORK_MODE:-full}" \
+  -e "NETWORK_POLICY_RULES=${NETWORK_POLICY_RULES:-}" \
   $SECRETMON_CAP_FLAG \
   $LOGGER_EXTRA_FLAGS \
   "$LOGGER_IMAGE" >/dev/null
@@ -301,9 +446,16 @@ _resolve_agent_container_id() {
 
 # shellcheck disable=SC2086
 AGENT_EXIT_CODE=0
+# When network-setup entrypoint is active, the container must start as root
+# for iptables. network-setup.sh drops privileges before exec-ing shell-wrapper.
+EFFECTIVE_IDENTITY_FLAGS="$AGENT_IDENTITY_FLAGS"
+if [ -n "$NETWORK_POLICY_ENTRYPOINT" ]; then
+  EFFECTIVE_IDENTITY_FLAGS=""
+fi
+
 carranca_runtime_run $TTY_FLAGS --rm \
   --name "$AGENT_CONTAINER_NAME" \
-  $AGENT_IDENTITY_FLAGS \
+  $EFFECTIVE_IDENTITY_FLAGS \
   $PID_NS_FLAG \
   -v "$FIFO_VOLUME:/fifo" \
   -v "$WORKSPACE:/workspace:rw" \
@@ -317,6 +469,13 @@ carranca_runtime_run $TTY_FLAGS --rm \
   -e "AGENT_COMMAND=$AGENT_COMMAND" \
   -e "SESSION_ID=$SESSION_ID" \
   $NETWORK_FLAG \
+  $RESOURCE_LIMIT_FLAGS \
+  $FILESYSTEM_RO_FLAGS \
+  $POLICY_HOOKS_FLAGS \
+  $POLICY_HOOKS_ENV \
+  $NETWORK_POLICY_FLAGS \
+  $NETWORK_POLICY_ENV \
+  $NETWORK_POLICY_ENTRYPOINT \
   $EXTRA_FLAGS \
   "$AGENT_IMAGE" || AGENT_EXIT_CODE=$?
 

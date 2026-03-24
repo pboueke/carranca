@@ -114,7 +114,7 @@ resource samples. Makes session review fast and intuitive.
 Move from advisory policies (prompt-level guidance) to technical
 enforcement that the agent cannot bypass.
 
-### 4.1 Fine-grained network policies
+### ~~4.1 Fine-grained network policies~~ ✓
 Replace the boolean `runtime.network` with a policy object:
 
 ```yaml
@@ -129,25 +129,26 @@ runtime:
 Implement via container network namespace + nftables rules or a
 userspace proxy. Log all blocked attempts.
 
-### 4.2 Filesystem access control
+### ~~4.2 Filesystem access control~~ ✓
 Enforce read-only or deny access to paths listed in `watched_paths`.
 Use bind-mount options (`:ro`) and seccomp profiles to prevent the
 agent from writing outside allowed directories.
 
-### 4.3 Technical policy hooks
+### ~~4.3 Technical policy hooks~~ ✓
 Replace prompt-level `docs_before_code` and `tests_before_impl` with
 enforceable pre-commit hooks injected into the agent container. The
 agent cannot commit code that violates the policy. Log violations as
 `policy_event` entries.
 
-### 4.4 Resource limits
+### ~~4.4 Resource limits~~ ✓
 Enforce CPU, memory, and disk quotas per session via cgroup limits.
 Kill or pause the agent when limits are exceeded. Prevents runaway
 agents from exhausting host resources.
 
-### 4.5 Time-boxed sessions
-Add `policy.max_duration` config. The logger kills the agent after the
-configured wall-clock limit. Useful for unattended runs.
+### ~~4.5 Time-boxed sessions~~ ✓
+Add `policy.max_duration` config. The logger removes the FIFO after the
+configured wall-clock limit, triggering the agent's fail-closed exit.
+Useful for unattended runs.
 
 ---
 

@@ -166,6 +166,7 @@ cat > "$STATS_LOG" <<'EOF'
 {"type":"network_event","source":"carranca","ts":"2026-03-22T00:00:06Z","session_id":"test1234","dest":"1.2.3.4","port":443}
 {"type":"file_access_event","source":"carranca","ts":"2026-03-22T00:00:07Z","session_id":"test1234","path":"/etc/passwd"}
 {"type":"file_access_event","source":"carranca","ts":"2026-03-22T00:00:08Z","session_id":"test1234","path":"/etc/shadow"}
+{"type":"policy_event","source":"carranca","ts":"2026-03-22T00:00:09Z","session_id":"test1234","policy":"resource_limits","action":"oom_kill","detail":"OOM kill detected"}
 {"type":"session_event","source":"carranca","event":"logger_stop","ts":"2026-03-22T00:00:30Z","session_id":"test1234"}
 EOF
 
@@ -174,6 +175,7 @@ assert_eq "resource_event count" "2" "$CARRANCA_LOG_RESOURCE_SAMPLES"
 assert_eq "execve_event count" "1" "$CARRANCA_LOG_EXECVE_EVENTS"
 assert_eq "network_event count" "1" "$CARRANCA_LOG_NETWORK_EVENTS"
 assert_eq "file_access_event count" "2" "$CARRANCA_LOG_ACCESS_EVENTS"
+assert_eq "policy_event count" "1" "$CARRANCA_LOG_POLICY_EVENTS"
 
 # Test 7: Summary output includes new event counts
 summary_output="$(carranca_session_print_summary "$STATS_LOG")"
@@ -181,6 +183,7 @@ assert_contains "summary includes resource samples" "Resource samples: 2" "$summ
 assert_contains "summary includes execve events" "Execve events: 1" "$summary_output"
 assert_contains "summary includes network events" "Network events: 1" "$summary_output"
 assert_contains "summary includes access events" "Access events: 2" "$summary_output"
+assert_contains "summary includes policy events" "Policy events: 1" "$summary_output"
 
 # Test 8: Summary hides zero-count event types
 STATS_LOG_MINIMAL="$TMPDIR/stats-minimal.jsonl"
@@ -216,6 +219,13 @@ if echo "$summary_minimal" | grep -Fq "Access events"; then
   FAIL=$((FAIL + 1))
 else
   echo "  PASS: summary hides access events when zero"
+  PASS=$((PASS + 1))
+fi
+if echo "$summary_minimal" | grep -Fq "Policy events"; then
+  echo "  FAIL: summary should hide policy events when zero"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: summary hides policy events when zero"
   PASS=$((PASS + 1))
 fi
 

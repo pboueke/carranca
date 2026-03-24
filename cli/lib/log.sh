@@ -118,6 +118,7 @@ carranca_session_collect_stats() {
   CARRANCA_LOG_EXECVE_EVENTS=0
   CARRANCA_LOG_NETWORK_EVENTS=0
   CARRANCA_LOG_ACCESS_EVENTS=0
+  CARRANCA_LOG_POLICY_EVENTS=0
   CARRANCA_LOG_FIRST_TS=""
   CARRANCA_LOG_LAST_TS=""
   CARRANCA_LOG_AGENT_NAME=""
@@ -176,6 +177,7 @@ carranca_session_collect_stats() {
       execve_event) CARRANCA_LOG_EXECVE_EVENTS=$((CARRANCA_LOG_EXECVE_EVENTS + 1)) ;;
       network_event) CARRANCA_LOG_NETWORK_EVENTS=$((CARRANCA_LOG_NETWORK_EVENTS + 1)) ;;
       file_access_event) CARRANCA_LOG_ACCESS_EVENTS=$((CARRANCA_LOG_ACCESS_EVENTS + 1)) ;;
+      policy_event) CARRANCA_LOG_POLICY_EVENTS=$((CARRANCA_LOG_POLICY_EVENTS + 1)) ;;
       session_event)
         ts="$(carranca_json_get_string "$line" "ts")"
         [ -z "$CARRANCA_LOG_FIRST_TS" ] && CARRANCA_LOG_FIRST_TS="$ts"
@@ -220,6 +222,9 @@ carranca_session_print_summary() {
   fi
   if [ "$CARRANCA_LOG_ACCESS_EVENTS" -gt 0 ]; then
     echo "  Access events: $CARRANCA_LOG_ACCESS_EVENTS"
+  fi
+  if [ "$CARRANCA_LOG_POLICY_EVENTS" -gt 0 ]; then
+    echo "  Policy events: $CARRANCA_LOG_POLICY_EVENTS"
   fi
   echo "  Action log: $log_file"
   if [ "$CARRANCA_LOG_TOTAL_CMDS" -eq 0 ] && [ "$CARRANCA_LOG_FILE_EVENTS_TOTAL" -gt 0 ]; then

@@ -19,7 +19,7 @@ Carranca reads user-wide defaults from:
 
 Override the directory with `CARRANCA_CONFIG_DIR`.
 
-Only `runtime.*`, `volumes.*`, and `observability.*` settings are read from global config.
+Only `runtime.*`, `volumes.*`, `observability.*`, and `policy.*` settings are read from global config.
 Project-level `.carranca.yml` always takes precedence. Lists (like
 `runtime.cap_add` and `volumes.extra`) are not merged — the project list
 replaces the global list entirely when present.
@@ -87,14 +87,21 @@ observability:
 | `agents[].command` | Yes | — | Command executed inside the agent container |
 | `agents[].adapter` | No | `default` | Adapter selection: `default`, `claude`, `codex`, `opencode`, or `stdin` |
 | `runtime.engine` | No | `auto` | Runtime engine: `auto`, `docker`, or `podman` |
-| `runtime.network` | No | `true` | `false` adds `--network=none` to the agent and config-agent container |
+| `runtime.network` | No | `true` | Boolean `true`/`false` or object with `default`/`allow` keys. `false` adds `--network=none`. Object form enables fine-grained network filtering via iptables |
+| `runtime.network.default` | No | — | Network policy default: must be `deny`. Presence of this key switches to filtered mode with iptables OUTPUT DROP + allow-list. Requires yq |
+| `runtime.network.allow` | No | — | List of `host:port` entries allowed through the firewall (e.g., `*.anthropic.com:443`). Requires yq |
 | `runtime.extra_flags` | No | — | Extra flags appended to the agent container `run` command |
 | `runtime.logger_extra_flags` | No | — | Extra flags appended to the logger container `run` command |
 | `runtime.cap_add` | No | — | List of Linux capabilities added to the agent container via `--cap-add` |
 | `volumes.cache` | No | `true` | Persists `/home/carranca` under `~/.local/state/carranca/cache/<repo-id>/home/` |
 | `volumes.extra` | No | — | Extra bind mounts added only to the agent container |
-| `policy.docs_before_code` | No | — | Parsed and scaffolded, but not enforced by the current CLI |
-| `policy.tests_before_impl` | No | — | Parsed and scaffolded, but not enforced by the current CLI |
+| `policy.docs_before_code` | No | — | `warn`, `enforce`, or `off`. When `warn` or `enforce`, injects git pre-commit hooks. `enforce` blocks commits that modify code without documentation |
+| `policy.tests_before_impl` | No | — | `warn`, `enforce`, or `off`. When `warn` or `enforce`, injects git pre-commit hooks. `enforce` blocks commits that modify implementation without tests |
+| `policy.max_duration` | No | — | Seconds; logger removes FIFO after this wall-clock limit, triggering agent fail-closed exit. `0` or absent means no limit |
+| `policy.resource_limits.memory` | No | — | Container memory limit (e.g., `2g`, `512m`). Passed as `--memory` to agent container. Requires yq |
+| `policy.resource_limits.cpus` | No | — | CPU limit (e.g., `2.0`). Passed as `--cpus` to agent container. Requires yq |
+| `policy.resource_limits.pids` | No | — | Max number of processes. Passed as `--pids-limit` to agent container. Requires yq |
+| `policy.filesystem.enforce_watched_paths` | No | `false` | When `true`, `watched_paths` directories and files are bind-mounted read-only. Requires yq |
 | `watched_paths` | No | — | File events matching watched patterns are tagged with `"watched":true` in session logs |
 | `observability.resource_interval` | No | `10` | Seconds between cgroup resource samples; `0` disables |
 | `observability.execve_tracing` | No | `false` | Enable strace-based execve tracing; adds `CAP_SYS_PTRACE` to logger |

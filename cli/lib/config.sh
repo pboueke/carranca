@@ -203,7 +203,7 @@ carranca_config_get_with_global() {
 
   # Fall back to global only for runtime.* and volumes.* keys
   case "$key" in
-    runtime.*|volumes.*|observability.*)
+    runtime.*|volumes.*|observability.*|policy.*)
       val="$(carranca_config_get "$key" "$CARRANCA_GLOBAL_CONFIG" 2>/dev/null || true)"
       if [ -n "$val" ]; then
         printf '%s' "$val"
@@ -228,9 +228,9 @@ carranca_config_get_list_with_global() {
     return 0
   fi
 
-  # Fall back to global only for runtime.* and volumes.* keys
+  # Fall back to global only for runtime.*, volumes.*, observability.*, and policy.* keys
   case "$key" in
-    runtime.*|volumes.*|observability.*)
+    runtime.*|volumes.*|observability.*|policy.*)
       items="$(carranca_config_get_list "$key" "$CARRANCA_GLOBAL_CONFIG" 2>/dev/null || true)"
       if [ -n "$items" ]; then
         printf '%s\n' "$items"
@@ -395,6 +395,30 @@ carranca_config_agent_driver_for() {
     *)
       return 1
       ;;
+  esac
+}
+
+# Detect network config mode: "full", "none", or "filtered".
+# "full"     — runtime.network: true (or absent)
+# "none"     — runtime.network: false
+# "filtered" — runtime.network.default: deny with allow-list
+carranca_config_network_mode() {
+  local file="${1:-$CARRANCA_CONFIG_FILE}"
+
+  # Check if runtime.network.default exists and is "deny" (object form)
+  local net_default
+  net_default="$(carranca_config_get runtime.network.default "$file" 2>/dev/null || true)"
+  if [ "$net_default" = "deny" ]; then
+    printf '%s' "filtered"
+    return 0
+  fi
+
+  # Boolean form
+  local net_val
+  net_val="$(carranca_config_get runtime.network "$file" 2>/dev/null || true)"
+  case "$net_val" in
+    false) printf '%s' "none" ;;
+    *)     printf '%s' "full" ;;
   esac
 }
 
