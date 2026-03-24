@@ -20,7 +20,7 @@ cat > ".carranca.yml" <<'EOF'
 agents:
   - name: shell
     adapter: stdin
-    command: bash -c "echo status-run && touch /workspace/status-test.txt && sleep 5 && exit 0"
+    command: bash -c "echo status-run && touch /workspace/status-test.txt && sleep 15 && exit 0"
 runtime:
   engine: auto
   network: true
