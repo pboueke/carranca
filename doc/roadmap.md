@@ -1,11 +1,11 @@
 # Roadmap
 
-Phased plan for evolving carranca from a transparency tool into a
-comprehensive agent runtime with strong observability, verified audits,
-security controls, and deep isolation.
+Phased plan for extending carranca beyond the current Phase 1-4 baseline into
+stronger adversarial hardening and broader operational integration.
 
-Each phase builds on the previous one. Items within a phase are independent
-unless noted.
+Phases 1 through 4 are complete. The remaining items describe the next layers of
+hardening and ecosystem work. Items within a phase are independent unless
+noted.
 
 ---
 
@@ -49,8 +49,8 @@ strings, anchors, deep nesting) that the awk fallback cannot handle.
 
 ## Phase 2 — Verified audit trail
 
-Move session logs from transparency tools to cryptographically verifiable
-evidence. This is the prerequisite for compliance and forensic use.
+Move session logs from plain transparency features to cryptographically
+verifiable evidence. This is the prerequisite for compliance and forensic use.
 
 ### ~~2.1 HMAC-signed event chain~~ ✓
 Generate a per-session HMAC key (stored outside the agent container).

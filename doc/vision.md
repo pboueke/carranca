@@ -1,35 +1,47 @@
 # Vision
 
-Carranca protects engineers from coding agents by running them in isolated containers with structured session logging.
+Carranca is a containerized agent runtime for teams that want isolated
+execution, reviewable sessions, and technical controls around AI-assisted code
+changes.
 
-## Today
+## Current position
 
-Carranca provides transparency and isolation for coding agents:
+Phases 1 through 4 are now implemented. Carranca already provides:
 
-- **Audit trail**: Structured session logs capture every command and file mutation
-- **Host protection**: Container isolation prevents accidental or harmful filesystem operations
-- **Reproducibility**: Cache volumes persist agent state across runs
+- **Verified audit evidence**: HMAC-signed session logs, checksum hardening,
+  exportable archives, and provenance-tagged events
+- **Deep observability**: shell-command capture, file mutation events, execve
+  tracing, network connection logging, resource sampling, and secret-read
+  monitoring
+- **Technical policy enforcement**: network filtering, resource limits,
+  time-boxed sessions, read-only overlays for watched paths, and pre-commit
+  policy hooks
+- **Operational isolation**: dedicated agent/logger containers, fail-closed
+  session shutdown, and per-project agent images and configuration
 
-## Tomorrow
+This means Carranca is already beyond a transparency-only wrapper. The current
+product is a local runtime for engineers who need auditability and enforceable
+guardrails around coding agents.
 
-As features mature, Carranca evolves into a full agent runtime platform for organizations that treat AI coding assistants as production systems:
+## Next phases
 
-| Phase | Capability | Benefit |
-|-------|------------|---------|
-| Verified audit | HMAC-signed event chains, append-only logs | Cryptographically tamper-proof logs for compliance and forensics |
-| Deep observability | eBPF/strace execve tracing, network connection logging | See what the agent *actually* runs, not just what it reports |
-| Policy enforcement | Fine-grained network allowlists, filesystem ACLs, resource limits | Technical controls the agent cannot bypass |
-| Adversarial hardening | Independent event verification, capability dropping, seccomp profiles | Protection against deliberately malicious agents |
-| Ecosystem | Central log aggregation, CI/CD integration, session diffing | Team-scale operations and reproducible pipelines |
+The remaining roadmap is about hardening and scale rather than basic
+capability:
 
-## Who Benefits
+| Phase | Focus | Outcome |
+|-------|-------|---------|
+| Phase 5 | Adversarial hardening | Reduce trust in the agent by moving more ground truth outside the agent's control |
+| Phase 6 | Ecosystem and integration | Support team workflows such as CI execution, central log collection, and richer comparisons |
 
-Organizations with security, compliance, or governance requirements will benefit most from the full vision:
+## Who benefits
 
-- **Security & compliance teams**: Need tamper-proof audit trails for AI-assisted development
-- **DevOps / platform engineers**: Run agents in CI/CD with resource limits and policy enforcement
-- **Engineering managers**: Review agent sessions and enforce team workflows
-- **Regulated industries**: Legal and compliance need signed logs as evidence
-- **Security-conscious organizations**: Prevent exfiltration of internal code and IP
+Carranca is most useful for organizations that need agent sessions to be both
+productive and reviewable:
 
-See [roadmap.md](roadmap.md) for the complete phased plan.
+- **Security and compliance teams**: need tamper-evident audit records for AI-assisted development
+- **Platform engineers**: want containerized execution with explicit resource, network, and filesystem controls
+- **Engineering managers**: need reviewable sessions and technical enforcement for team workflows
+- **Regulated industries**: need signed logs and traceable operator behavior
+- **Security-conscious engineering teams**: want to reduce the blast radius of local coding agents
+
+See [roadmap.md](roadmap.md) for the remaining phases.

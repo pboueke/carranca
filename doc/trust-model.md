@@ -67,10 +67,13 @@ structure, not through verified guarantees.
 
 ## Summary
 
-Carranca is a transparency tool with verified audit capabilities. It makes agent
-sessions reviewable with cryptographic tamper detection. An adversarial agent with
-arbitrary code execution inside the container can forge events through the FIFO, but
-provenance tagging and the HMAC event chain make such forgery detectable through
-cross-referencing. Post-session log tampering is detectable via the HMAC chain and
-parallel checksum file. The value proposition is: structured visibility with
-verifiable integrity is better than blind trust.
+Carranca is an isolation, audit, and policy-enforcement runtime built around a
+cooperative-agent trust model. It makes sessions reviewable with cryptographic
+tamper detection, kernel-observed telemetry, and technical controls such as
+resource limits, time bounds, read-only overlays, and network restrictions. An
+adversarial agent with arbitrary code execution inside the container can still
+forge FIFO-originated events, but provenance tagging, execve tracing, and the
+HMAC event chain make that forgery detectable through cross-referencing.
+Post-session log tampering is detectable via the HMAC chain and parallel
+checksum file. The current value proposition is not blind trust, but observable
+execution with enforceable guardrails and verifiable evidence.

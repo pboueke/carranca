@@ -1,0 +1,2011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Carranca: Isolated agent runtime with verified audits, deep observability, and policy enforcement</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root {
+      --bg: #fafaf9;
+      --fg: #1c1917;
+      --muted: #78716c;
+      --border: #d6d3d1;
+      --accent: #292524;
+      --code-bg: #f5f5f4;
+      --link: #44403c;
+      --details-bg: #ffffff;
+      --shadow: rgba(0,0,0,0.04);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1917;
+        --fg: #e7e5e4;
+        --muted: #a8a29e;
+        --border: #44403c;
+        --accent: #e7e5e4;
+        --code-bg: #292524;
+        --link: #d6d3d1;
+        --details-bg: #292524;
+        --shadow: rgba(0,0,0,0.2);
+      }
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, "Noto Serif", "Times New Roman", serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+    }
+
+    .hero {
+      text-align: center;
+      padding: 3rem 1.5rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .hero img {
+      width: 100%;
+      max-width: 560px;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero .caption {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-style: italic;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+      font-size: 2.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.75rem;
+    }
+
+    .hero .tagline {
+      font-size: 1.1rem;
+      color: var(--muted);
+      max-width: 800px;
+      margin: 0 auto 1.5rem;
+    }
+
+    .hero .links {
+      margin-top: 1rem;
+      font-size: 0.95rem;
+    }
+
+    .hero .links a {
+      color: var(--link);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .docs {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1.5rem 4rem;
+    }
+
+    .docs h2 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+
+    .docs-intro {
+      color: var(--muted);
+      margin: 0 0 1.25rem;
+    }
+
+    details {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+      background: var(--details-bg);
+      box-shadow: 0 1px 2px var(--shadow);
+    }
+
+    summary {
+      padding: 0.85rem 1.1rem;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 1.05rem;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      user-select: none;
+    }
+
+    summary::-webkit-details-marker { display: none; }
+
+    summary::before {
+      content: "\25B6";
+      font-size: 0.7rem;
+      transition: transform 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    details[open] > summary::before {
+      transform: rotate(90deg);
+    }
+
+    summary .desc {
+      font-weight: 400;
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin-left: auto;
+    }
+
+    .doc-content {
+      padding: 0.25rem 1.5rem 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .doc-content h1 { font-size: 1.5rem; margin: 1.25rem 0 0.5rem; font-weight: 700; }
+    .doc-content h2 { font-size: 1.25rem; margin: 1.5rem 0 0.5rem; font-weight: 600; color: var(--fg); letter-spacing: 0; }
+    .doc-content h3 { font-size: 1.05rem; margin: 1.25rem 0 0.4rem; font-weight: 600; }
+    .doc-content p { margin: 0.6rem 0; }
+    .doc-content ul, .doc-content ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+    .doc-content li { margin: 0.25rem 0; }
+
+    .doc-content code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.88em;
+      background: var(--code-bg);
+      padding: 0.15em 0.35em;
+      border-radius: 3px;
+    }
+
+    .doc-content pre {
+      background: var(--code-bg);
+      padding: 1rem;
+      border-radius: 5px;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+      line-height: 1.5;
+    }
+
+    .doc-content pre code {
+      background: none;
+      padding: 0;
+      font-size: 0.85em;
+    }
+
+    .doc-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.75rem 0;
+      font-size: 0.92rem;
+    }
+
+    .doc-content th, .doc-content td {
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.65rem;
+      text-align: left;
+    }
+
+    .doc-content th {
+      background: var(--code-bg);
+      font-weight: 600;
+    }
+
+    .doc-content a {
+      color: var(--link);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .doc-content hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.5rem 0;
+    }
+
+    .doc-content del { opacity: 0.5; }
+
+    .doc-content blockquote {
+      border-left: 3px solid var(--border);
+      padding-left: 1rem;
+      color: var(--muted);
+      margin: 0.75rem 0;
+    }
+
+    .doc-markdown-static {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.92rem;
+      line-height: 1.6;
+      background: var(--code-bg);
+      padding: 1rem;
+      border-radius: 5px;
+      margin-top: 0.75rem;
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem 1rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    footer a { color: var(--link); }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <img src="../carranca.jpg" alt="A Carranca figurehead on a boat" />
+    <p class="caption">A Carranca photographed by Marcel Gautherot in 1946. Instituto Moreira Salles collection.</p>
+    <h1>Carranca</h1>
+    <p class="tagline">
+      Isolated agent runtime with verified audits, deep observability, and policy enforcement.
+      Named after the carved figureheads on boats in Brazil's S&atilde;o Francisco river,
+      believed to protect sailors. Carranca protects engineers from coding agents
+      by running them in isolated containers with tamper-evident logs, kernel-level tracing,
+      and enforceable guardrails.
+    </p>
+    <div class="links">
+      <a href="https://github.com/pboueke/carranca">GitHub</a>
+    </div>
+  </div>
+
+  <div class="docs">
+    <h2>Technical Reference</h2>
+    <p class="docs-intro">
+      This page is the primary technical reference for Carranca. It combines the
+      current architecture, configuration schema, CLI usage, session log format,
+      trust model, roadmap, versioning policy, and changelog in one browsable
+      document.
+    </p>
+
+    <details id="doc-vision">
+      <summary>Vision <span class="desc">Why Carranca exists and where it's headed</span></summary>
+      <div class="doc-content">
+        <pre class="doc-markdown-static">
+Carranca is a containerized agent runtime for teams that want isolated
+execution, reviewable sessions, and technical controls around AI-assisted code
+changes.
+
+## Current position
+
+Phases 1 through 4 are now implemented. Carranca already provides:
+
+- **Verified audit evidence**: HMAC-signed session logs, checksum hardening,
+  exportable archives, and provenance-tagged events
+- **Deep observability**: shell-command capture, file mutation events, execve
+  tracing, network connection logging, resource sampling, and secret-read
+  monitoring
+- **Technical policy enforcement**: network filtering, resource limits,
+  time-boxed sessions, read-only overlays for watched paths, and pre-commit
+  policy hooks
+- **Operational isolation**: dedicated agent/logger containers, fail-closed
+  session shutdown, and per-project agent images and configuration
+
+This means Carranca is already beyond a transparency-only wrapper. The current
+product is a local runtime for engineers who need auditability and enforceable
+guardrails around coding agents.
+
+## Next phases
+
+The remaining roadmap is about hardening and scale rather than basic
+capability:
+
+| Phase | Focus | Outcome |
+|-------|-------|---------|
+| Phase 5 | Adversarial hardening | Reduce trust in the agent by moving more ground truth outside the agent's control |
+| Phase 6 | Ecosystem and integration | Support team workflows such as CI execution, central log collection, and richer comparisons |
+
+## Who benefits
+
+Carranca is most useful for organizations that need agent sessions to be both
+productive and reviewable:
+
+- **Security and compliance teams**: need tamper-evident audit records for AI-assisted development
+- **Platform engineers**: want containerized execution with explicit resource, network, and filesystem controls
+- **Engineering managers**: need reviewable sessions and technical enforcement for team workflows
+- **Regulated industries**: need signed logs and traceable operator behavior
+- **Security-conscious engineering teams**: want to reduce the blast radius of local coding agents
+
+See [roadmap.md](roadmap.md) for the remaining phases.
+</pre>
+      </div>
+    </details>
+
+    <details id="doc-architecture">
+      <summary>Architecture <span class="desc">Container layout, data flow, and session lifecycle</span></summary>
+      <div class="doc-content">
+        <pre class="doc-markdown-static">
+## Overview
+
+Carranca runs coding agents inside containers with host isolation and structured
+session logging. There is no compose layer; the CLI talks directly to a
+supported container runtime command.
+
+Today the supported runtime engines are:
+
+- `podman`
+- `docker`
+
+Runtime selection precedence is:
+
+1. `CARRANCA_CONTAINER_RUNTIME`
+2. `.carranca.yml` `runtime.engine`
+3. `auto` detection, which prefers Podman and falls back to Docker
+
+Projects are configured through `.carranca.yml` using an ordered `agents:` list.
+The first configured agent is the default execution target for `run` and
+`config`, and `--agent &lt;name&gt;` selects a different configured agent explicitly.
+Session ids are 8-char hex values and name all ephemeral runtime resources for a
+single run: the agent container, logger container, FIFO tmpfs volume, and
+transient images.
+
+```
+  carranca run
+       │
+       ├── &lt;runtime&gt; build (logger image from runtime/Containerfile.logger)
+       ├── &lt;runtime&gt; build (agent image from .carranca/Containerfile)
+       ├── &lt;runtime&gt; volume create (shared tmpfs for FIFO)
+       │
+       ├── &lt;runtime&gt; run -d (logger)
+       │     ├── creates FIFO on shared volume
+       │     ├── starts inotifywait (or fswatch fallback) on /workspace (read-only)
+       │     ├── reads FIFO events
+       │     └── writes JSONL, checksum, and HMAC key files to /state/
+       │
+       └── &lt;runtime&gt; run -it (agent)
+             ├── shell-wrapper opens FIFO
+             ├── writes shell events to FIFO
+             ├── heartbeat every 30s
+             └── runs agent command interactively
+```
+
+## Session lifecycle
+
+A `carranca run` session owns a small set of runtime resources:
+
+- `carranca-&lt;session&gt;-agent` container
+- `carranca-&lt;session&gt;-logger` container
+- `carranca-&lt;session&gt;-fifo` tmpfs volume
+- `carranca-&lt;session&gt;-agent` and `carranca-&lt;session&gt;-logger` transient images
+
+Lifecycle is explicit:
+
+1. Carranca computes a fresh `session_id`
+2. It builds the transient logger and agent images
+3. It creates the shared FIFO volume
+4. It starts the logger container
+5. It starts the interactive agent container
+6. On normal exit, `SIGINT`, `SIGTERM`, or `carranca kill`, it stops the agent,
+   stops the logger gracefully so it can flush `logger_stop`, then removes the
+   FIFO volume and transient images
+
+This teardown path is idempotent. Interrupted interactive sessions should not
+leave the logger container behind.
+
+## Session management commands
+
+Carranca exposes two complementary session-management commands:
+
+- `carranca status` shows active sessions for the current repo and recent logs
+- `carranca kill` stops either one exact session (`--session &lt;id&gt;`) or all
+  active sessions globally after confirmation
+
+`status` is repo-scoped because logs are stored under the current repo's
+`repo_id`. `kill` is global because active container resources are not tied to
+the current working directory once they are running.
+
+## Containers
+
+Two containers share a tmpfs volume containing a Unix FIFO:
+
+**Logger** (`runtime/Containerfile.logger`):
+- Managed by carranca, not user-configurable
+- Alpine-based, minimal (~7MB)
+- Mounts: FIFO volume (rw), workspace (ro), state dir (rw)
+- Capabilities: requests `CAP_LINUX_IMMUTABLE` for `chattr +a`; rootless Podman
+  degrades to `--userns keep-id`, so append-only is best-effort there too
+- Owns the per-session `.jsonl`, `.checksums`, and `.hmac-key` files used by
+  `carranca log --verify` and `carranca log --export`
+
+**Agent** (`.carranca/Containerfile`):
+- User-configurable per project
+- Copied to `.carranca/` on `carranca init`
+- The user installs their agent CLI, language runtimes, tools
+- Mounts: FIFO volume (rw), workspace (rw), optional cache dir (rw), optional custom volumes, repo-local Carranca skills during `run`, repo-local user skills, and install-managed Carranca skills during `config`
+- Runs as the invoking host UID:GID on Linux, or `--userns keep-id` on rootless Podman, so bind-mounted workspace writes keep usable host ownership
+- The shell wrapper is always injected as the entrypoint
+- When fine-grained network policies are active (`runtime.network` object form),
+  the entrypoint is overridden to `network-setup.sh` which applies iptables rules
+  before exec-ing the shell wrapper
+
+## Data flow
+
+```
+  Agent container                    Logger container
+  ┌──────────────────┐              ┌──────────────────┐
+  │ shell-wrapper.sh │              │ logger.sh        │
+  │   │              │              │   │              │
+  │   ├─ agent cmd   │   FIFO      │   ├─ read FIFO ──┤──► session.jsonl
+  │   ├─ heartbeat ──┼──────►──────┼───┤              │    + .checksums
+  │   └─ exit code   │  (tmpfs)    │   ├─ inotifywait─┤ (or fswatch)
+  │                  │              │   └─ HMAC chain ─┤──► .hmac-key
+  │                  │              │   │  /workspace  │
+  │ /workspace (rw)  │              │ /workspace (ro)  │
+  └──────────────────┘              └──────────────────┘
+```
+
+## Directory layout
+
+| Path | Mutable | Owner | Purpose |
+|------|---------|-------|---------|
+| `~/.local/share/carranca/` | No | Install | CLI, runtime assets, templates, and shipped skills |
+| `~/.local/state/carranca/sessions/&lt;repo-id&gt;/` | Yes | Carranca | Session JSONL logs plus per-session `.checksums`, `.hmac-key`, `.tar`, and `.tar.sig` files |
+| `~/.local/state/carranca/config/&lt;repo-id&gt;/` | Yes | Carranca | Config workflow proposals and audit history |
+| `~/.local/state/carranca/cache/&lt;repo-id&gt;/home/` | Yes | Agent | Persistent agent home dir mounted at `/home/carranca` (auth, config, history) |
+| `~/.config/carranca/config.yml` | Yes | User | Optional user-wide defaults for `runtime.*`, `volumes.*`, `observability.*`, and `policy.*` |
+| `.carranca.yml` | Yes | User | Per-project configuration, including the ordered `agents:` list |
+| `.carranca/Containerfile` | Yes | User | Agent container definition |
+| `.carranca/shell-wrapper.sh` | No | Carranca | Injected into agent image at build |
+| `.carranca/skills/carranca/` | Yes | User/Repo | Repo-local Carranca workflow skills scaffolded by `init` and mounted by `run` when present |
+| `.carranca/skills/user/` | Yes | User | Per-project user-authored skills |
+
+## Repo identity
+
+`repo_id = sha256(git remote get-url origin)[:12]`
+
+Falls back to `sha256(realpath(.))[:12]` for repos without a remote. Two repos
+with the same name at different paths get distinct IDs. Moving a repo orphans
+old sessions (documented, not a bug).
+</pre>
+      </div>
+    </details>
+
+    <details id="doc-configuration">
+      <summary>Configuration <span class="desc">Complete .carranca.yml reference</span></summary>
+      <div class="doc-content">
+        <pre class="doc-markdown-static">
+## What Carranca reads
+
+Carranca currently reads configuration from:
+
+- `.carranca.yml` in the project root
+- `.carranca/Containerfile` in the project root
+- `CARRANCA_CONTAINER_RUNTIME` as an environment override for runtime selection
+- `~/.config/carranca/config.yml` for user-wide runtime and volume defaults (overridden by project config)
+
+## Global config
+
+Carranca reads user-wide defaults from:
+
+```text
+~/.config/carranca/config.yml
+```
+
+Override the directory with `CARRANCA_CONFIG_DIR`.
+
+Only `runtime.*`, `volumes.*`, `observability.*`, and `policy.*` settings are read from global config.
+Project-level `.carranca.yml` always takes precedence. Lists (like
+`runtime.cap_add` and `volumes.extra`) are not merged — the project list
+replaces the global list entirely when present.
+
+Example global config:
+
+```yaml
+runtime:
+  engine: podman
+  network: false
+  cap_add:
+    - SYS_PTRACE
+
+volumes:
+  cache: true
+  extra:
+    - ~/.ssh:/home/carranca/.ssh:ro
+```
+
+## `.carranca.yml`
+
+Carranca supports only the ordered `agents:` format for project config.
+
+```yaml
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+
+runtime:
+  engine: auto
+  network: true
+  # extra_flags: --gpus all
+  # logger_extra_flags:
+
+volumes:
+  cache: true
+  # extra:
+  #   - ~/.ssh:/home/carranca/.ssh:ro
+  #   - ~/docs:/reference:ro
+
+policy:
+  docs_before_code: warn
+  tests_before_impl: warn
+
+watched_paths:
+  - .env
+  - secrets/
+  - "*.key"
+
+observability:
+  resource_interval: 10
+  execve_tracing: false
+  network_logging: false
+  network_interval: 5
+  secret_monitoring: false
+```
+
+### Field reference
+
+| Field | Required | Default | Current behavior |
+|-------|----------|---------|------------------|
+| `agents` | Yes | — | Ordered configured agents; the first entry is the default for `run` and `config` |
+| `agents[].name` | Yes | — | Stable selector used by `--agent &lt;name&gt;` |
+| `agents[].command` | Yes | — | Command executed inside the agent container |
+| `agents[].adapter` | No | `default` | Adapter selection: `default`, `claude`, `codex`, `opencode`, or `stdin` |
+| `runtime.engine` | No | `auto` | Runtime engine: `auto`, `docker`, or `podman` |
+| `runtime.network` | No | `true` | Boolean `true`/`false` or object with `default`/`allow` keys. `false` adds `--network=none`. Object form enables fine-grained network filtering via iptables |
+| `runtime.network.default` | No | — | Network policy default: must be `deny`. Presence of this key switches to filtered mode with iptables OUTPUT DROP + allow-list. Requires yq |
+| `runtime.network.allow` | No | — | List of `host:port` entries allowed through the firewall (e.g., `*.anthropic.com:443`). Requires yq |
+| `runtime.extra_flags` | No | — | Extra flags appended to the agent container `run` command |
+| `runtime.logger_extra_flags` | No | — | Extra flags appended to the logger container `run` command |
+| `runtime.cap_add` | No | — | List of Linux capabilities added to the agent container via `--cap-add` |
+| `volumes.cache` | No | `true` | Persists `/home/carranca` under `~/.local/state/carranca/cache/&lt;repo-id&gt;/home/` |
+| `volumes.extra` | No | — | Extra bind mounts added only to the agent container |
+| `policy.docs_before_code` | No | — | `warn`, `enforce`, or `off`. When `warn` or `enforce`, injects git pre-commit hooks. `enforce` blocks commits that modify code without documentation |
+| `policy.tests_before_impl` | No | — | `warn`, `enforce`, or `off`. When `warn` or `enforce`, injects git pre-commit hooks. `enforce` blocks commits that modify implementation without tests |
+| `policy.max_duration` | No | — | Seconds; logger removes FIFO after this wall-clock limit, triggering agent fail-closed exit. `0` or absent means no limit |
+| `policy.resource_limits.memory` | No | — | Container memory limit (e.g., `2g`, `512m`). Passed as `--memory` to agent container. Requires yq |
+| `policy.resource_limits.cpus` | No | — | CPU limit (e.g., `2.0`). Passed as `--cpus` to agent container. Requires yq |
+| `policy.resource_limits.pids` | No | — | Max number of processes. Passed as `--pids-limit` to agent container. Requires yq |
+| `policy.filesystem.enforce_watched_paths` | No | `false` | When `true`, `watched_paths` directories and files are bind-mounted read-only. Requires yq |
+| `watched_paths` | No | — | File events matching watched patterns are tagged with `"watched":true` in session logs |
+| `observability.resource_interval` | No | `10` | Seconds between cgroup resource samples; `0` disables |
+| `observability.execve_tracing` | No | `false` | Enable strace-based execve tracing; adds `CAP_SYS_PTRACE` to logger |
+| `observability.network_logging` | No | `false` | Enable `/proc/net/tcp` polling for outbound connections; requires PID namespace sharing |
+| `observability.network_interval` | No | `5` | Seconds between network connection polls |
+| `observability.secret_monitoring` | No | `false` | Enable fanotify-based file read monitoring on `watched_paths`; adds `CAP_SYS_ADMIN` to logger |
+
+### Runtime resolution
+
+Runtime selection precedence is:
+
+1. `CARRANCA_CONTAINER_RUNTIME`, if set
+2. `.carranca.yml` `runtime.engine`, if set
+3. `auto`, which detects a local runtime and prefers Podman before Docker
+
+If `runtime.engine` or `CARRANCA_CONTAINER_RUNTIME` is set to an unsupported
+value, Carranca fails fast.
+
+### Agent adapters
+
+Carranca resolves the effective driver for an agent like this:
+
+- `adapter: claude` uses the configured command in Claude-style interactive mode
+- `adapter: codex` uses the configured command in Codex-style interactive mode
+- `adapter: opencode` uses the configured command in OpenCode-style interactive mode
+- `adapter: stdin` pipes the generated prompt to the command on stdin
+- `adapter: default` infers `claude`, `codex`, or `opencode` only when the command itself
+  starts with `claude`, `codex`, or `opencode`; otherwise it falls back to `stdin`
+
+### Starter agents
+
+`carranca init --agent &lt;name&gt;` only scaffolds supported starters:
+
+- `codex`
+- `claude`
+- `opencode`
+
+The generated config still uses the general `agents:` format, so you can add or
+rename agents afterward.
+
+### Examples
+
+Claude:
+
+```yaml
+agents:
+  - name: claude
+    adapter: claude
+    command: claude
+```
+
+Codex:
+
+```yaml
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+```
+
+OpenCode:
+
+```yaml
+agents:
+  - name: opencode
+    adapter: opencode
+    command: opencode
+```
+
+Custom stdin-driven agent:
+
+```yaml
+agents:
+  - name: shell
+    adapter: stdin
+    command: bash /usr/local/bin/my-agent.sh
+```
+
+Podman plus GPU flags:
+
+```yaml
+agents:
+  - name: gpu-agent
+    adapter: stdin
+    command: my-agent
+runtime:
+  engine: podman
+  extra_flags: --gpus all
+```
+
+No network:
+
+```yaml
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+runtime:
+  network: false
+```
+
+Multiple agents and extra mounts:
+
+```yaml
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+  - name: claude
+    adapter: claude
+    command: claude
+volumes:
+  extra:
+    - ~/.ssh:/home/carranca/.ssh:ro
+    - ~/projects/shared-lib:/reference/shared-lib:ro
+```
+
+Ephemeral home directory:
+
+```yaml
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+volumes:
+  cache: false
+```
+
+Agent with extra capabilities:
+
+```yaml
+agents:
+  - name: debugger
+    adapter: stdin
+    command: my-debugger
+runtime:
+  cap_add:
+    - SYS_PTRACE
+```
+
+## Configuration examples
+
+The examples below map the roles in [vision.md](vision.md) to concrete Carranca
+setups. Each one includes both `.carranca.yml` and `.carranca/Containerfile`
+because operator intent affects both runtime policy and the tools installed in
+the agent image.
+
+### DevOps operator: restricted package access and enforceable workflow
+
+Use this when a platform or DevOps team wants an agent that can work on build
+and deployment files while restricting outbound network access to a small
+allow-list.
+
+`.carranca.yml`
+
+```yaml
+agents:
+  - name: codex
+    adapter: codex
+    command: codex
+
+runtime:
+  engine: podman
+  network:
+    default: deny
+    allow:
+      - registry.npmjs.org:443
+      - pypi.org:443
+      - files.pythonhosted.org:443
+      - api.github.com:443
+
+volumes:
+  cache: true
+  extra:
+    - ~/.ssh:/home/carranca/.ssh:ro
+
+policy:
+  docs_before_code: enforce
+  tests_before_impl: enforce
+  max_duration: 1800
+  resource_limits:
+    memory: 2g
+    cpus: "2.0"
+    pids: 256
+
+watched_paths:
+  - .env
+  - .github/
+  - deploy/
+  - secrets/
+
+observability:
+  resource_interval: 10
+  execve_tracing: true
+  network_logging: true
+  network_interval: 5
+  secret_monitoring: true
+```
+
+`.carranca/Containerfile`
+
+```Dockerfile
+FROM alpine:3.21
+
+RUN apk add --no-cache \
+    bash \
+    ca-certificates \
+    coreutils \
+    curl \
+    git \
+    jq \
+    make \
+    nodejs \
+    npm \
+    openssh-client \
+    python3 \
+    py3-pip \
+    yq
+
+RUN npm install -g @openai/codex
+
+COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
+RUN chmod +x /usr/local/bin/shell-wrapper.sh
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
+```
+
+### Agent developer: trace unexpected timeline events
+
+Use this when an engineer is debugging surprising `carranca log --timeline`
+output and wants higher-fidelity process and resource visibility while keeping
+policies permissive enough for investigation.
+
+`.carranca.yml`
+
+```yaml
+agents:
+  - name: debugger
+    adapter: stdin
+    command: bash /usr/local/bin/agent-debug-session.sh
+
+runtime:
+  engine: auto
+  network: true
+  cap_add:
+    - SYS_PTRACE
+
+volumes:
+  cache: false
+  extra:
+    - ~/scratch/captures:/captures:rw
+
+policy:
+  docs_before_code: off
+  tests_before_impl: warn
+  max_duration: 0
+  resource_limits:
+    memory: 4g
+    cpus: "4.0"
+    pids: 512
+
+watched_paths:
+  - .carranca.yml
+  - runtime/
+  - cli/
+  - tests/
+
+observability:
+  resource_interval: 2
+  execve_tracing: true
+  network_logging: true
+  network_interval: 2
+  secret_monitoring: false
+```
+
+`.carranca/Containerfile`
+
+```Dockerfile
+FROM alpine:3.21
+
+RUN apk add --no-cache \
+    bash \
+    coreutils \
+    curl \
+    git \
+    jq \
+    procps \
+    strace \
+    tree \
+    yq
+
+RUN printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  'exec codex "$@"' \
+  &gt; /usr/local/bin/agent-debug-session.sh \
+  &amp;&amp; chmod +x /usr/local/bin/agent-debug-session.sh
+
+RUN apk add --no-cache nodejs npm &amp;&amp; npm install -g @openai/codex
+
+COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
+RUN chmod +x /usr/local/bin/shell-wrapper.sh
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
+```
+
+### Forensic analyst: offline replay and evidence review
+
+Use this when the goal is post-session investigation rather than active coding.
+The agent image is minimal, the network is disabled, and the workspace can be
+mounted with reference material for analysis.
+
+`.carranca.yml`
+
+```yaml
+agents:
+  - name: analyst
+    adapter: stdin
+    command: bash /usr/local/bin/review-session.sh
+
+runtime:
+  engine: podman
+  network: false
+
+volumes:
+  cache: false
+  extra:
+    - ~/cases:/cases:ro
+    - ~/.local/state/carranca/sessions:/session-archive:ro
+
+policy:
+  docs_before_code: off
+  tests_before_impl: off
+  max_duration: 7200
+  filesystem:
+    enforce_watched_paths: true
+
+watched_paths:
+  - reports/
+  - findings/
+  - /session-archive
+
+observability:
+  resource_interval: 30
+  execve_tracing: true
+  network_logging: false
+  secret_monitoring: true
+```
+
+`.carranca/Containerfile`
+
+```Dockerfile
+FROM alpine:3.21
+
+RUN apk add --no-cache \
+    bash \
+    coreutils \
+    git \
+    jq \
+    less \
+    python3 \
+    py3-pip \
+    yq
+
+RUN printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  'exec bash' \
+  &gt; /usr/local/bin/review-session.sh \
+  &amp;&amp; chmod +x /usr/local/bin/review-session.sh
+
+COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
+RUN chmod +x /usr/local/bin/shell-wrapper.sh
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
+```
+
+## `carranca config`
+
+`carranca config` uses the selected configured agent to inspect the workspace and
+propose updates to:
+
+- `.carranca.yml`
+- `.carranca/Containerfile`
+
+It does not let the agent edit the workspace directly. Instead it requires the
+agent to write complete proposed files into a proposal directory under:
+
+```text
+~/.local/state/carranca/config/&lt;repo-id&gt;/&lt;session-id&gt;/proposal/
+```
+
+The config prompt requires the agent to:
+
+- read `/carranca-skills/confiskill/SKILL.md`
+- inspect user skills under `/user-skills/`
+- write rationale and detected stack summaries alongside the proposal
+
+Mount behavior differs from `carranca run`:
+
+- Carranca-managed skills come from the Carranca install and are mounted at
+  `/carranca-skills`
+- user-managed skills come from `.carranca/skills/user/` when present and are
+  mounted at `/user-skills`
+- the workspace is mounted read-only
+
+`carranca config` uses the same TTY rule as `run`: `-it` when stdin is a TTY,
+`-i` otherwise.
+
+Useful commands:
+
+```bash
+carranca config
+carranca config --agent claude
+carranca config --prompt "install repo dev tools"
+carranca config --dangerously-skip-confirmation
+```
+
+By default, `config` is propose-only until you confirm. It prints:
+
+- detected workspace profile
+- rationale for the proposal
+- unified diffs for `.carranca.yml` and `.carranca/Containerfile`
+
+Audit events for proposal rejection, bypassed confirmation, and applied changes
+are recorded in:
+
+```text
+~/.local/state/carranca/config/&lt;repo-id&gt;/history.jsonl
+```
+
+## Cache volume
+
+When `volumes.cache` is `true`, Carranca bind-mounts a repo-scoped home
+directory into the agent container:
+
+| Host path | Container path | Purpose |
+|-----------|---------------|---------|
+| `~/.local/state/carranca/cache/&lt;repo-id&gt;/home/` | `/home/carranca` | Agent auth, config, history, and other CLI home-state |
+
+This cache is used by both `run` and `config` when enabled.
+
+## Custom volumes
+
+`volumes.extra` accepts bind mount entries in `host:container[:mode]` form. The
+host path expands `~` to `$HOME`.
+
+Examples:
+
+- `~/.ssh:/home/carranca/.ssh:ro`
+- `~/docs:/reference:ro`
+- `~/data:/data:rw`
+
+These extra mounts are added only to the agent container used by `run`. They are
+not mounted into the logger, and `config` currently uses its own fixed mount set.
+
+## `.carranca/Containerfile`
+
+`carranca init` creates `.carranca/Containerfile`. You own the dependency and
+tool installation steps above the shell-wrapper block; Carranca depends on the
+shell-wrapper block remaining intact.
+
+```Dockerfile
+FROM alpine:3.21
+
+RUN apk add --no-cache bash coreutils curl git ca-certificates
+
+# Your agent and project dependencies here
+RUN apk add --no-cache nodejs npm
+
+COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
+RUN chmod +x /usr/local/bin/shell-wrapper.sh
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
+```
+
+`carranca config` validates that proposed Containerfiles still contain:
+
+- `COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh`
+- `ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]`
+
+## `.carranca/skills/`
+
+`carranca init` scaffolds two repo-local skill directories:
+
+- `.carranca/skills/carranca/`
+- `.carranca/skills/user/`
+
+Current behavior:
+
+- `carranca run` mounts `.carranca/skills/carranca/` to `/carranca-skills` when
+  present
+- `carranca run` mounts `.carranca/skills/user/` to `/user-skills` when present
+- `carranca config` mounts install-managed Carranca skills from
+  `~/.local/share/carranca/skills/` to `/carranca-skills`
+- `carranca config` mounts `.carranca/skills/user/` to `/user-skills` when
+  present
+
+That split lets `config` reliably use the shipped `confiskill` while still
+honoring repo-local user skills.
+</pre>
+      </div>
+    </details>
+
+    <details id="doc-usage">
+      <summary>Usage <span class="desc">Detailed command line reference and operator workflows</span></summary>
+      <div class="doc-content">
+        <pre class="doc-markdown-static">
+`page/index.html` is the primary technical reference. This document is the
+task-oriented CLI guide: what each command does, which flags it accepts, and
+how operators typically use it.
+
+## Command summary
+
+| Command | Purpose |
+|---------|---------|
+| `carranca init` | Scaffold `.carranca.yml` and `.carranca/Containerfile` for a supported starter agent |
+| `carranca config` | Ask a configured agent to propose container and config updates for the current repo |
+| `carranca run` | Start an interactive agent session in the configured runtime |
+| `carranca log` | Inspect, filter, verify, export, or timeline-render session logs |
+| `carranca status` | Show active sessions and recent logs for the current repository |
+| `carranca kill` | Stop one active session or all active sessions after confirmation |
+| `carranca help` | Show top-level or command-specific help |
+
+## Global help
+
+```text
+Usage: carranca &lt;command&gt;
+       carranca help &lt;command&gt;
+```
+
+Carranca also accepts `carranca &lt;command&gt; help` as command-specific help.
+
+## `carranca init`
+
+```text
+Usage: carranca init [--agent &lt;name&gt;] [--force]
+```
+
+Scaffolds the project-local Carranca files in the current directory.
+
+Options:
+
+- `--agent &lt;name&gt;`: supported starters are `codex`, `claude`, and `opencode`
+- `--force`: overwrite an existing `.carranca.yml` or `.carranca/Containerfile`
+
+Typical use:
+
+```bash
+carranca init --agent codex
+```
+
+## `carranca config`
+
+```text
+Usage: carranca config [--agent &lt;name&gt;] [--prompt &lt;text&gt;] [--dangerously-skip-confirmation]
+```
+
+Runs the selected configured agent in config mode. The agent inspects the
+workspace and proposes updates to `.carranca.yml` and `.carranca/Containerfile`
+instead of editing the workspace directly.
+
+Options:
+
+- `--agent &lt;name&gt;`: choose a configured agent other than the first/default entry
+- `--prompt &lt;text&gt;`: pass operator intent into the config workflow prompt
+- `--dangerously-skip-confirmation`: apply the proposed diff without the final prompt
+
+Typical use:
+
+```bash
+carranca config --prompt "install claude and add uv to the image"
+```
+
+## `carranca run`
+
+```text
+Usage: carranca run [--agent &lt;name&gt;]
+```
+
+Starts an interactive session for the selected configured agent. Carranca
+builds the transient logger and agent images, starts the logger container, and
+then launches the agent container with the shell wrapper and configured policy
+controls.
+
+Options:
+
+- `--agent &lt;name&gt;`: run a named configured agent instead of the default first entry
+
+Typical use:
+
+```bash
+carranca run --agent codex
+```
+
+## `carranca log`
+
+```text
+Usage: carranca log [--session &lt;exact-id&gt;] [--files-only] [--commands-only] [--top &lt;n&gt;]
+```
+
+Prints the latest session log for the current repository by default. The same
+command also exposes integrity verification, export, and timeline rendering.
+
+Options:
+
+- `--session &lt;id&gt;`: inspect a specific session by exact id
+- `--files-only`: print only touched file paths
+- `--commands-only`: print only captured commands
+- `--top &lt;n&gt;`: limit the top-touched-path summary
+- `--verify`: verify HMAC chain integrity and detect tampering
+- `--export`: create a signed archive (`.tar` and `.tar.sig`) next to the session log
+- `--timeline`: render a compact ASCII timeline of session events
+
+Typical uses:
+
+```bash
+# latest session for this repo
+carranca log
+
+# exact session
+carranca log --session abc12345
+
+# integrity check
+carranca log --verify --session abc12345
+
+# event timeline
+carranca log --timeline --session abc12345
+```
+
+## `carranca status`
+
+```text
+Usage: carranca status [--session &lt;exact-id&gt;]
+```
+
+Shows active sessions and the five most recent session logs for the current
+repository. With `--session`, it switches to a detailed view for one exact
+session id.
+
+Options:
+
+- `--session &lt;id&gt;`: show detailed status for one exact session
+
+Typical uses:
+
+```bash
+# repo overview
+carranca status
+
+# one session
+carranca status --session abc12345
+```
+
+## `carranca kill`
+
+```text
+Usage: carranca kill [--session &lt;exact-id&gt;]
+```
+
+Stops active Carranca sessions after confirmation. Without `--session`, the
+command targets all active sessions globally.
+
+Options:
+
+- `--session &lt;id&gt;`: stop one exact session after confirmation
+
+Typical uses:
+
+```bash
+# stop one session
+carranca kill --session abc12345
+
+# stop every active session
+carranca kill
+```
+
+## Operator workflows
+
+### Bootstrap a repository
+
+```bash
+carranca init --agent codex
+carranca config --prompt "install project dev tools"
+carranca run --agent codex
+```
+
+### Review a completed session
+
+```bash
+carranca status
+carranca log --session abc12345
+carranca log --timeline --session abc12345
+carranca log --verify --session abc12345
+```
+
+### Enforce a tighter runtime
+
+Define the policy in `.carranca.yml`, then run normally:
+
+```yaml
+runtime:
+  network:
+    default: deny
+    allow:
+      - registry.npmjs.org:443
+
+policy:
+  docs_before_code: enforce
+  tests_before_impl: warn
+  max_duration: 1800
+  resource_limits:
+    memory: 2g
+    cpus: "2.0"
+    pids: 256
+  filesystem:
+    enforce_watched_paths: true
+```
+
+```bash
+carranca run --agent codex
+```
+
+## Related docs
+
+- [page/index.html](page/index.html): primary technical reference
+- [configuration.md](configuration.md): configuration schema and examples
+- [session-log.md](session-log.md): event types and log semantics
+- [trust-model.md](trust-model.md): guarantees, limitations, and degraded modes
+</pre>
+      </div>
+    </details>
+
+    <details id="doc-session-log">
+      <summary>Session Log Format <span class="desc">JSONL schema, event types, and HMAC chain</span></summary>
+      <div class="doc-content">
+        <pre class="doc-markdown-static">
+## Overview
+
+Each carranca session produces a single JSONL file at:
+```
+~/.local/state/carranca/sessions/&lt;repo-id&gt;/&lt;session-id&gt;.jsonl
+```
+
+One JSON object per line. Events are ordered by `seq` (monotonic integer).
+Carranca writes these logs for `run` sessions. The separate `config` workflow
+also writes audit events, but those live under `~/.local/state/carranca/config/`
+instead of the session log directory.
+
+## Event types
+
+### `session_event`
+
+Session lifecycle events produced by carranca itself.
+
+```json
+{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","repo_id":"a1b2c3d4e5f6","repo_name":"my-app","repo_path":"/home/user/my-app","agent":"codex","adapter":"codex","engine":"podman","seq":1}
+{"type":"session_event","source":"carranca","event":"degraded","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","reason":"append_only_unavailable","seq":2}
+{"type":"session_event","source":"shell-wrapper","event":"agent_start","ts":"2026-03-22T09:45:02Z","session_id":"abc12345","seq":3}
+{"type":"session_event","source":"shell-wrapper","event":"agent_stop","ts":"2026-03-22T09:57:34Z","session_id":"abc12345","exit_code":0,"seq":10}
+{"type":"session_event","source":"carranca","event":"logger_stop","ts":"2026-03-22T09:57:35Z","session_id":"abc12345","seq":11}
+```
+
+Events currently emitted here: `start`, `degraded`, `agent_start`,
+`agent_stop`, `logger_stop`
+
+Typical lifecycle patterns:
+
+- Normal completion: `start` → `agent_start` → `agent_stop` → `logger_stop`
+- Interrupted run (`Ctrl+C`) or `carranca kill`: Carranca still tries to stop the
+  agent first and then the logger, so a clean session usually still ends with
+  `logger_stop`
+- Crash or host failure: the tail of the lifecycle may be missing; absence of
+  `logger_stop` should be treated as incomplete shutdown evidence, not proof that
+  no cleanup was attempted
+
+### `shell_command`
+
+Commands executed through the shell wrapper.
+
+```json
+{"type":"shell_command","source":"shell-wrapper","ts":"2026-03-22T09:45:02Z","session_id":"abc12345","command":"npm test","exit_code":0,"duration_ms":3420,"cwd":"/workspace/src","seq":4}
+```
+
+Today this records the top-level configured agent command as seen by the
+wrapper. It does not trace every subprocess or internal tool call the agent may
+spawn after startup.
+
+**Limitation:** Agent-native operations such as direct file edits via tool APIs
+still bypass shell-wrapper command capture.
+
+### `file_event`
+
+File mutations detected by `inotifywait` (Linux, best-effort) or `fswatch`
+(fallback for non-Alpine images where inotifywait is unavailable).
+
+The `source` field identifies which watcher produced the event.
+
+```json
+{"type":"file_event","source":"inotifywait","ts":"2026-03-22T09:45:03Z","event":"MODIFY","path":"/workspace/src/index.ts","session_id":"abc12345","seq":5}
+{"type":"file_event","source":"inotifywait","ts":"2026-03-22T09:45:03Z","event":"CREATE","path":"/workspace/.env","session_id":"abc12345","seq":6}
+```
+
+Events: `CREATE`, `MODIFY`, `DELETE`
+
+When a file event matches a `watched_paths` pattern from `.carranca.yml`, the
+event includes `"watched":true`:
+
+```json
+{"type":"file_event","source":"inotifywait","ts":"2026-03-22T09:45:03Z","event":"CREATE","path":"/workspace/.env","session_id":"abc12345","watched":true,"seq":6}
+```
+
+**Limitation:** No attribution. The file watcher sees that a path changed, but
+it cannot identify which process caused it. Reads are not captured.
+
+## HMAC chain
+
+Each event includes an `hmac` field that chains to the previous event,
+making tampering detectable. The HMAC is computed over:
+
+```
+{previous_hmac}|{seq}|{ts}|{event_payload}
+```
+
+- `previous_hmac`: Empty string ("0") for the first event, otherwise the previous event's HMAC
+- `seq`: Monotonic sequence number
+- `ts`: Event timestamp
+- `event_payload`: The full JSON object including the `seq` field
+
+The per-session HMAC key is stored at:
+```
+~/.local/state/carranca/sessions/&lt;repo-id&gt;/&lt;session-id&gt;.hmac-key
+```
+
+This file is only accessible from the logger container, not the agent container.
+
+Example event with HMAC:
+```json
+{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","repo_id":"a1b2c3d4e5f6","repo_name":"my-app","repo_path":"/home/user/my-app","agent":"codex","adapter":"codex","engine":"podman","seq":1,"hmac":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6"}
+```
+
+Verify a session's integrity from the local Carranca state directory:
+```bash
+carranca log --verify --session &lt;id&gt;
+```
+
+Any modification to the JSONL file after it was written breaks the HMAC chain.
+
+## Checksum file
+
+A parallel SHA-256 checksum file is written alongside each session log:
+
+```
+~/.local/state/carranca/sessions/&lt;repo-id&gt;/&lt;session-id&gt;.checksums
+```
+
+Each line contains the SHA-256 hash of the corresponding line in the
+`.jsonl` file. This provides tamper detection even when kernel-level
+append-only (`chattr +a`) is unavailable (e.g., rootless Podman,
+macOS).
+
+The checksum file is written by the logger container only and lives on the
+same `/state` volume that the agent container cannot access.
+
+Checksum verification runs automatically during `carranca log --verify`. If the
+checksum file is missing (sessions predating this feature), verification
+proceeds using the HMAC chain only.
+
+## Log export and archival
+
+`carranca log --export` produces a self-contained signed archive for external
+storage, compliance review, or incident postmortem:
+
+```bash
+carranca log --export --session abc12345
+```
+
+This creates two files alongside the session log:
+
+```
+~/.local/state/carranca/sessions/&lt;repo-id&gt;/&lt;session-id&gt;.tar
+~/.local/state/carranca/sessions/&lt;repo-id&gt;/&lt;session-id&gt;.tar.sig
+```
+
+The tar archive bundles the `.jsonl`, `.hmac-key`, and `.checksums` files. The
+`.sig` file contains an HMAC-SHA256 signature of the tar computed with the
+session key. If the HMAC key is missing (pre-Phase 2 sessions), the signature
+is an unsigned SHA-256 digest.
+
+To verify an exported archive independently:
+
+```bash
+# Verify the archive signature
+KEY="$(cat &lt;session-id&gt;/&lt;session-id&gt;.hmac-key)"
+openssl dgst -sha256 -macopt "hexkey:$KEY" -hex &lt;session-id&gt;.tar | awk '{print $NF}'
+cat &lt;session-id&gt;.tar.sig
+```
+
+For full `carranca log --verify` replay, restore the extracted `.jsonl`,
+`.hmac-key`, and `.checksums` files into a Carranca session state directory.
+
+### `heartbeat`
+
+Periodic liveness check from the shell wrapper (every 30s).
+
+```json
+{"type":"heartbeat","source":"shell-wrapper","ts":"2026-03-22T09:45:32Z","session_id":"abc12345","seq":7}
+```
+
+### `invalid_event`
+
+Malformed data received on the FIFO.
+
+```json
+{"type":"invalid_event","source":"fifo","ts":"2026-03-22T09:45:05Z","session_id":"abc12345","raw":"not valid json","seq":8}
+```
+
+### `execve_event`
+
+Process execution captured by strace attached to the agent PID namespace.
+Requires `observability.execve_tracing: true` and `CAP_SYS_PTRACE` on the
+logger container.
+
+```json
+{"type":"execve_event","source":"strace","ts":"2026-03-22T09:45:03Z","session_id":"abc12345","pid":42,"binary":"/usr/bin/npm","argv":"[\"npm\", \"test\"]","seq":9}
+```
+
+### `network_event`
+
+Outbound network connection detected by polling `/proc/net/tcp`.
+Requires `observability.network_logging: true` and PID namespace sharing.
+Only active when `runtime.network` is enabled.
+
+```json
+{"type":"network_event","source":"carranca","ts":"2026-03-22T09:45:03Z","session_id":"abc12345","dest_ip":"104.18.12.33","dest_port":443,"protocol":"tcp","state":"ESTABLISHED","seq":10}
+```
+
+### `resource_event`
+
+Periodic container resource sample from cgroup stats.
+Configurable via `observability.resource_interval` (default: 10 seconds).
+
+```json
+{"type":"resource_event","source":"carranca","ts":"2026-03-22T09:45:10Z","session_id":"abc12345","cpu_usage_us":1234567,"memory_bytes":52428800,"pids":12,"seq":11}
+```
+
+### `file_access_event`
+
+File read detected by fanotify on `watched_paths`.
+Requires `observability.secret_monitoring: true` and `CAP_SYS_ADMIN` on the
+logger container.
+
+```json
+{"type":"file_access_event","source":"fanotify","ts":"2026-03-22T09:45:03Z","session_id":"abc12345","path":"/workspace/.env","pid":42,"watched":true,"seq":12}
+```
+
+### `policy_event`
+
+Policy enforcement events produced by Phase 4 enforcement mechanisms. These
+record when policies are configured, enforced, violated, or degraded.
+
+```json
+{"type":"policy_event","source":"carranca","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","policy":"resource_limits","action":"oom_kill","detail":"OOM kill detected (limit: 2g)","seq":13}
+{"type":"policy_event","source":"carranca","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","policy":"max_duration","action":"timeout","detail":"session killed after 3600s","seq":14}
+{"type":"policy_event","source":"carranca","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","policy":"filesystem","action":"enforced","detail":"read-only: .env,secrets/","seq":15}
+{"type":"policy_event","source":"carranca","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","policy":"filesystem","action":"degraded","detail":"glob patterns not enforced: *.key","seq":16}
+{"type":"policy_event","source":"pre-commit-hook","ts":"2026-03-22T09:45:05Z","session_id":"abc12345","policy":"docs_before_code","action":"blocked","detail":"commit modifies src/app.js without documentation changes","seq":17}
+{"type":"policy_event","source":"pre-commit-hook","ts":"2026-03-22T09:45:05Z","session_id":"abc12345","policy":"tests_before_impl","action":"warn","detail":"commit modifies lib/parser.sh without test changes","seq":18}
+{"type":"policy_event","source":"carranca","ts":"2026-03-22T09:45:00Z","session_id":"abc12345","policy":"network","action":"configured","detail":"mode:filtered rules:1.2.3.4:443,5.6.7.8:443","seq":19}
+```
+
+| Field | Values |
+|-------|--------|
+| `policy` | `resource_limits`, `max_duration`, `filesystem`, `docs_before_code`, `tests_before_impl`, `network` |
+| `action` | `enforced`, `blocked`, `warn`, `timeout`, `oom_kill`, `configured`, `degraded` |
+| `source` | `carranca` (logger-side), `pre-commit-hook` (git hook), `network-setup` (iptables) |
+
+### Session timeline
+
+`carranca log --timeline` renders an ASCII timeline of all session events:
+
+```bash
+carranca log --timeline --session abc12345
+```
+
+Each event type maps to a glyph: `&gt;&gt;` lifecycle, `$` command, `F+/F~/F-`
+file mutation, `X` execve, `N` network, `R` resource, `A` file access,
+`P` policy.
+
+## Event provenance
+
+The `source` field identifies the component that produced each event. This
+enables consumers to distinguish ground-truth observations from agent-reported
+data.
+
+| Source value | Origin | Trust level |
+|-------------|--------|-------------|
+| `carranca` | Logger container (session lifecycle, resource sampling, network monitoring) | Ground truth — produced by carranca itself |
+| `inotifywait` | Linux file watcher | Ground truth — kernel-level observation |
+| `fswatch` | macOS file watcher | Ground truth — OS-level observation |
+| `strace` | Process execution tracer | Ground truth — kernel-level observation via ptrace |
+| `fanotify` | File access monitor | Ground truth — kernel-level observation via fanotify |
+| `shell-wrapper` | Agent container shell wrapper | Agent-reported — the agent can forge or suppress these |
+| `pre-commit-hook` | Carranca-injected git pre-commit hook | Agent-side — runs in agent container but managed by carranca |
+| `network-setup` | Network policy iptables setup | Agent-side — runs before agent command, managed by carranca |
+| `fifo` | Malformed data on the FIFO | Untrusted — raw data that failed validation |
+
+## Schema fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `seq` | int | Monotonic sequence number — enables ordering and gap detection |
+| `ts` | string | ISO 8601 UTC timestamp |
+| `type` | string | Event type (see above) |
+| `source` | string | Component that produced the event |
+| `session_id` | string | 8-char hex session identifier |
+| `repo_id` | string | 12-char hex repo identifier |
+| `hmac` | string | SHA-256 HMAC of the event chain (see HMAC chain section) |
+
+## Querying
+
+```bash
+# All shell commands
+jq 'select(.type=="shell_command")' session.jsonl
+
+# Failed commands
+jq 'select(.type=="shell_command" and .exit_code != 0)' session.jsonl
+
+# File mutations
+jq 'select(.type=="file_event")' session.jsonl
+
+# Session timeline
+jq '{seq, type, event, command, path}' session.jsonl
+
+# Count commands
+jq -s '[.[] | select(.type=="shell_command")] | length' session.jsonl
+
+# Verify HMAC chain and checksum integrity
+carranca log --verify --session abc12345
+```
+
+## `carranca log`
+
+`carranca log` reads one session JSONL file and prints a compact summary for
+developers:
+
+- session and repo identifiers
+- start/end timestamps
+- unique paths touched
+- file-event totals split by create, modify, and delete
+- top touched paths ranked by event count
+- command totals, failures, and ordered shell-wrapper command list
+
+Examples:
+
+```bash
+# Latest session for the current repo
+carranca log
+
+# Exact session id for the current repo
+carranca log --session abc12345
+```
+
+Important nuance: file counts shown by `carranca log` distinguish between
+`Unique paths touched` and raw `File events`. Repeated writes to the same path
+increase the event count without increasing the unique-path count.
+
+If a session shows file activity but `Commands run: 0`, that usually means the
+agent changed files through native tool APIs or edits that bypassed shell-wrapper
+command capture.
+
+## `carranca config` audit log
+
+The configurator has its own audit trail:
+
+```text
+~/.local/state/carranca/config/&lt;repo-id&gt;/history.jsonl
+```
+
+Current event types include:
+
+- `no_changes`
+- `proposal_rejected`
+- `confirmation_bypassed`
+- `applied`
+
+Those records are not mixed into per-session `run` logs.
+
+## `carranca status` and `carranca kill`
+
+The JSONL log is the durable record for a session, but active-state inspection is
+container-based:
+
+- `carranca status` marks a session as active when its logger or agent container
+  still exists
+- `carranca kill --session &lt;id&gt;` stops that exact session after confirmation
+- `carranca kill` stops all active Carranca sessions globally after confirmation
+
+This means a session can have a log file and still be marked active while the
+containers are running, and older sessions remain queryable through `log` even
+after teardown.
+</pre>
+      </div>
+    </details>
+
+    <details id="doc-trust-model">
+      <summary>Trust Model <span class="desc">Security boundaries and failure behavior</span></summary>
+      <div class="doc-content">
+        <pre class="doc-markdown-static">
+## Design assumption
+
+Carranca assumes a **cooperative agent** — one that is buggy or careless but not
+actively adversarial. The logging system provides value through visibility and
+structure, not through verified guarantees.
+
+## What carranca provides
+
+| Property | Strength | Mechanism |
+|----------|----------|-----------|
+| Host isolation | Hard boundary | Container runtime boundary through Podman or Docker; the agent only sees mounted paths |
+| Session logging | Transparency tool | Shell wrapper writes events to FIFO, logger writes JSONL |
+| Event provenance | Transparency tool | Each event tagged with origin source for trust-level analysis |
+| Fail-closed logging | Hard boundary | Broken FIFO pipe kills the shell wrapper → agent stops |
+| Append-only log | Best-effort | `chattr +a` when `CAP_LINUX_IMMUTABLE` is available |
+| HMAC event chain | Verified evidence | Per-session HMAC key signs each event; chain detects tampering |
+| Checksum hardening | Verified evidence | Parallel SHA-256 checksum file for tamper detection without `chattr +a` |
+| Log export | Archival | Self-contained signed tar archive for compliance and forensics |
+| execve tracing | Ground truth | strace captures all process execution in agent PID namespace |
+| Network logging | Ground truth | `/proc/net/tcp` polling captures outbound connections |
+| Secret read monitoring | Ground truth | fanotify captures file reads on watched paths |
+| Resource tracking | Transparency tool | cgroup v2 stats sample CPU, memory, and PID count |
+| Resource limits | Hard boundary | Container runtime enforces `--memory`, `--cpus`, `--pids-limit` via cgroup limits |
+| Time-boxed sessions | Hard boundary | Logger removes FIFO after `policy.max_duration` seconds, triggering agent fail-closed exit |
+| Filesystem access control | Hard boundary | Bind-mount `:ro` overlays prevent writes to `watched_paths` entries |
+| Policy hooks | Enforcement tool | Git `core.hooksPath` injects pre-commit hooks; `enforce` mode blocks policy-violating commits |
+| Network policies | Hard boundary | iptables rules restrict outbound traffic to allow-listed destinations (rootful mode only) |
+
+## What carranca does NOT provide
+
+| Property | Status | Path to resolution |
+|----------|--------|--------------------|
+| Verified audit evidence | Provided | HMAC-signed event chain + checksum file (Phase 2) |
+| Complete operation capture | Provided | execve tracing via strace (Phase 3); requires `observability.execve_tracing: true` |
+| Forgery resistance | Partially mitigated | Agent can forge FIFO events, but strace-observed execve events provide independent ground truth for cross-referencing |
+| Secret read monitoring | Provided | fanotify captures file reads on `watched_paths` (Phase 3); requires `observability.secret_monitoring: true` |
+| Technical policy enforcement | Provided | Resource limits, time-boxed sessions, filesystem access control, git policy hooks, network filtering (Phase 4) |
+| Cross-platform file events | Supported | inotifywait (Linux) with fswatch fallback |
+
+## Threat table
+
+| Threat | Status | Notes |
+|--------|--------|-------|
+| Agent edits/deletes session log | Mitigated | Agent container has no mount to log directory |
+| Agent forges shell events via FIFO | Partially mitigated | strace execve tracing provides independent ground truth for cross-referencing (Phase 3) |
+| Agent suppresses events (kills FIFO) | Mitigated | Shell wrapper exits on broken pipe → agent stops |
+| Agent bypasses shell wrapper | Partially mitigated | strace captures all execve calls regardless of wrapper; native edits still not captured |
+| Agent reads secrets from repo | Mitigated | fanotify captures file reads on `watched_paths` when `observability.secret_monitoring: true` |
+| Agent exfiltrates over network | Partially mitigated | Network logging records outbound connections; set `runtime.network: false` to disable entirely |
+| Agent writes malicious code | Allowed by design | Review via session log + git diff |
+| User tampers with log after session | Mitigated | HMAC chain + checksum file detect post-session tampering; `chattr +a` when available |
+
+## Failure behavior
+
+| Scenario | Behavior |
+|----------|----------|
+| Shell logging unavailable (FIFO not created) | Fail closed — refuse to start agent |
+| File event logging unavailable (no file watcher) | Degraded mode — shell logging continues |
+| Logger dies mid-session | Fail closed — broken pipe kills agent |
+| `chattr +a` unavailable | Degraded mode — log still written, not append-only |
+| strace unavailable or `SYS_PTRACE` denied | Degraded mode — session proceeds without execve tracing |
+| cgroup mount unreadable | Degraded mode — session proceeds without resource tracking |
+| fanotify unavailable or `SYS_ADMIN` denied | Degraded mode — session proceeds without secret read monitoring |
+| `/proc/net/tcp` unreadable (no PID ns sharing) | Degraded mode — session proceeds without network logging |
+
+## Summary
+
+Carranca is an isolation, audit, and policy-enforcement runtime built around a
+cooperative-agent trust model. It makes sessions reviewable with cryptographic
+tamper detection, kernel-observed telemetry, and technical controls such as
+resource limits, time bounds, read-only overlays, and network restrictions. An
+adversarial agent with arbitrary code execution inside the container can still
+forge FIFO-originated events, but provenance tagging, execve tracing, and the
+HMAC event chain make that forgery detectable through cross-referencing.
+Post-session log tampering is detectable via the HMAC chain and parallel
+checksum file. The current value proposition is not blind trust, but observable
+execution with enforceable guardrails and verifiable evidence.
+</pre>
+      </div>
+    </details>
+
+    <details id="doc-changelog">
+      <summary>Changelog <span class="desc">Release history and version source of truth</span></summary>
+      <div class="doc-content">
+        <pre class="doc-markdown-static">
+## [0.14.0] - 2026-03-23
+
+- feat: **resource limits** — `policy.resource_limits.{memory,cpus,pids}` passed as `--memory`, `--cpus`, `--pids-limit` container runtime flags; kernel enforces via cgroup limits
+- feat: **OOM kill detection** — resource sampler polls cgroup `memory.events` for `oom_kill` counter increments; emits `policy_event` with `action: oom_kill`
+- feat: **time-boxed sessions** — `policy.max_duration` (seconds) triggers FIFO removal after the wall-clock limit, which activates the agent's fail-closed watchdog and terminates the session
+- feat: **filesystem access control** — `policy.filesystem.enforce_watched_paths: true` bind-mounts `watched_paths` directories and files as read-only overlays; glob patterns degrade gracefully (monitored but not enforced)
+- feat: **technical policy hooks** — `policy.docs_before_code` and `policy.tests_before_impl` now accept `enforce` (block commit), `warn` (allow + log), or `off`; enforced via git `core.hooksPath` pointing to carranca-managed pre-commit hook injected into the agent container
+- feat: **fine-grained network policies** — `runtime.network` supports an object form (`default: deny` + `allow:` list) alongside the existing boolean; implemented via iptables OUTPUT DROP + per-IP allow rules in `network-setup.sh`, a privilege-dropping entrypoint wrapper
+- feat: **`policy_event` event type** — new JSONL event for all enforcement actions with `policy`, `action`, and `detail` fields; `P` glyph in `--timeline`; counted in session summary
+- feat: **`network-setup.sh`** — agent entrypoint wrapper that runs as root, applies iptables rules, creates a matching user via `adduser`, then drops privileges with `su` before exec-ing shell-wrapper
+- feat: rootless Podman graceful degradation for network policies (falls back to `--network=none`; clears policy env vars so logger does not emit false-positive enforcement events)
+- feat: `policy.*` keys added to global config fallback alongside `runtime.*`, `volumes.*`, and `observability.*`
+- docs: `policy_event` documented in session-log.md with field reference and provenance table entries for `pre-commit-hook` and `network-setup` sources
+- docs: all Phase 4 policy fields documented in configuration.md; `runtime.network.default` restricted to `deny` only
+- docs: trust model updated — "Technical policy enforcement" moved from "Not provided" to "Provided"
+- docs: architecture.md updated with `network-setup.sh` conditional entrypoint
+- docs: all Phase 4 roadmap items (4.1–4.5) marked complete
+- docs: move the changelog to `doc/CHANGELOG.md` and update contributor/versioning docs to use the new canonical path
+- test: 504 tests, 23 unit suites, 100% function coverage
+- test: new suites — `test_policy_resource_limits.sh`, `test_policy_timer.sh`, `test_policy_filesystem.sh`, `test_policy_hooks.sh`, `test_policy_network.sh`
+- test: updated suites — `test_timeline.sh` (policy P glyph), `test_resource_sampler.sh` (policy_event counting in summary), `test_config.sh` (policy global fallback)
+
+## [0.13.0] - 2026-03-23
+
+- feat: add `carranca log --timeline` for ASCII timeline rendering of session events
+- feat: add `execve` tracing via strace — captures all process execution in agent PID namespace (`observability.execve_tracing`)
+- feat: add network connection logging by polling `/proc/net/tcp` (`observability.network_logging`)
+- feat: add secret read monitoring via fanotify C binary — detects file reads on `watched_paths` (`observability.secret_monitoring`)
+- feat: add resource consumption tracking via cgroup v2 stats (`observability.resource_interval`)
+- feat: add `observability.*` config namespace with global fallback support
+- feat: PID namespace sharing (`--pid=container`) when execve tracing or network logging is enabled
+- feat: multi-stage Containerfile.logger build for fanotify-watcher C binary
+- docs: add Phase 3 event types to session-log.md (execve_event, network_event, resource_event, file_access_event)
+- docs: update trust model with deep observability capabilities and updated threat table
+- docs: add observability config keys to configuration.md
+- docs: mark all Phase 3 roadmap items (3.1–3.5) as complete
+- test: add coverage for timeline rendering, strace parser, network monitor, resource sampler, and fanotify integration
+- test: 392 tests, 17 suites, 0 failures
+
+## [0.12.0] - 2026-03-23
+
+- feat: add HMAC-signed event chain — per-session key signs each JSONL event with chained HMAC-SHA256; `carranca log --verify` validates the chain
+- feat: add parallel SHA-256 checksum file for tamper detection when `chattr +a` is unavailable (rootless Podman, macOS)
+- feat: add event provenance tagging — `source` field on all events distinguishes ground-truth observations from agent-reported data
+- feat: add `carranca log --export` to produce self-contained signed archive (tar + HMAC signature) for compliance, forensics, and external storage
+- feat: add `opencode` as a supported starter agent for `carranca init`
+- feat: accept `opencode` as an explicit adapter and infer it from `adapter: default` when the command starts with `opencode`
+- feat: run config agents with the `opencode` adapter through the argument-based prompt path
+- fix: `carranca log --verify` now resolves the session log before verification (previously used unset variable)
+- fix: install OpenCode from the official release binary instead of the broken npm wrapper package
+- docs: update trust model with verified audit evidence, HMAC chain, checksum hardening, and log export
+- docs: add event provenance trust table to session-log.md
+- docs: mark all Phase 2 roadmap items as complete
+- docs: document `opencode` starter and adapter support across README and configuration docs
+- docs: add `doc/vision.md` and link it from the README documentation index
+- test: add coverage for HMAC functions, checksum verification, export archive, and provenance tagging
+- test: add init, config, and help coverage for `opencode` starter and adapter flows
+- test: 294 tests, 12 suites, 100% function coverage
+
+## [0.11.0] - 2026-03-23
+
+- feat: add `runtime.cap_add` config — list of Linux capabilities passed as `--cap-add` flags to the agent container
+- feat: wire up `watched_paths` — file events matching watched patterns are tagged with `"watched":true` in session logs
+- feat: add agent, adapter, and engine metadata to session start events and log/status summary
+- feat: add `--files-only`, `--commands-only`, and `--top N` filters to `carranca log`
+- feat: add fswatch fallback for cross-platform file event monitoring
+- feat: add global config at `~/.config/carranca/config.yml` for user-wide runtime and volume defaults
+- feat: use `yq` as primary YAML parser when available, with awk fallback and schema compatibility warnings
+- chore: replace TODOS.md with doc/roadmap.md for phased feature planning
+
+## [0.10.0] - 2026-03-22
+
+- fix: detect and warn on cache ownership mismatch when switching between Docker and rootless Podman
+- docs: rewrite CONTRIBUTING.md, README, architecture, configuration, session-log, and trust-model docs for accuracy and Podman-era terminology
+
+## [0.9.0] - 2026-03-22
+
+- feat: add Podman and OCI runtime support with auto-detection (prefers Podman, falls back to Docker)
+- feat: add `runtime.engine` config (`auto`, `docker`, `podman`) and `CARRANCA_CONTAINER_RUNTIME` env override
+- feat: rootless Podman support with `--userns keep-id` for both logger and agent containers
+- feat: add FIFO watchdog in agent shell-wrapper to fail closed when the logger disappears mid-session
+- feat: version badge from CHANGELOG and HTML badge format in README
+- fix: logger FIFO read loop exited on first timeout due to `!` inverting `$?` — sessions now survive slow container startup
+- fix: logger and agent share the same user namespace on rootless Podman so the shared FIFO volume is accessible
+- fix: use portable `-t` flag for container stop (replaces `--timeout` which Podman rejects)
+- fix: test cleanup falls back to direct `rm` when `--cap-add LINUX_IMMUTABLE` is unavailable on rootless runtimes
+- fix: `init --force` confirmation in fail-closed test so the agent Containerfile is actually created
+- refactor: extract `cli/lib/runtime.sh` — all container commands go through runtime helpers with cached resolution
+- refactor: rename `DOCKER_TTY_FLAGS` to `TTY_FLAGS` across `run.sh` and `config.sh`
+- docs: update architecture, configuration, and README for runtime-agnostic terminology
+- test: add unit coverage for runtime resolution, rootless detection, engine validation, and `fifo_is_healthy`
+- test: update all integration and failure tests for runtime-agnostic container commands
+- test: 316 tests, 18 suites, 100% function coverage (69/69)
+
+## [0.8.0] - 2026-03-22
+
+- feat: add `carranca kill` to stop one exact session or all active Carranca sessions after confirmation
+- feat: add shared session lifecycle helpers so `run`, `status`, and `kill` use the same container teardown logic
+- fix: stop interrupted `carranca run` sessions cleanly so agent and logger containers do not remain running after `Ctrl+C`
+- docs: update README, architecture, configuration, and session-log docs for session lifecycle and `kill` behavior
+- test: add unit and Docker integration coverage for session helpers and `carranca kill`
+- test: 278 tests, 18 suites, 100% function coverage (48/48)
+
+## [0.7.0] - 2026-03-22
+
+- feat: add `carranca status` to show active sessions and the 5 most recent session logs for the current repo
+- feat: add `carranca status --session &lt;exact-id&gt;` for detailed per-session status, including active state, summary, touched paths, and commands
+- docs: update README command docs for the new `status` command and detailed session mode
+- test: add unit and Docker integration coverage for status overview, detailed session output, recent-session limits, and missing-session failures
+- test: 253 tests, 15 suites, 100% function coverage (39/39)
+
+## [0.6.0] - 2026-03-22
+
+- feat: move project config to ordered `agents:` entries only and drop legacy single-agent config support
+- feat: add canonical `--agent &lt;name&gt;` selection for `carranca init`, `carranca run`, and `carranca config`
+- feat: add `carranca config --prompt &lt;text&gt;` so free-form operator requests are passed into the config-agent prompt
+- fix: report the actual selected agent name in `carranca run` session output instead of the container name
+- fix: install the Codex CLI in this repo's Carranca agent container so the configured `codex` agent runs successfully
+- docs: update README, configuration, architecture, and session-log docs for multi-agent config, command help, and improved `carranca log` output
+- docs: add repository `LICENSE` and Carranca artwork used in the README header
+- test: expand unit, integration, and failure coverage for agent selection, prompt plumbing, and `agents:` validation
+- test: 214 tests, 13 suites, 100% function coverage (35/35)
+
+## [0.5.0] - 2026-03-22
+
+- feat: add `carranca log` to pretty-print the latest or selected session log for the current repo
+- feat: improve `carranca log` with unique-path counts, file-event totals, top touched paths, and clearer agent-native edit summaries
+- feat: add command-specific help routing via both `carranca help &lt;command&gt;` and `carranca &lt;command&gt; help`
+- test: add unit, failure-mode, and Docker integration coverage for `carranca log`
+- test: add coverage for help routing, sparse-session summaries, and log parsing helpers
+- test: 191 tests, 13 suites, 100% function coverage (27/27)
+
+## [0.4.0] - 2026-03-22
+
+- feat: add `carranca config` to launch the bound agent, apply `confiskill`, and propose `.carranca.yml` and `.carranca/Containerfile` updates
+- feat: run `carranca config` with the same interactive TTY flow as `carranca run` so cached agent auth/session state is reused
+- feat: mount Carranca-managed and user-managed skills separately inside the agent container
+- fix: keep `carranca config` propose-only by sourcing built-in skills from the Carranca install instead of mutating the workspace before confirmation
+- fix: validate unsupported `agent.adapter` values early and require a detected stack summary in generated proposals
+- docs: document the `config` workflow, skill mounts, and interactive adapter behavior
+- test: add integration, failure-mode, and unit coverage for `carranca config` and adapter resolution
+- test: 132 tests, 10 suites, 100% function coverage (18/18)
+
+## [0.3.0] - 2026-03-22
+
+- feat: switch the default agent command and project scaffold to Codex
+- feat: run the agent container as the invoking host user and preserve supplemental groups
+- feat: move the default agent home and cache mount to `/home/carranca`
+- fix: make the shared logger FIFO writable across container user boundaries
+- fix: install `bubblewrap` in Codex agent images for sandboxed execution
+- test: cover host uid/gid mapping, supplemental groups, agent home, and FIFO permissions
+- test: 108 tests, 9 suites, 100% function coverage (17/17)
+- docs: update configuration and architecture docs for the Codex-based runtime defaults
+
+## [0.2.0] - 2026-03-22
+
+- feat: persistent agent home directory across sessions (`volumes.cache` config)
+- feat: custom volume mounts via `volumes.extra` config (e.g. SSH keys, reference docs)
+- feat: YAML list parsing in config (`carranca_config_get_list`)
+- feat: auto-detect TTY for non-interactive environments (tests/CI)
+- fix: inline YAML comments no longer break config value parsing
+- fix: logger graceful shutdown — `docker stop` (SIGTERM) instead of `docker rm -f` (SIGKILL)
+- fix: logger read timeout allows SIGTERM trap to fire between reads
+- fix: shell_command and agent_stop events now reliably appear in session logs
+- feat: pre-commit hook auto-updates README test/coverage badges
+- feat: test runner enforces 100% function coverage
+- test: add unit tests for `carranca_log`, `carranca_die`, runtime helpers, hooks, badge update
+- test: 93 tests, 9 suites, 100% function coverage (17/17)
+- docs: document cache volumes, custom volumes, and badge workflow
+
+## [0.1.0] - 2026-03-22
+
+- feat: add `carranca init` to scaffold project config with `--claude` and `--codex` flags
+- feat: add `carranca run` to start interactive containerized agent sessions
+- feat: two-container architecture (agent + logger) connected via FIFO, no compose
+- feat: structured JSONL session logging with monotonic sequence numbers
+- feat: shell command capture via instrumented shell wrapper
+- feat: file mutation capture via `inotifywait` (best-effort, Linux)
+- feat: fail-closed logging — agent stops if logger dies (broken pipe detection)
+- feat: append-only log protection via `chattr +a` (when `CAP_LINUX_IMMUTABLE` available)
+- feat: heartbeat mechanism (30s interval) to detect dead logger between commands
+- feat: logger healthcheck gates agent startup (no FIFO race condition)
+- feat: repo identity via git remote URL hash (12-char, with path fallback)
+- feat: user-configurable agent Containerfile per project (`.carranca/Containerfile`)
+- feat: `.carranca.yml` per-project configuration with runtime, policy, and watched paths
+- feat: default `/plan` skill for docs-before-code workflow
+- feat: install/state/config separation (`~/.local/share/`, `~/.local/state/`, `~/.config/`)
+- feat: Alpine-based container images (~7MB base)
+- feat: interactive agent TTY via `docker run -it` (supports TUI agents like Claude Code)
+- chore: add Makefile with lint, test, check, build, install, hooks, version targets
+- chore: add ShellCheck linting for all bash scripts
+- chore: add git pre-commit hook (validates semver + runs lint + unit tests)
+- chore: add GitHub Actions CI (lint, unit tests, integration tests)
+- chore: add `.gitignore`, `.editorconfig`, `.shellcheckrc`, `.yamllint.yml`
+- docs: add `doc/` with architecture, configuration, session-log, trust-model, versioning
+- docs: add CONTRIBUTING.md with project conventions
+- test: add unit tests for config parsing, identity, and utilities
+- test: add integration tests for init and run lifecycle
+- test: add failure mode tests for preconditions and degraded mode
+</pre>
+      </div>
+    </details>
+
+  </div>
+
+  <footer>
+    <a href="https://github.com/pboueke/carranca">Carranca</a> is MIT-licensed.
+  </footer>
+
+  <script>
+    document.querySelectorAll('.doc-rendered a[href$=".md"]').forEach(link => {
+      const href = link.getAttribute('href');
+      if (!href || href.startsWith('http')) return;
+      link.setAttribute('href', `../${href.replace(/^\.\//, '')}`);
+    });
+
+    document.querySelectorAll('.doc-content').forEach(container => {
+      const source = container.querySelector('.doc-markdown-static');
+      if (!source) return;
+
+      const md = source.textContent || "";
+      if (window.marked && typeof window.marked.parse === "function") {
+        const rendered = document.createElement('div');
+        rendered.className = 'doc-rendered';
+        rendered.innerHTML = window.marked.parse(md);
+        source.style.display = 'none';
+        container.appendChild(rendered);
+      }
+    });
+  </script>
+
+</body>
+</html>

@@ -182,7 +182,8 @@ cat > "$TMPDIR/README.md" <<'EOF'
 </div>
 EOF
 
-cat > "$TMPDIR/CHANGELOG.md" <<'EOF'
+mkdir -p "$TMPDIR/doc"
+cat > "$TMPDIR/doc/CHANGELOG.md" <<'EOF'
 # Changelog
 
 ## [2.5.0] - 2026-03-22
@@ -246,7 +247,7 @@ assert_contains "version-only: badges updated message" "badges updated" "$VONLY_
 
 # --- Test version extracted from different changelog versions ---
 
-cat > "$TMPDIR/CHANGELOG.md" <<'EOF'
+cat > "$TMPDIR/doc/CHANGELOG.md" <<'EOF'
 # Changelog
 
 ## [1.0.0] - 2026-01-01
@@ -272,7 +273,7 @@ assert_contains "multi-version: picks first (latest) version" "version-1.0.0-blu
 
 # --- Test no changelog — skips version, still updates test badges ---
 
-rm -f "$TMPDIR/CHANGELOG.md"
+rm -f "$TMPDIR/doc/CHANGELOG.md"
 cat > "$TMPDIR/tests/.results.json" <<'EOF'
 {"tests_passed":10,"tests_total":10,"tests_failed":0,"coverage_pct":100,"coverage_funcs":"5/5"}
 EOF
@@ -291,7 +292,7 @@ assert_contains "no-changelog: test badge still updated" "10/10 passed" "$NOCL_R
 # --- Test no results and no changelog — skips entirely ---
 
 rm -f "$TMPDIR/tests/.results.json"
-rm -f "$TMPDIR/CHANGELOG.md"
+rm -f "$TMPDIR/doc/CHANGELOG.md"
 SKIP_OUT="$(bash "$TMPDIR/.githooks/update-badges.sh" 2>&1)"
 assert_contains "no-data: skipping message" "skipping" "$SKIP_OUT"
 

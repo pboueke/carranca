@@ -127,7 +127,7 @@ Two containers share a tmpfs volume containing a Unix FIFO:
 | `~/.local/state/carranca/sessions/<repo-id>/` | Yes | Carranca | Session JSONL logs plus per-session `.checksums`, `.hmac-key`, `.tar`, and `.tar.sig` files |
 | `~/.local/state/carranca/config/<repo-id>/` | Yes | Carranca | Config workflow proposals and audit history |
 | `~/.local/state/carranca/cache/<repo-id>/home/` | Yes | Agent | Persistent agent home dir mounted at `/home/carranca` (auth, config, history) |
-| `~/.config/carranca/config.yml` | Yes | User | Optional user-wide defaults for `runtime.*` and `volumes.*` |
+| `~/.config/carranca/config.yml` | Yes | User | Optional user-wide defaults for `runtime.*`, `volumes.*`, `observability.*`, and `policy.*` |
 | `.carranca.yml` | Yes | User | Per-project configuration, including the ordered `agents:` list |
 | `.carranca/Containerfile` | Yes | User | Agent container definition |
 | `.carranca/shell-wrapper.sh` | No | Carranca | Injected into agent image at build |
