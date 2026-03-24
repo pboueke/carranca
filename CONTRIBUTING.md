@@ -143,7 +143,7 @@ explicitly in the PR description.
 
 ## Versioning
 
-Versioning is driven by `CHANGELOG.md`.
+Versioning is driven by `doc/CHANGELOG.md`.
 The first `## [X.Y.Z]` entry is the current version, and `make version` reads it
 from there. If a contribution changes shipped behavior, update the changelog in
 the same pull request.

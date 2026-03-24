@@ -17,6 +17,7 @@
 - docs: trust model updated — "Technical policy enforcement" moved from "Not provided" to "Provided"
 - docs: architecture.md updated with `network-setup.sh` conditional entrypoint
 - docs: all Phase 4 roadmap items (4.1–4.5) marked complete
+- docs: move the changelog to `doc/CHANGELOG.md` and update contributor/versioning docs to use the new canonical path
 - test: 504 tests, 23 unit suites, 100% function coverage
 - test: new suites — `test_policy_resource_limits.sh`, `test_policy_timer.sh`, `test_policy_filesystem.sh`, `test_policy_hooks.sh`, `test_policy_network.sh`
 - test: updated suites — `test_timeline.sh` (policy P glyph), `test_resource_sampler.sh` (policy_event counting in summary), `test_config.sh` (policy global fallback)
