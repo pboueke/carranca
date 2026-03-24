@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.15.0] - 2026-03-24
+
+- feat: **capability drop** — `runtime.cap_drop_all: true` (default) adds `--cap-drop ALL` to the agent container; `runtime.cap_add` becomes a strict allowlist applied after the drop
+- feat: **read-only root filesystem** — `runtime.read_only: true` (default) adds `--read-only` with explicit tmpfs mounts for `/tmp`, `/var/tmp`, `/run`; when cache is disabled, `/home/carranca` gets a tmpfs mount
+- feat: **seccomp filtering** — default seccomp profile at `runtime/security/seccomp-agent.json` blocks dangerous syscalls (ptrace, mount, unshare, reboot, module loading, pivot_root, swapon/swapoff, sethostname/setdomainname, setns); configurable via `runtime.seccomp_profile`
+- feat: **AppArmor reference profile** — `runtime/security/apparmor-agent.profile` shipped as opt-in reference; configurable via `runtime.apparmor_profile`
+- feat: **FIFO forgery detection** — `_validate_fifo_event()` in logger validates every FIFO event: required fields, timestamp bounds (before session, future, regression), seq/hmac injection stripping, source impersonation detection; emits `integrity_event` entries
+- feat: **independent observer sidecar** — `observability.independent_observer: true` launches a third container with `--pid=host` and `CAP_SYS_PTRACE` that runs execve tracing and network monitoring outside the agent's namespaces; agent cannot see or interfere with observation
+- feat: **cross-referencing** — logger compares shell_command and execve_event timestamps at session end; flags `shell_command_without_execve` and `unmatched_execve_activity` as integrity events
+- feat: **shared strace parser** — `runtime/lib/strace-parser.sh` extracted from logger.sh; sourced by both logger (legacy path) and observer (independent path)
+- feat: `integrity_event` JSONL event type with `reason` and `raw_source` fields; `!` glyph in `--timeline`
+- feat: observer lifecycle events (`observer_start`, `observer_stop`) in session log
+- feat: session cleanup updated to stop observer container between agent and logger teardown
+- docs: all Phase 5 roadmap items (5.1–5.5) marked complete
+- docs: trust model updated — design assumption expanded for untrusted agents; threat table entries upgraded from "Partially mitigated" to "Mitigated"
+- docs: architecture updated with observer sidecar and agent hardening flags
+- docs: session-log updated with `integrity_event` type, observer source provenance, and cross-reference reasons
+- docs: configuration updated with `runtime.cap_drop_all`, `runtime.read_only`, `runtime.seccomp_profile`, `runtime.apparmor_profile`, `observability.independent_observer`
+- test: 562 tests, 28 unit suites, 0 failures
+- test: new suites — `test_cap_drop.sh`, `test_seccomp_profile.sh`, `test_fifo_validation.sh`, `test_observer.sh`, `test_strace_parser.sh`
+- test: updated suites — `test_session.sh` (observer cleanup), `test_execve_parser.sh` (shared parser)
+
 ## [0.14.0] - 2026-03-23
 
 - feat: **resource limits** — `policy.resource_limits.{memory,cpus,pids}` passed as `--memory`, `--cpus`, `--pids-limit` container runtime flags; kernel enforces via cgroup limits

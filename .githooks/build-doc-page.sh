@@ -40,7 +40,7 @@ cat > "$TMP_FILE" <<'EOF'
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Carranca: Isolated agent runtime with verified audits, deep observability, and policy enforcement</title>
+  <title>Carranca: Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     :root {
@@ -288,11 +288,11 @@ cat > "$TMP_FILE" <<'EOF'
     <p class="caption">A Carranca photographed by Marcel Gautherot in 1946. Instituto Moreira Salles collection.</p>
     <h1>Carranca</h1>
     <p class="tagline">
-      Isolated agent runtime with verified audits, deep observability, and policy enforcement.
+      Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening.
       Named after the carved figureheads on boats in Brazil's S&atilde;o Francisco river,
       believed to protect sailors. Carranca protects engineers from coding agents
-      by running them in isolated containers with tamper-evident logs, kernel-level tracing,
-      and enforceable guardrails.
+      by running them in hardened containers with tamper-evident logs, kernel-level tracing,
+      enforceable guardrails, and forgery detection.
     </p>
     <div class="links">
       <a href="https://github.com/pboueke/carranca">GitHub</a>

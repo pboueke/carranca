@@ -34,10 +34,19 @@ transient images.
        ├── <runtime> run -d (logger)
        │     ├── creates FIFO on shared volume
        │     ├── starts inotifywait (or fswatch fallback) on /workspace (read-only)
+       │     ├── validates FIFO events for forgery indicators
        │     ├── reads FIFO events
        │     └── writes JSONL, checksum, and HMAC key files to /state/
        │
+       ├── <runtime> run -d (observer, optional)
+       │     ├── runs with --pid=host and CAP_SYS_PTRACE
+       │     ├── finds agent PID via cgroup matching
+       │     ├── runs strace for independent execve tracing
+       │     ├── polls /proc/<pid>/net/tcp for network connections
+       │     └── writes events to FIFO with source: "observer"
+       │
        └── <runtime> run -it (agent)
+             ├── --cap-drop ALL, --read-only, seccomp profile
              ├── shell-wrapper opens FIFO
              ├── writes shell events to FIFO
              ├── heartbeat every 30s
@@ -50,6 +59,7 @@ A `carranca run` session owns a small set of runtime resources:
 
 - `carranca-<session>-agent` container
 - `carranca-<session>-logger` container
+- `carranca-<session>-observer` container (when `observability.independent_observer: true`)
 - `carranca-<session>-fifo` tmpfs volume
 - `carranca-<session>-agent` and `carranca-<session>-logger` transient images
 
@@ -59,10 +69,12 @@ Lifecycle is explicit:
 2. It builds the transient logger and agent images
 3. It creates the shared FIFO volume
 4. It starts the logger container
-5. It starts the interactive agent container
-6. On normal exit, `SIGINT`, `SIGTERM`, or `carranca kill`, it stops the agent,
-   stops the logger gracefully so it can flush `logger_stop`, then removes the
-   FIFO volume and transient images
+5. It starts the observer sidecar (if independent observer is enabled)
+6. It starts the interactive agent container
+7. On normal exit, `SIGINT`, `SIGTERM`, or `carranca kill`, it stops the agent,
+   stops the observer, stops the logger gracefully so it can flush
+   cross-referencing results and `logger_stop`, then removes the FIFO volume
+   and transient images
 
 This teardown path is idempotent. Interrupted interactive sessions should not
 leave the logger container behind.
@@ -81,7 +93,7 @@ the current working directory once they are running.
 
 ## Containers
 
-Two containers share a tmpfs volume containing a Unix FIFO:
+Two or three containers share a tmpfs volume containing a Unix FIFO:
 
 **Logger** (`runtime/Containerfile.logger`):
 - Managed by carranca, not user-configurable
@@ -98,25 +110,48 @@ Two containers share a tmpfs volume containing a Unix FIFO:
 - The user installs their agent CLI, language runtimes, tools
 - Mounts: FIFO volume (rw), workspace (rw), optional cache dir (rw), optional custom volumes, repo-local Carranca skills during `run`, repo-local user skills, and install-managed Carranca skills during `config`
 - Runs as the invoking host UID:GID on Linux, or `--userns keep-id` on rootless Podman, so bind-mounted workspace writes keep usable host ownership
+- Hardened by default: `--cap-drop ALL`, `--read-only` root filesystem, seccomp profile blocking dangerous syscalls
 - The shell wrapper is always injected as the entrypoint
 - When fine-grained network policies are active (`runtime.network` object form),
   the entrypoint is overridden to `network-setup.sh` which applies iptables rules
   before exec-ing the shell wrapper
 
+**Observer** (reuses `runtime/Containerfile.logger`, optional):
+- Launched when `observability.independent_observer: true`
+- Runs with `--pid=host` and `CAP_SYS_PTRACE`
+- Shares the FIFO volume and state directory but no namespace with the agent
+- Finds the agent's host PID via cgroup matching, runs strace independently
+- Polls `/proc/<pid>/net/tcp` for network connections
+- Writes events to FIFO with `source: "observer"`
+- Exits when the agent PID disappears
+
 ## Data flow
 
 ```
   Agent container                    Logger container
-  ┌──────────────────┐              ┌──────────────────┐
-  │ shell-wrapper.sh │              │ logger.sh        │
-  │   │              │              │   │              │
-  │   ├─ agent cmd   │   FIFO      │   ├─ read FIFO ──┤──► session.jsonl
-  │   ├─ heartbeat ──┼──────►──────┼───┤              │    + .checksums
-  │   └─ exit code   │  (tmpfs)    │   ├─ inotifywait─┤ (or fswatch)
-  │                  │              │   └─ HMAC chain ─┤──► .hmac-key
-  │                  │              │   │  /workspace  │
-  │ /workspace (rw)  │              │ /workspace (ro)  │
-  └──────────────────┘              └──────────────────┘
+  ┌──────────────────┐             ┌──────────────────────┐
+  │ shell-wrapper.sh │             │ logger.sh            │
+  │   │              │             │   │                  │
+  │   ├─ agent cmd   │   FIFO      │   ├─ read FIFO ──────┤──► session.jsonl
+  │   ├─ heartbeat ──┼──────►──────┼───┤                  │    + .checksums
+  │   └─ exit code   │  (tmpfs)    │   ├─ validate event  │
+  │                  │      ▲      │   ├─ inotifywait ────┤ (or fswatch)
+  │ --cap-drop ALL   │      │      │   ├─ HMAC chain ─────┤──► .hmac-key
+  │ --read-only      │      │      │   └─ cross-reference │
+  │ seccomp profile  │      │      │      /workspace (ro) │
+  │ /workspace (rw)  │      │      └──────────────────────┘
+  └──────────────────┘      │
+                            │
+  Observer container        │       (optional, --pid=host)
+  ┌──────────────────┐      │
+  │ observer.sh      │      │
+  │   │              │      │
+  │   ├─ strace ─────┼──────┘
+  │   ├─ /proc/net ──┼──────┘
+  │   │              │
+  │ CAP_SYS_PTRACE   │
+  │ no shared ns     │
+  └──────────────────┘
 ```
 
 ## Directory layout

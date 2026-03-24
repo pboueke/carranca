@@ -76,6 +76,7 @@ observability:
   network_logging: false
   network_interval: 5
   secret_monitoring: false
+  independent_observer: false
 ```
 
 ### Field reference
@@ -92,7 +93,11 @@ observability:
 | `runtime.network.allow` | No | — | List of `host:port` entries allowed through the firewall (e.g., `*.anthropic.com:443`). Requires yq |
 | `runtime.extra_flags` | No | — | Extra flags appended to the agent container `run` command |
 | `runtime.logger_extra_flags` | No | — | Extra flags appended to the logger container `run` command |
-| `runtime.cap_add` | No | — | List of Linux capabilities added to the agent container via `--cap-add` |
+| `runtime.seccomp_profile` | No | `default` | Seccomp profile for agent container. `default` uses carranca's built-in profile blocking dangerous syscalls (ptrace, mount, unshare, etc.). `unconfined` disables seccomp. Absolute path for custom profile. Linux only |
+| `runtime.apparmor_profile` | No | — | AppArmor profile name for agent container. Must be pre-loaded via `apparmor_parser -r`. `unconfined` to disable. Empty (default) uses runtime default. Linux only |
+| `runtime.cap_drop_all` | No | `true` | When `true`, drops all Linux capabilities from the agent container via `--cap-drop ALL`. `cap_add` becomes a strict allowlist applied after the drop |
+| `runtime.read_only` | No | `true` | When `true`, runs agent container with `--read-only` root filesystem. `/tmp`, `/var/tmp`, `/run` get tmpfs mounts. `/workspace`, `/fifo`, and cache home are unaffected. When cache is disabled, `/home/carranca` gets a tmpfs mount |
+| `runtime.cap_add` | No | — | List of Linux capabilities added to the agent container via `--cap-add`. When `cap_drop_all` is `true` (default), these are the only capabilities the agent has |
 | `volumes.cache` | No | `true` | Persists `/home/carranca` under `~/.local/state/carranca/cache/<repo-id>/home/` |
 | `volumes.extra` | No | — | Extra bind mounts added only to the agent container |
 | `policy.docs_before_code` | No | — | `warn`, `enforce`, or `off`. When `warn` or `enforce`, injects git pre-commit hooks. `enforce` blocks commits that modify code without documentation |
@@ -108,6 +113,7 @@ observability:
 | `observability.network_logging` | No | `false` | Enable `/proc/net/tcp` polling for outbound connections; requires PID namespace sharing |
 | `observability.network_interval` | No | `5` | Seconds between network connection polls |
 | `observability.secret_monitoring` | No | `false` | Enable fanotify-based file read monitoring on `watched_paths`; adds `CAP_SYS_ADMIN` to logger |
+| `observability.independent_observer` | No | `false` | Run execve tracer and network monitor in an independent sidecar container outside the agent's PID/mount namespace. Agent cannot see or interfere with observer. Cross-references events at session end |
 
 ### Runtime resolution
 

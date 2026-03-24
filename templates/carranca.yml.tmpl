@@ -20,7 +20,11 @@ runtime:
   # extra_flags: --gpus all
   # Extra container runtime flags for the logger container
   # logger_extra_flags:
-  # Linux capabilities for the agent container
+  # seccomp_profile: default         # "default" (carranca built-in), "unconfined", or absolute path
+  # apparmor_profile:                # AppArmor profile name (must be loaded); "unconfined" to disable
+  # cap_drop_all: true              # Drop all Linux capabilities (--cap-drop ALL)
+  # read_only: true                 # Read-only root filesystem (--read-only + tmpfs)
+  # Linux capabilities for the agent container (allowlist after cap_drop_all)
   # cap_add:
   #   - SYS_PTRACE
 
@@ -40,6 +44,9 @@ policy:
   #   pids: 256
   # filesystem:                       # Requires yq
   #   enforce_watched_paths: false    # Make watched_paths read-only
+
+# observability:
+#   independent_observer: false    # Run execve/network monitoring in independent sidecar
 
 watched_paths:
   - .env

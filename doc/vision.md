@@ -6,7 +6,7 @@ changes.
 
 ## Current position
 
-Phases 1 through 4 are now implemented. Carranca already provides:
+Phases 1 through 5 are now implemented. Carranca already provides:
 
 - **Verified audit evidence**: HMAC-signed session logs, checksum hardening,
   exportable archives, and provenance-tagged events
@@ -16,21 +16,23 @@ Phases 1 through 4 are now implemented. Carranca already provides:
 - **Technical policy enforcement**: network filtering, resource limits,
   time-boxed sessions, read-only overlays for watched paths, and pre-commit
   policy hooks
-- **Operational isolation**: dedicated agent/logger containers, fail-closed
+- **Adversarial hardening**: all capabilities dropped, read-only root filesystem,
+  seccomp filtering, FIFO forgery detection, and independent observer sidecar
+  for cross-referencing agent-reported events against kernel observations
+- **Operational isolation**: dedicated agent/logger/observer containers, fail-closed
   session shutdown, and per-project agent images and configuration
 
-This means Carranca is already beyond a transparency-only wrapper. The current
-product is a local runtime for engineers who need auditability and enforceable
-guardrails around coding agents.
+This means Carranca is beyond a transparency-only wrapper. The current product
+is a local runtime for engineers who need auditability, enforceable guardrails,
+and adversarial hardening around coding agents.
 
 ## Next phases
 
-The remaining roadmap is about hardening and scale rather than basic
-capability:
+The remaining roadmap is about scale and ecosystem rather than core
+hardening:
 
 | Phase | Focus | Outcome |
 |-------|-------|---------|
-| Phase 5 | Adversarial hardening | Reduce trust in the agent by moving more ground truth outside the agent's control |
 | Phase 6 | Ecosystem and integration | Support team workflows such as CI execution, central log collection, and richer comparisons |
 
 ## Who benefits

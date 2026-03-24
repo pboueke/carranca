@@ -11,8 +11,9 @@ current scope of the tool.
 
 - Read the README and the docs under `doc/` first.
 - Check existing issues or open one before starting larger changes.
-- Keep the trust model honest. Carranca is a transparency tool with isolation
-  and logging, not a complete security boundary against adversarial agents.
+- Keep the trust model honest. Carranca provides container isolation, verified
+  logging, adversarial hardening, and forgery detection, but the agent retains
+  arbitrary code execution within the container boundary.
 - Prefer focused pull requests. Small, reviewable changes move faster.
 
 ## What we accept

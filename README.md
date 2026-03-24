@@ -5,12 +5,12 @@
   <h1>Carranca</h1>
 
   <p>
-    <img src="https://img.shields.io/badge/version-0.14.0-blue" alt="version: 0.14.0" />
-    <img src="https://img.shields.io/badge/tests-610%2F610_passed-brightgreen" alt="tests: 610/610 passed" />
+    <img src="https://img.shields.io/badge/version-0.15.0-blue" alt="version: 0.15.0" />
+    <img src="https://img.shields.io/badge/tests-562%2F562_passed-brightgreen" alt="tests: 562/562 passed" />
     <img src="https://img.shields.io/badge/coverage-100%25_(99%2F99_functions)-brightgreen" alt="coverage: 100%" />
   </p>
 
-  <p><strong>Isolated agent runtime with verified audits, deep observability, and policy enforcement.</strong> Named after the carved figureheads on boats in Brazil's São Francisco river, believed to protect sailors. Carranca protects engineers from coding agents by running them in isolated containers with tamper-evident logs, kernel-level tracing, and enforceable guardrails.
+  <p><strong>Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening.</strong> Named after the carved figureheads on boats in Brazil's São Francisco river, believed to protect sailors. Carranca protects engineers from coding agents by running them in hardened containers with tamper-evident logs, kernel-level tracing, enforceable guardrails, and forgery detection.
 </p>
 </div>
 
@@ -51,9 +51,12 @@ Carranca uses a container runtime CLI directly. Today that means Podman or
 Docker, selected by `CARRANCA_CONTAINER_RUNTIME` or `runtime.engine`; `auto`
 prefers Podman and falls back to Docker.
 
-Two runtime-managed containers share a FIFO on a tmpfs volume. The agent gets an
-interactive TTY. The logger writes a structured JSONL session log plus a
-parallel checksum file and per-session HMAC key that the agent cannot access.
+Two (or three) runtime-managed containers share a FIFO on a tmpfs volume. The
+agent gets an interactive TTY with a hardened container (read-only root FS, all
+capabilities dropped, seccomp filtering). The logger writes a structured JSONL
+session log plus a parallel checksum file and per-session HMAC key that the
+agent cannot access. An optional independent observer sidecar runs execve
+tracing and network monitoring outside the agent's namespaces.
 On Linux, the agent container runs as the invoking host UID:GID, or with
 `--userns keep-id` on rootless Podman, so workspace writes keep usable host
 ownership.
@@ -61,7 +64,8 @@ ownership.
 ```
   carranca run
        │
-       ├── <runtime> run -d  (logger: FIFO + inotifywait + strace + cgroup + fanotify → JSONL)
+       ├── <runtime> run -d  (logger: FIFO + inotifywait + cgroup + fanotify → JSONL)
+       ├── <runtime> run -d  (observer: strace + /proc/net/tcp, optional)
        └── <runtime> run -it (agent: shell-wrapper → FIFO)
 ```
 
@@ -71,43 +75,18 @@ guides.
 
 ## Commands
 
-- `carranca init`: scaffold `.carranca.yml`, `.carranca/Containerfile`, and repo-local skill directories under `.carranca/skills/`
-- `carranca kill`: stop one active session by exact id or all active sessions globally after confirmation
-- `carranca config`: launch the selected configured agent, require it to use Carranca `confiskill`, and propose updates to `.carranca.yml` and `.carranca/Containerfile`
-- `carranca log`: pretty-print the latest session, verify integrity (`--verify`), export a signed archive (`--export`), or render an ASCII timeline (`--timeline`)
-- `carranca run`: start an interactive session with the default first agent or a named agent via `--agent <name>`
-- `carranca status`: show active sessions and the 5 most recent session logs for the current repo, or inspect a specific session via `--session <exact-id>`
+| Command | Purpose |
+|---------|---------|
+| `carranca init` | Scaffold `.carranca.yml`, `.carranca/Containerfile`, and skill directories |
+| `carranca config` | Ask an agent to propose config and Containerfile updates |
+| `carranca run` | Start an interactive agent session |
+| `carranca log` | Inspect, verify, export, or timeline-render session logs |
+| `carranca status` | Show active sessions and recent logs |
+| `carranca kill` | Stop one or all active sessions |
 
-Each command also exposes command-specific help through either `carranca help <command>` or `carranca <command> help`.
-
-Carranca reads per-project config from `.carranca.yml` and optional user-wide
-defaults from `~/.config/carranca/config.yml` for `runtime.*`, `volumes.*`,
-`observability.*`, and `policy.*` keys. Runtime selection precedence is `CARRANCA_CONTAINER_RUNTIME`, then
-`.carranca.yml` `runtime.engine`, then global `runtime.engine`, then
-auto-detection.
-
-Carranca config is forward-only on the `agents:` format. `carranca init`
-scaffolds a supported starter agent (`codex`, `claude`, or `opencode`) as the
-first/default entry, `carranca run --agent <name>` selects any configured
-agent, and
-`carranca config --agent <name> --prompt "..."` chooses which configured agent
-executes the config workflow while passing free-form operator intent into the
-prompt.
-
-`carranca run` mounts repo-local Carranca skills from
-`.carranca/skills/carranca/` and user skills from `.carranca/skills/user/` when
-those directories exist. `carranca config` always mounts install-managed
-Carranca skills from the Carranca installation plus repo-local user skills, then
-shows rationale and a diff before applying any proposal. Use
-`--dangerously-skip-confirmation` only when you want to bypass the confirmation
-prompt and accept the proposal immediately.
-
-`carranca log` reports the latest or selected session in a developer-readable
-summary: duration, unique touched paths, file-event totals, top touched paths,
-command counts, and the shell-wrapper command list when command capture exists.
-With `observability.execve_tracing: true`, all process execution is captured
-independently of the shell wrapper. `--timeline` renders a compact ASCII view
-of every event in chronological order.
+Run `carranca help <command>` for command-specific options. See
+[usage.md](doc/usage.md) for the full CLI reference and
+[configuration.md](doc/configuration.md) for the `.carranca.yml` schema.
 
 ## Documentation
 

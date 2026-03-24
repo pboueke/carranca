@@ -57,8 +57,15 @@ timestamp() {
 
 SESSION_ID="test-session-123"
 
-# Extract _strace_to_event from logger.sh
-eval "$(sed -n '/^_strace_to_event()/,/^}/p' "$SCRIPT_DIR/runtime/logger.sh")"
+# Source the shared strace parser
+STRACE_EVENT_SOURCE="strace"
+STRACE_WRITE_FIFO=""
+source "$SCRIPT_DIR/runtime/lib/strace-parser.sh"
+
+# _strace_to_event is the legacy wrapper name
+_strace_to_event() {
+  strace_line_to_event "$1"
+}
 
 # --- Test: strace line with pid prefix ---
 

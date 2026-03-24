@@ -27,7 +27,7 @@ Session lifecycle events produced by carranca itself.
 ```
 
 Events currently emitted here: `start`, `degraded`, `agent_start`,
-`agent_stop`, `logger_stop`
+`agent_stop`, `logger_stop`, `observer_start`, `observer_stop`
 
 Typical lifecycle patterns:
 
@@ -182,19 +182,24 @@ Malformed data received on the FIFO.
 
 ### `execve_event`
 
-Process execution captured by strace attached to the agent PID namespace.
-Requires `observability.execve_tracing: true` and `CAP_SYS_PTRACE` on the
-logger container.
+Process execution captured by strace. When
+`observability.independent_observer: true`, the observer sidecar runs strace
+from outside the agent's PID namespace (source: `observer`). Otherwise, the
+logger runs strace internally (source: `strace`). Requires
+`observability.execve_tracing: true`.
 
 ```json
 {"type":"execve_event","source":"strace","ts":"2026-03-22T09:45:03Z","session_id":"abc12345","pid":42,"binary":"/usr/bin/npm","argv":"[\"npm\", \"test\"]","seq":9}
+{"type":"execve_event","source":"observer","ts":"2026-03-22T09:45:03Z","session_id":"abc12345","pid":42,"binary":"/usr/bin/npm","argv":"[\"npm\", \"test\"]","seq":9}
 ```
 
 ### `network_event`
 
 Outbound network connection detected by polling `/proc/net/tcp`.
-Requires `observability.network_logging: true` and PID namespace sharing.
-Only active when `runtime.network` is enabled.
+Requires `observability.network_logging: true`. When the independent observer
+is active, the observer polls from outside the agent's namespace (source:
+`observer`). Otherwise, the logger polls via PID namespace sharing (source:
+`carranca`). Only active when `runtime.network` is enabled.
 
 ```json
 {"type":"network_event","source":"carranca","ts":"2026-03-22T09:45:03Z","session_id":"abc12345","dest_ip":"104.18.12.33","dest_port":443,"protocol":"tcp","state":"ESTABLISHED","seq":10}
@@ -240,6 +245,30 @@ record when policies are configured, enforced, violated, or degraded.
 | `action` | `enforced`, `blocked`, `warn`, `timeout`, `oom_kill`, `configured`, `degraded` |
 | `source` | `carranca` (logger-side), `pre-commit-hook` (git hook), `network-setup` (iptables) |
 
+### `integrity_event`
+
+FIFO forgery detection events produced by the logger when incoming events
+fail structural or temporal validation. These events are always emitted
+(zero-config) and do not suppress the original event — both are logged.
+
+```json
+{"type":"integrity_event","source":"carranca","ts":"2026-03-22T09:45:05Z","session_id":"abc12345","reason":"missing_required_fields","raw_source":"unknown","seq":20}
+{"type":"integrity_event","source":"carranca","ts":"2026-03-22T09:45:05Z","session_id":"abc12345","reason":"timestamp_future","raw_source":"shell-wrapper","seq":21}
+{"type":"integrity_event","source":"carranca","ts":"2026-03-22T09:45:05Z","session_id":"abc12345","reason":"seq_injection_attempt","raw_source":"shell-wrapper","seq":22}
+{"type":"integrity_event","source":"carranca","ts":"2026-03-22T09:45:05Z","session_id":"abc12345","reason":"source_impersonation","raw_source":"strace","seq":23}
+```
+
+| Reason | Trigger |
+|--------|---------|
+| `missing_required_fields` | FIFO event missing `type`, `source`, `ts`, or `session_id` |
+| `timestamp_before_session` | Event `ts` is before the session start time |
+| `timestamp_future` | Event `ts` is more than 5 seconds in the future |
+| `timestamp_regression` | Event `ts` regresses more than 60 seconds from the previous FIFO event |
+| `seq_injection_attempt` | FIFO event contains `seq` or `hmac` fields (logger is sole authority) |
+| `source_impersonation` | FIFO event claims a `source` that only writes directly to the log (`strace`, `inotifywait`, `carranca`, etc.) |
+| `shell_command_without_execve` | Shell command reported by agent has no corresponding execve event from the observer (cross-referencing) |
+| `unmatched_execve_activity` | Execve event observed by the observer has no corresponding shell command from the agent (cross-referencing) |
+
 ### Session timeline
 
 `carranca log --timeline` renders an ASCII timeline of all session events:
@@ -250,7 +279,7 @@ carranca log --timeline --session abc12345
 
 Each event type maps to a glyph: `>>` lifecycle, `$` command, `F+/F~/F-`
 file mutation, `X` execve, `N` network, `R` resource, `A` file access,
-`P` policy.
+`P` policy, `!` integrity.
 
 ## Event provenance
 
@@ -265,6 +294,7 @@ data.
 | `fswatch` | macOS file watcher | Ground truth — OS-level observation |
 | `strace` | Process execution tracer | Ground truth — kernel-level observation via ptrace |
 | `fanotify` | File access monitor | Ground truth — kernel-level observation via fanotify |
+| `observer` | Independent sidecar container | Ground truth — runs outside agent namespace, agent cannot interfere |
 | `shell-wrapper` | Agent container shell wrapper | Agent-reported — the agent can forge or suppress these |
 | `pre-commit-hook` | Carranca-injected git pre-commit hook | Agent-side — runs in agent container but managed by carranca |
 | `network-setup` | Network policy iptables setup | Agent-side — runs before agent command, managed by carranca |
@@ -356,7 +386,7 @@ Those records are not mixed into per-session `run` logs.
 The JSONL log is the durable record for a session, but active-state inspection is
 container-based:
 
-- `carranca status` marks a session as active when its logger or agent container
+- `carranca status` marks a session as active when its logger, agent, or observer container
   still exists
 - `carranca kill --session <id>` stops that exact session after confirmation
 - `carranca kill` stops all active Carranca sessions globally after confirmation

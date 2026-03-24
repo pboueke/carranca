@@ -1,0 +1,25 @@
+{
+  "defaultAction": "SCMP_ACT_ALLOW",
+  "syscalls": [
+    {
+      "names": [
+        "ptrace",
+        "mount",
+        "umount2",
+        "reboot",
+        "init_module",
+        "finit_module",
+        "delete_module",
+        "pivot_root",
+        "swapon",
+        "swapoff",
+        "sethostname",
+        "setdomainname",
+        "unshare",
+        "setns"
+      ],
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 1
+    }
+  ]
+}

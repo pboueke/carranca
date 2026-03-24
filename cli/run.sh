@@ -84,6 +84,15 @@ LOGGER_EXTRA_FLAGS="$(carranca_config_get_with_global runtime.logger_extra_flags
 RESOURCE_INTERVAL="$(carranca_config_get_with_global observability.resource_interval)"
 SECRET_MONITORING="$(carranca_config_get_with_global observability.secret_monitoring)"
 
+# Parse capability drop-all for the agent container (Phase 5.5)
+CAP_DROP_ALL="$(carranca_config_get_with_global runtime.cap_drop_all)"
+[ -z "$CAP_DROP_ALL" ] && CAP_DROP_ALL="true"
+
+CAP_DROP_FLAG=""
+if [ "$CAP_DROP_ALL" = "true" ]; then
+  CAP_DROP_FLAG="--cap-drop ALL"
+fi
+
 # Parse capability additions for the agent container
 CAP_ADD_FLAGS=""
 while IFS= read -r cap; do
@@ -91,9 +100,50 @@ while IFS= read -r cap; do
   CAP_ADD_FLAGS="$CAP_ADD_FLAGS --cap-add $cap"
 done < <(carranca_config_get_list_with_global runtime.cap_add 2>/dev/null || true)
 
+# Read-only root filesystem (Phase 5.4)
+READ_ONLY="$(carranca_config_get_with_global runtime.read_only)"
+[ -z "$READ_ONLY" ] && READ_ONLY="true"
+
+READ_ONLY_FLAGS=""
+if [ "$READ_ONLY" = "true" ]; then
+  READ_ONLY_FLAGS="--read-only --tmpfs /tmp --tmpfs /var/tmp --tmpfs /run"
+fi
+
+# Seccomp and AppArmor profiles (Phase 5.3)
+SECCOMP_PROFILE="$(carranca_config_get_with_global runtime.seccomp_profile)"
+[ -z "$SECCOMP_PROFILE" ] && SECCOMP_PROFILE="default"
+APPARMOR_PROFILE="$(carranca_config_get_with_global runtime.apparmor_profile)"
+
+SECCOMP_FLAG=""
+APPARMOR_FLAG=""
+if [ "$(uname -s)" = "Linux" ]; then
+  case "$SECCOMP_PROFILE" in
+    default)
+      SECCOMP_FLAG="--security-opt seccomp=$CARRANCA_HOME/runtime/security/seccomp-agent.json"
+      ;;
+    unconfined)
+      SECCOMP_FLAG="--security-opt seccomp=unconfined"
+      ;;
+    /*)
+      # Absolute path to custom profile
+      SECCOMP_FLAG="--security-opt seccomp=$SECCOMP_PROFILE"
+      ;;
+  esac
+  if [ -n "$APPARMOR_PROFILE" ] && [ "$APPARMOR_PROFILE" != "unconfined" ]; then
+    APPARMOR_FLAG="--security-opt apparmor=$APPARMOR_PROFILE"
+  elif [ "$APPARMOR_PROFILE" = "unconfined" ]; then
+    APPARMOR_FLAG="--security-opt apparmor=unconfined"
+  fi
+else
+  if [ "$SECCOMP_PROFILE" != "default" ] && [ "$SECCOMP_PROFILE" != "unconfined" ]; then
+    carranca_log info "Seccomp profiles not supported on $(uname -s) — skipping"
+  fi
+fi
+
 EXECVE_TRACING="$(carranca_config_get_with_global observability.execve_tracing)"
 NETWORK_LOGGING="$(carranca_config_get_with_global observability.network_logging)"
 NETWORK_INTERVAL="$(carranca_config_get_with_global observability.network_interval)"
+INDEPENDENT_OBSERVER="$(carranca_config_get_with_global observability.independent_observer)"
 
 # --- Policy: resource limits (4.4) ---
 RESOURCE_MEMORY="$(carranca_config_get_with_global policy.resource_limits.memory)"
@@ -272,6 +322,7 @@ AGENT_CONTAINER_NAME="$(carranca_session_agent_name "$SESSION_ID")"
 FIFO_VOLUME="$(carranca_session_fifo_volume "$SESSION_ID")"
 LOGGER_IMAGE="$(carranca_session_logger_image "$SESSION_ID")"
 AGENT_IMAGE="$(carranca_session_agent_image "$SESSION_ID")"
+OBSERVER_NAME="$(carranca_session_observer_name "$SESSION_ID")"
 
 carranca_log info "Starting carranca session $SESSION_ID"
 carranca_log info "Repo: $REPO_NAME ($REPO_ID)"
@@ -316,6 +367,11 @@ if [ "$CACHE_ENABLED" = "true" ]; then
   carranca_log info "Cache: $CACHE_DIR"
 fi
 
+# When read-only root FS is on and cache is off, agent home needs a writable tmpfs
+if [ "$READ_ONLY" = "true" ] && [ "$CACHE_ENABLED" != "true" ]; then
+  READ_ONLY_FLAGS="$READ_ONLY_FLAGS --tmpfs $AGENT_HOME"
+fi
+
 EXTRA_GROUP_FLAGS=""
 for gid in $HOST_GROUPS; do
   [ "$gid" = "$HOST_GID" ] && continue
@@ -332,14 +388,20 @@ fi
 
 # --- Cleanup handler ---
 
+# When independent observer is active, the agent gets its own PID namespace
+# and the logger doesn't need SYS_PTRACE (observer handles tracing).
 PID_NS_FLAG=""
-if [ "$EXECVE_TRACING" = "true" ] || [ "$NETWORK_LOGGING" = "true" ]; then
-  PID_NS_FLAG="--pid=container:$LOGGER_NAME"
-fi
-
 PTRACE_CAP_FLAG=""
-if [ "$EXECVE_TRACING" = "true" ]; then
-  PTRACE_CAP_FLAG="--cap-add SYS_PTRACE"
+if [ "$INDEPENDENT_OBSERVER" = "true" ]; then
+  # Agent gets default PID namespace — no sharing with logger
+  : # PID_NS_FLAG stays empty
+else
+  if [ "$EXECVE_TRACING" = "true" ] || [ "$NETWORK_LOGGING" = "true" ]; then
+    PID_NS_FLAG="--pid=container:$LOGGER_NAME"
+  fi
+  if [ "$EXECVE_TRACING" = "true" ]; then
+    PTRACE_CAP_FLAG="--cap-add SYS_PTRACE"
+  fi
 fi
 
 SECRETMON_CAP_FLAG=""
@@ -392,6 +454,7 @@ carranca_runtime_run -d --rm \
   -e "DEGRADED_GLOBS=${DEGRADED_GLOBS:-}" \
   -e "NETWORK_MODE=${NETWORK_MODE:-full}" \
   -e "NETWORK_POLICY_RULES=${NETWORK_POLICY_RULES:-}" \
+  -e "INDEPENDENT_OBSERVER=${INDEPENDENT_OBSERVER:-}" \
   $SECRETMON_CAP_FLAG \
   $LOGGER_EXTRA_FLAGS \
   "$LOGGER_IMAGE" >/dev/null
@@ -410,6 +473,28 @@ done
 
 if [ "$WAIT" -ge 30 ]; then
   carranca_die "Logger FIFO not ready after 15s"
+fi
+
+# --- Start observer sidecar (Phase 5.1, optional) ---
+
+if [ "$INDEPENDENT_OBSERVER" = "true" ]; then
+  carranca_log info "Starting independent observer..."
+  # Observer reuses the logger image (already has strace, bash, tools).
+  # It gets --pid=host to see all host processes and CAP_SYS_PTRACE for strace.
+  # It shares the FIFO volume and state directory but no namespace with the agent.
+  # shellcheck disable=SC2086
+  carranca_runtime_run -d --rm \
+    --name "$OBSERVER_NAME" \
+    --pid=host \
+    --cap-add SYS_PTRACE \
+    -v "$FIFO_VOLUME:/fifo" \
+    -v "$STATE_DIR:/state" \
+    -e "SESSION_ID=$SESSION_ID" \
+    -e "AGENT_CONTAINER_NAME=$AGENT_CONTAINER_NAME" \
+    -e "NETWORK_LOGGING=${NETWORK_LOGGING:-}" \
+    -e "NETWORK_INTERVAL=${NETWORK_INTERVAL:-}" \
+    --entrypoint /usr/local/bin/observer.sh \
+    "$LOGGER_IMAGE" >/dev/null
 fi
 
 # --- Run agent interactively ---
@@ -465,11 +550,15 @@ carranca_runtime_run $TTY_FLAGS --rm \
   $CUSTOM_VOLUME_FLAGS \
   $SKILL_MOUNT_FLAGS \
   $EXTRA_GROUP_FLAGS \
+  $SECCOMP_FLAG \
+  $APPARMOR_FLAG \
+  $CAP_DROP_FLAG \
   $CAP_ADD_FLAGS \
   -e "AGENT_COMMAND=$AGENT_COMMAND" \
   -e "SESSION_ID=$SESSION_ID" \
   $NETWORK_FLAG \
   $RESOURCE_LIMIT_FLAGS \
+  $READ_ONLY_FLAGS \
   $FILESYSTEM_RO_FLAGS \
   $POLICY_HOOKS_FLAGS \
   $POLICY_HOOKS_ENV \
