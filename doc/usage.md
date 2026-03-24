@@ -12,6 +12,7 @@ how operators typically use it.
 | `carranca config` | Ask a configured agent to propose container and config updates for the current repo |
 | `carranca run` | Start an interactive agent session in the configured runtime |
 | `carranca log` | Inspect, filter, verify, export, or timeline-render session logs |
+| `carranca diff` | Compare two session logs across multiple dimensions |
 | `carranca status` | Show active sessions and recent logs for the current repository |
 | `carranca kill` | Stop one active session or all active sessions after confirmation |
 | `carranca help` | Show top-level or command-specific help |
@@ -69,7 +70,7 @@ carranca config --prompt "install claude and add uv to the image"
 ## `carranca run`
 
 ```text
-Usage: carranca run [--agent <name>]
+Usage: carranca run [--agent <name>] [--trust-repo-flags] [--timeout <seconds>]
 ```
 
 Starts an interactive session for the selected configured agent. Carranca
@@ -80,11 +81,24 @@ controls.
 Options:
 
 - `--agent <name>`: run a named configured agent instead of the default first entry
+- `--trust-repo-flags`: skip validation of `runtime.extra_flags` and `runtime.logger_extra_flags`
+- `--timeout <seconds>`: maximum session duration in seconds. When both
+  `--timeout` and `policy.max_duration` are set, the minimum wins.
+
+Exit codes:
+
+| Code | Meaning |
+|------|---------|
+| 0 | Agent succeeded, no policy violations |
+| 1–125 | Agent exit code (pass-through) |
+| 71 | Logger lost — audit trail interrupted (EX_OSERR) |
+| 124 | Session timed out (max_duration exceeded) |
 
 Typical use:
 
 ```bash
 carranca run --agent codex
+carranca run --agent codex --timeout 600
 ```
 
 ## `carranca log`
@@ -120,6 +134,35 @@ carranca log --verify --session abc12345
 
 # event timeline
 carranca log --timeline --session abc12345
+```
+
+## `carranca diff`
+
+```text
+Usage: carranca diff <session-a> <session-b> [--pretty] [--repo-a <id>] [--repo-b <id>]
+```
+
+Compares two session logs across multiple dimensions: duration, agent,
+commands, files touched, resource usage, network activity, and policy
+violations.
+
+Options:
+
+- `--pretty`: human-readable formatted output (default is compact tab-separated)
+- `--repo-a <id>`: repository id for session A (default: current repo)
+- `--repo-b <id>`: repository id for session B (default: current repo)
+
+Typical uses:
+
+```bash
+# compact comparison of two sessions
+carranca diff abc12345 def67890
+
+# human-readable comparison
+carranca diff abc12345 def67890 --pretty
+
+# cross-repo comparison
+carranca diff abc12345 def67890 --repo-a aaa111 --repo-b bbb222
 ```
 
 ## `carranca status`
@@ -226,6 +269,8 @@ carranca run --agent codex
 ## Related docs
 
 - [page/index.html](page/index.html): primary technical reference
+- [ci.md](ci.md): CI/CD integration guide
+- [multi-agent.md](multi-agent.md): multi-agent orchestration guide
 - [configuration.md](configuration.md): configuration schema and container reference
 - [examples/README.md](examples/README.md): persona-based example configs and images
 - [session-log.md](session-log.md): event types and log semantics

@@ -294,7 +294,7 @@
       enforceable guardrails, and forgery detection.
     </p>
     <div class="links">
-      <a href="https://github.com/pboueke/carranca">source 0.15.4</a>
+      <a href="https://github.com/pboueke/carranca">source 0.16.0</a>
     </div>
   </div>
 
@@ -729,6 +729,9 @@ observability:
 | `observability.network_interval` | No | `5` | Seconds between network connection polls |
 | `observability.secret_monitoring` | No | `false` | Enable fanotify-based file read monitoring on `watched_paths`; adds `CAP_SYS_ADMIN` to logger |
 | `observability.independent_observer` | No | `false` | Run execve tracer and network monitor in an independent sidecar container outside the agent's PID/mount namespace. Observer events are authenticated via a shared token on `/state/` (inaccessible to the agent). Always enables execve tracing regardless of `execve_tracing` setting. Cross-references events at session end as a best-effort heuristic |
+| `orchestration.mode` | No | — | Multi-agent mode: `pipeline` (sequential, fail-fast) or `parallel` (concurrent). Requires 2+ agents. See [multi-agent.md](multi-agent.md) |
+| `orchestration.workspace` | No | `isolated` | Workspace isolation: `isolated` (per-agent copy) or `shared` (single mount) |
+| `orchestration.merge` | No | `carry` | Pipeline workspace merge: `carry` (next agent sees previous changes) or `discard` (each agent gets original workspace) |
 
 ### Runtime resolution
 
@@ -1025,6 +1028,7 @@ how operators typically use it.
 | `carranca config` | Ask a configured agent to propose container and config updates for the current repo |
 | `carranca run` | Start an interactive agent session in the configured runtime |
 | `carranca log` | Inspect, filter, verify, export, or timeline-render session logs |
+| `carranca diff` | Compare two session logs across multiple dimensions |
 | `carranca status` | Show active sessions and recent logs for the current repository |
 | `carranca kill` | Stop one active session or all active sessions after confirmation |
 | `carranca help` | Show top-level or command-specific help |
@@ -1082,7 +1086,7 @@ carranca config --prompt "install claude and add uv to the image"
 ## `carranca run`
 
 ```text
-Usage: carranca run [--agent &lt;name&gt;]
+Usage: carranca run [--agent &lt;name&gt;] [--trust-repo-flags] [--timeout &lt;seconds&gt;]
 ```
 
 Starts an interactive session for the selected configured agent. Carranca
@@ -1093,11 +1097,24 @@ controls.
 Options:
 
 - `--agent &lt;name&gt;`: run a named configured agent instead of the default first entry
+- `--trust-repo-flags`: skip validation of `runtime.extra_flags` and `runtime.logger_extra_flags`
+- `--timeout &lt;seconds&gt;`: maximum session duration in seconds. When both
+  `--timeout` and `policy.max_duration` are set, the minimum wins.
+
+Exit codes:
+
+| Code | Meaning |
+|------|---------|
+| 0 | Agent succeeded, no policy violations |
+| 1–125 | Agent exit code (pass-through) |
+| 71 | Logger lost — audit trail interrupted (EX_OSERR) |
+| 124 | Session timed out (max_duration exceeded) |
 
 Typical use:
 
 ```bash
 carranca run --agent codex
+carranca run --agent codex --timeout 600
 ```
 
 ## `carranca log`
@@ -1133,6 +1150,35 @@ carranca log --verify --session abc12345
 
 # event timeline
 carranca log --timeline --session abc12345
+```
+
+## `carranca diff`
+
+```text
+Usage: carranca diff &lt;session-a&gt; &lt;session-b&gt; [--pretty] [--repo-a &lt;id&gt;] [--repo-b &lt;id&gt;]
+```
+
+Compares two session logs across multiple dimensions: duration, agent,
+commands, files touched, resource usage, network activity, and policy
+violations.
+
+Options:
+
+- `--pretty`: human-readable formatted output (default is compact tab-separated)
+- `--repo-a &lt;id&gt;`: repository id for session A (default: current repo)
+- `--repo-b &lt;id&gt;`: repository id for session B (default: current repo)
+
+Typical uses:
+
+```bash
+# compact comparison of two sessions
+carranca diff abc12345 def67890
+
+# human-readable comparison
+carranca diff abc12345 def67890 --pretty
+
+# cross-repo comparison
+carranca diff abc12345 def67890 --repo-a aaa111 --repo-b bbb222
 ```
 
 ## `carranca status`
@@ -1239,6 +1285,8 @@ carranca run --agent codex
 ## Related docs
 
 - [page/index.html](page/index.html): primary technical reference
+- [ci.md](ci.md): CI/CD integration guide
+- [multi-agent.md](multi-agent.md): multi-agent orchestration guide
 - [configuration.md](configuration.md): configuration schema and container reference
 - [examples/README.md](examples/README.md): persona-based example configs and images
 - [session-log.md](session-log.md): event types and log semantics
@@ -1764,6 +1812,24 @@ evidence.
       <summary>Changelog <span class="desc">Release history and version source of truth</span></summary>
       <div class="doc-content">
         <pre class="doc-markdown-static">
+## [0.16.0] - 2026-03-24
+
+### Phase 6 — Ecosystem and integration
+
+- feat: **`carranca diff`** — new command comparing two sessions across duration, agent, commands, files, resources, network, and policy; compact tab-separated default output, `--pretty` for human-readable format; supports cross-repo comparison via `--repo-a`/`--repo-b`
+- feat: **`--timeout &lt;seconds&gt;`** on `carranca run` — CLI convenience for `policy.max_duration`; when both are set the minimum wins
+- feat: **exit code 124 for timeouts** — sessions killed by `max_duration` now return 124 (matching `timeout(1)` convention) instead of the shell-wrapper's generic exit code; exit code 71 (logger loss) takes priority
+- feat: **multi-agent orchestration** — run multiple agents in a single session with `orchestration.mode: pipeline|parallel`; each agent gets its own container, FIFO, logger, and security boundary
+- feat: **workspace isolation** — `orchestration.workspace: isolated` gives each agent a `cp -a` copy of the workspace; pipeline mode supports `merge: carry` (next agent sees previous changes) or `merge: discard`
+- feat: **orchestrator logging** — multi-agent sessions produce `*.orchestrator.jsonl` with per-agent start/stop events and overall session result; `carranca log` and `carranca status` detect and summarize orchestrated sessions
+- refactor: **session lifecycle extraction** — core container operations (build, logger start, FIFO wait, observer start, agent run, post-agent checks) extracted from `cli/run.sh` into reusable functions in `cli/lib/lifecycle.sh`; `run.sh` reduced by ~200 lines
+- refactor: **prefix-based session stop** — `carranca_session_stop`, `is_active`, and `exists` now enumerate containers by session prefix instead of fixed suffixes; supports both single-agent and multi-agent sessions
+- docs: **CI/CD integration guide** (`doc/ci.md`) — headless execution, timeout, exit codes, session log artifacts, GitHub Actions example
+- docs: **multi-agent guide** (`doc/multi-agent.md`) — config schema, pipeline vs parallel, workspace isolation, security model, examples
+- docs: **roadmap updated** — central log aggregation (7.1) and plugin API (7.2) moved to new Phase 7
+- docs: exit code table added to `doc/usage.md`; `diff` command documented; `orchestration.*` fields added to `doc/configuration.md`
+- test: 725 tests, 34 suites, 0 failures
+
 ## [0.15.4] - 2026-03-24
 
 - fix: **config trust boundary** — agent container can no longer read `.carranca.yml` or `.carranca/` during `carranca run`; `.carranca/` hidden via tmpfs overlay, `.carranca.yml` hidden via `/dev/null` bind mount; prevents agents from learning network rules, watched paths, hooks, and timer limits

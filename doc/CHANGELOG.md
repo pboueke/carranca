@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.16.0] - 2026-03-24
+
+### Phase 6 — Ecosystem and integration
+
+- feat: **`carranca diff`** — new command comparing two sessions across duration, agent, commands, files, resources, network, and policy; compact tab-separated default output, `--pretty` for human-readable format; supports cross-repo comparison via `--repo-a`/`--repo-b`
+- feat: **`--timeout <seconds>`** on `carranca run` — CLI convenience for `policy.max_duration`; when both are set the minimum wins
+- feat: **exit code 124 for timeouts** — sessions killed by `max_duration` now return 124 (matching `timeout(1)` convention) instead of the shell-wrapper's generic exit code; exit code 71 (logger loss) takes priority
+- feat: **multi-agent orchestration** — run multiple agents in a single session with `orchestration.mode: pipeline|parallel`; each agent gets its own container, FIFO, logger, and security boundary
+- feat: **workspace isolation** — `orchestration.workspace: isolated` gives each agent a `cp -a` copy of the workspace; pipeline mode supports `merge: carry` (next agent sees previous changes) or `merge: discard`
+- feat: **orchestrator logging** — multi-agent sessions produce `*.orchestrator.jsonl` with per-agent start/stop events and overall session result; `carranca log` and `carranca status` detect and summarize orchestrated sessions
+- refactor: **session lifecycle extraction** — core container operations (build, logger start, FIFO wait, observer start, agent run, post-agent checks) extracted from `cli/run.sh` into reusable functions in `cli/lib/lifecycle.sh`; `run.sh` reduced by ~200 lines
+- refactor: **prefix-based session stop** — `carranca_session_stop`, `is_active`, and `exists` now enumerate containers by session prefix instead of fixed suffixes; supports both single-agent and multi-agent sessions
+- docs: **CI/CD integration guide** (`doc/ci.md`) — headless execution, timeout, exit codes, session log artifacts, GitHub Actions example
+- docs: **multi-agent guide** (`doc/multi-agent.md`) — config schema, pipeline vs parallel, workspace isolation, security model, examples
+- docs: **roadmap updated** — central log aggregation (7.1) and plugin API (7.2) moved to new Phase 7
+- docs: exit code table added to `doc/usage.md`; `diff` command documented; `orchestration.*` fields added to `doc/configuration.md`
+- test: 725 tests, 34 suites, 0 failures
+
 ## [0.15.4] - 2026-03-24
 
 - fix: **config trust boundary** — agent container can no longer read `.carranca.yml` or `.carranca/` during `carranca run`; `.carranca/` hidden via tmpfs overlay, `.carranca.yml` hidden via `/dev/null` bind mount; prevents agents from learning network rules, watched paths, hooks, and timer limits

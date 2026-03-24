@@ -114,6 +114,9 @@ observability:
 | `observability.network_interval` | No | `5` | Seconds between network connection polls |
 | `observability.secret_monitoring` | No | `false` | Enable fanotify-based file read monitoring on `watched_paths`; adds `CAP_SYS_ADMIN` to logger |
 | `observability.independent_observer` | No | `false` | Run execve tracer and network monitor in an independent sidecar container outside the agent's PID/mount namespace. Observer events are authenticated via a shared token on `/state/` (inaccessible to the agent). Always enables execve tracing regardless of `execve_tracing` setting. Cross-references events at session end as a best-effort heuristic |
+| `orchestration.mode` | No | — | Multi-agent mode: `pipeline` (sequential, fail-fast) or `parallel` (concurrent). Requires 2+ agents. See [multi-agent.md](multi-agent.md) |
+| `orchestration.workspace` | No | `isolated` | Workspace isolation: `isolated` (per-agent copy) or `shared` (single mount) |
+| `orchestration.merge` | No | `carry` | Pipeline workspace merge: `carry` (next agent sees previous changes) or `discard` (each agent gets original workspace) |
 
 ### Runtime resolution
 

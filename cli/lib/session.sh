@@ -47,61 +47,62 @@ carranca_session_observer_name() {
 
 carranca_session_exists() {
   local session_id="$1"
-  local logger_name agent_name observer_name
+  local prefix
+  prefix="$(carranca_session_prefix "$session_id")"
 
-  logger_name="$(carranca_session_logger_name "$session_id")"
-  agent_name="$(carranca_session_agent_name "$session_id")"
-  observer_name="$(carranca_session_observer_name "$session_id")"
-
-  carranca_runtime_ps -a --format '{{.Names}}' 2>/dev/null | awk -v logger_name="$logger_name" -v agent_name="$agent_name" -v observer_name="$observer_name" '
-    $0 == logger_name || $0 == agent_name || $0 == observer_name {
-      found = 1
-    }
-    END {
-      exit(found ? 0 : 1)
-    }
-  '
+  # Match both single-agent (carranca-<id>-{agent,logger,observer})
+  # and multi-agent (carranca-<id>-<name>-{agent,logger,observer}) containers
+  carranca_runtime_ps -a --format '{{.Names}}' 2>/dev/null | \
+    grep -q "^${prefix}-" 2>/dev/null
 }
 
 carranca_session_is_active() {
   local session_id="$1"
-  local logger_name agent_name observer_name
+  local prefix
+  prefix="$(carranca_session_prefix "$session_id")"
 
-  logger_name="$(carranca_session_logger_name "$session_id")"
-  agent_name="$(carranca_session_agent_name "$session_id")"
-  observer_name="$(carranca_session_observer_name "$session_id")"
-
-  carranca_runtime_ps --format '{{.Names}}' 2>/dev/null | awk -v logger_name="$logger_name" -v agent_name="$agent_name" -v observer_name="$observer_name" '
-    $0 == logger_name || $0 == agent_name || $0 == observer_name {
-      found = 1
-    }
-    END {
-      exit(found ? 0 : 1)
-    }
-  '
+  carranca_runtime_ps --format '{{.Names}}' 2>/dev/null | \
+    grep -q "^${prefix}-" 2>/dev/null
 }
 
 carranca_session_global_active_ids() {
   carranca_runtime_ps --format '{{.Names}}' 2>/dev/null | \
-    sed -n 's/^carranca-\([0-9a-f][0-9a-f]*\)-\(logger\|agent\|observer\)$/\1/p' | \
+    sed -n 's/^carranca-\([0-9a-f][0-9a-f]*\)-.*/\1/p' | \
     sort -u
 }
 
 carranca_session_stop() {
   local session_id="$1"
-  local logger_name agent_name observer_name fifo_volume logger_image agent_image
+  local prefix
+  prefix="$(carranca_session_prefix "$session_id")"
 
-  logger_name="$(carranca_session_logger_name "$session_id")"
-  agent_name="$(carranca_session_agent_name "$session_id")"
-  observer_name="$(carranca_session_observer_name "$session_id")"
-  fifo_volume="$(carranca_session_fifo_volume "$session_id")"
-  logger_image="$(carranca_session_logger_image "$session_id")"
-  agent_image="$(carranca_session_agent_image "$session_id")"
+  # Stop all containers matching this session prefix (single or multi-agent)
+  local container
+  while IFS= read -r container; do
+    [ -z "$container" ] && continue
+    case "$container" in
+      *-logger) carranca_runtime_stop -t 5 "$container" 2>/dev/null || true ;;
+      *) carranca_runtime_rm -f "$container" 2>/dev/null || true ;;
+    esac
+  done < <(carranca_runtime_ps -a --format '{{.Names}}' 2>/dev/null | grep "^${prefix}-" || true)
 
-  carranca_runtime_rm -f "$agent_name" 2>/dev/null || true
-  carranca_runtime_rm -f "$observer_name" 2>/dev/null || true
-  carranca_runtime_stop -t 5 "$logger_name" 2>/dev/null || true
-  carranca_runtime_rm -f "$logger_name" 2>/dev/null || true
-  carranca_runtime_volume rm "$fifo_volume" 2>/dev/null || true
-  carranca_runtime_rmi "$agent_image" "$logger_image" 2>/dev/null || true
+  # Remove remaining containers after stopping loggers
+  while IFS= read -r container; do
+    [ -z "$container" ] && continue
+    carranca_runtime_rm -f "$container" 2>/dev/null || true
+  done < <(carranca_runtime_ps -a --format '{{.Names}}' 2>/dev/null | grep "^${prefix}-" || true)
+
+  # Remove FIFO volumes matching this session
+  local volume
+  while IFS= read -r volume; do
+    [ -z "$volume" ] && continue
+    carranca_runtime_volume rm "$volume" 2>/dev/null || true
+  done < <(carranca_runtime_volume ls --format '{{.Name}}' 2>/dev/null | grep "^${prefix}-" || true)
+
+  # Remove transient images
+  local image
+  while IFS= read -r image; do
+    [ -z "$image" ] && continue
+    carranca_runtime_rmi "$image" 2>/dev/null || true
+  done < <(carranca_runtime_call images --format '{{.Repository}}' 2>/dev/null | grep "^${prefix}-" || true)
 }

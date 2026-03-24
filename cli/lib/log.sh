@@ -129,6 +129,14 @@ carranca_session_collect_stats() {
   declare -gA CARRANCA_LOG_PATH_CREATE_COUNTS=()
   declare -gA CARRANCA_LOG_PATH_MODIFY_COUNTS=()
   declare -gA CARRANCA_LOG_PATH_DELETE_COUNTS=()
+  # Extended stats for diff (6.3)
+  declare -gA CARRANCA_LOG_UNIQUE_CMDS=()
+  declare -gA CARRANCA_LOG_UNIQUE_BINARIES=()
+  declare -gA CARRANCA_LOG_UNIQUE_NET_DESTS=()
+  declare -gA CARRANCA_LOG_POLICY_TYPES=()
+  CARRANCA_LOG_PEAK_CPU_US=0
+  CARRANCA_LOG_PEAK_MEMORY_BYTES=0
+  CARRANCA_LOG_PEAK_PIDS=0
 
   while IFS= read -r line; do
     type="$(carranca_json_get_string "$line" "type")"
@@ -139,6 +147,9 @@ carranca_session_collect_stats() {
         [ -z "$exit_code" ] && exit_code=0
         [ "$exit_code" != "0" ] && CARRANCA_LOG_FAILED_CMDS=$((CARRANCA_LOG_FAILED_CMDS + 1))
         CARRANCA_LOG_COMMAND_LINES+=("$line")
+        local cmd
+        cmd="$(carranca_json_get_string "$line" "command" || true)"
+        [ -n "$cmd" ] && CARRANCA_LOG_UNIQUE_CMDS["$cmd"]=1
         ;;
       file_event)
         CARRANCA_LOG_FILE_EVENTS_TOTAL=$((CARRANCA_LOG_FILE_EVENTS_TOTAL + 1))
@@ -173,11 +184,36 @@ carranca_session_collect_stats() {
             ;;
         esac
         ;;
-      resource_event) CARRANCA_LOG_RESOURCE_SAMPLES=$((CARRANCA_LOG_RESOURCE_SAMPLES + 1)) ;;
-      execve_event) CARRANCA_LOG_EXECVE_EVENTS=$((CARRANCA_LOG_EXECVE_EVENTS + 1)) ;;
-      network_event) CARRANCA_LOG_NETWORK_EVENTS=$((CARRANCA_LOG_NETWORK_EVENTS + 1)) ;;
+      resource_event)
+        CARRANCA_LOG_RESOURCE_SAMPLES=$((CARRANCA_LOG_RESOURCE_SAMPLES + 1))
+        local cpu_us mem_bytes pids_val
+        cpu_us="$(carranca_json_get_number "$line" "cpu_usage_us" || true)"
+        mem_bytes="$(carranca_json_get_number "$line" "memory_bytes" || true)"
+        pids_val="$(carranca_json_get_number "$line" "pids" || true)"
+        [ -n "$cpu_us" ] && [ "$cpu_us" -gt "$CARRANCA_LOG_PEAK_CPU_US" ] 2>/dev/null && CARRANCA_LOG_PEAK_CPU_US="$cpu_us"
+        [ -n "$mem_bytes" ] && [ "$mem_bytes" -gt "$CARRANCA_LOG_PEAK_MEMORY_BYTES" ] 2>/dev/null && CARRANCA_LOG_PEAK_MEMORY_BYTES="$mem_bytes"
+        [ -n "$pids_val" ] && [ "$pids_val" -gt "$CARRANCA_LOG_PEAK_PIDS" ] 2>/dev/null && CARRANCA_LOG_PEAK_PIDS="$pids_val"
+        ;;
+      execve_event)
+        CARRANCA_LOG_EXECVE_EVENTS=$((CARRANCA_LOG_EXECVE_EVENTS + 1))
+        local binary
+        binary="$(carranca_json_get_string "$line" "binary" || true)"
+        [ -n "$binary" ] && CARRANCA_LOG_UNIQUE_BINARIES["$binary"]=1
+        ;;
+      network_event)
+        CARRANCA_LOG_NETWORK_EVENTS=$((CARRANCA_LOG_NETWORK_EVENTS + 1))
+        local dest_ip dest_port
+        dest_ip="$(carranca_json_get_string "$line" "dest_ip" || true)"
+        dest_port="$(carranca_json_get_number "$line" "dest_port" || true)"
+        [ -n "$dest_ip" ] && CARRANCA_LOG_UNIQUE_NET_DESTS["${dest_ip}:${dest_port:-0}"]=1
+        ;;
       file_access_event) CARRANCA_LOG_ACCESS_EVENTS=$((CARRANCA_LOG_ACCESS_EVENTS + 1)) ;;
-      policy_event) CARRANCA_LOG_POLICY_EVENTS=$((CARRANCA_LOG_POLICY_EVENTS + 1)) ;;
+      policy_event)
+        CARRANCA_LOG_POLICY_EVENTS=$((CARRANCA_LOG_POLICY_EVENTS + 1))
+        local policy
+        policy="$(carranca_json_get_string "$line" "policy" || true)"
+        [ -n "$policy" ] && CARRANCA_LOG_POLICY_TYPES["$policy"]=1
+        ;;
       session_event)
         ts="$(carranca_json_get_string "$line" "ts")"
         [ -z "$CARRANCA_LOG_FIRST_TS" ] && CARRANCA_LOG_FIRST_TS="$ts"
@@ -198,6 +234,12 @@ carranca_session_collect_stats() {
 
 carranca_session_print_summary() {
   local log_file="$1"
+
+  # Multi-agent sessions: show orchestrator summary
+  if carranca_session_is_orchestrated "$log_file"; then
+    carranca_session_print_orchestrator_summary "$log_file"
+    return
+  fi
 
   carranca_session_collect_stats "$log_file"
 
@@ -283,6 +325,61 @@ carranca_session_print_top_paths() {
     printf '  %s (%s events: %s create, %s modify, %s delete)\n' \
       "$path" "$count" "$create_count" "$modify_count" "$delete_count"
   done <<< "$sorted_lines"
+}
+
+# Check if a session has an orchestrator log (multi-agent session).
+carranca_session_is_orchestrated() {
+  local log_file="$1"
+  local session_id
+  session_id="$(basename "$log_file" .jsonl)"
+  local dir
+  dir="$(dirname "$log_file")"
+  [ -f "$dir/$session_id.orchestrator.jsonl" ]
+}
+
+# Print summary for an orchestrated (multi-agent) session.
+carranca_session_print_orchestrator_summary() {
+  local log_file="$1"
+  local session_id
+  session_id="$(basename "$log_file" .jsonl)"
+  local dir
+  dir="$(dirname "$log_file")"
+  local orch_file="$dir/$session_id.orchestrator.jsonl"
+
+  [ -f "$orch_file" ] || return 1
+
+  local line event agent exit_code mode
+  echo "  Orchestrated session"
+
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    event="$(carranca_json_get_string "$line" "event" || true)"
+    case "$event" in
+      session_start)
+        mode="$(carranca_json_get_string "$line" "mode" || true)"
+        echo "  Mode: $mode"
+        ;;
+      agent_start)
+        agent="$(carranca_json_get_string "$line" "agent" || true)"
+        echo "  Agent started: $agent"
+        ;;
+      agent_stop)
+        agent="$(carranca_json_get_string "$line" "agent" || true)"
+        exit_code="$(carranca_json_get_number "$line" "exit_code" || true)"
+        echo "  Agent stopped: $agent (exit code: ${exit_code:-unknown})"
+        ;;
+      pipeline_abort)
+        agent="$(carranca_json_get_string "$line" "agent" || true)"
+        exit_code="$(carranca_json_get_number "$line" "exit_code" || true)"
+        echo "  Pipeline aborted at: $agent (exit code: ${exit_code:-unknown})"
+        ;;
+      session_stop)
+        exit_code="$(carranca_json_get_number "$line" "exit_code" || true)"
+        echo "  Overall exit code: ${exit_code:-unknown}"
+        ;;
+    esac
+  done < "$orch_file"
+  echo "  Orchestrator log: $orch_file"
 }
 
 carranca_session_verify() {

@@ -49,7 +49,7 @@ assert_contains "kill warns for inactive session" "Session deadbeef is not activ
 >"$DOCKER_LOG"
 KILL_ONE_OUTPUT="$(printf 'yes\n' | bash "$CLI" --session a1b2c3d4 2>&1)"
 assert_contains "kill reports stopped session" "Stopped session a1b2c3d4" "$KILL_ONE_OUTPUT"
-assert_contains "kill specific removes agent container" "rm -f carranca-a1b2c3d4-agent" "$(cat "$DOCKER_LOG")"
+assert_contains "kill specific stops session containers" "stop -t 5 carranca-a1b2c3d4-logger" "$(cat "$DOCKER_LOG")"
 
 >"$DOCKER_LOG"
 KILL_ALL_OUTPUT="$(printf 'y\n' | bash "$CLI" 2>&1)"

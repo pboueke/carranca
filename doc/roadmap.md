@@ -188,27 +188,38 @@ defaults.
 
 Make carranca useful beyond single-engineer local runs.
 
-### 6.1 Central log aggregation
+### 6.1 CI/CD integration
+Provide a `carranca run --non-interactive` mode for headless agent
+execution in CI pipelines. Add `--timeout` as a convenience alias for
+`policy.max_duration`. Session logs become CI artifacts. Exit code
+reflects agent success + policy compliance. Document CI usage patterns.
+
+### 6.2 Multi-agent orchestration
+Support running multiple agents in a single session with independent
+logging streams. Agents may run sequentially (pipeline) or in parallel
+with isolated or shared workspaces. Each agent gets its own container,
+security boundary, and log stream. Useful for pipelines where one
+agent generates code and another reviews it.
+
+### 6.3 Session diff and comparison
+`carranca diff <session-a> <session-b>` compares two sessions: files
+touched, commands run, duration, resource usage. Default output is
+human-readable; `--pretty` flag for formatted display. Useful for
+reproducibility checks and regression analysis.
+
+---
+
+## Phase 7 — Platform integration
+
+Extend carranca into a team-wide platform with remote storage and
+extensibility.
+
+### 7.1 Central log aggregation
 `carranca log --push` sends session logs to a remote endpoint (S3,
 GCS, or a custom receiver). Enables team-wide session review and
 compliance dashboards.
 
-### 6.2 CI/CD integration
-Provide a `carranca run --non-interactive` mode for headless agent
-execution in CI pipelines. Session logs become CI artifacts. Exit code
-reflects agent success + policy compliance.
-
-### 6.3 Multi-agent orchestration
-Support running multiple agents in a single session with independent
-logging streams. Useful for pipelines where one agent generates code
-and another reviews it.
-
-### 6.4 Session diff and comparison
-`carranca diff <session-a> <session-b>` compares two sessions: files
-touched, commands run, duration, resource usage. Useful for
-reproducibility checks and regression analysis.
-
-### 6.5 Plugin / extension API
+### 7.2 Plugin / extension API
 Define a hook interface (`on_event`, `on_session_start`,
 `on_session_end`) that external scripts can implement. Enables custom
 alerting, metrics export, or integration with internal tools without
@@ -235,10 +246,14 @@ Phase 5                    ─────────────────�
                             Adversarial (requires 3.1, 2.1)
 
 Phase 6                          ──────────────────────────►
-                                  Ecosystem (requires 2.4)
+                                  Ecosystem (requires 2.4, 4.5)
+
+Phase 7                                ──────────────────────────►
+                                        Platform (requires 2.4, 6.1)
 ```
 
 Phases 1–2 can begin immediately. Phase 3 and 4 can run in parallel
 once Phase 1 is done. Phase 5 depends on kernel-level tracing from
 Phase 3 and signing from Phase 2. Phase 6 depends on exportable logs
-from Phase 2.
+from Phase 2 and time-boxed sessions from Phase 4. Phase 7 depends on
+exportable logs from Phase 2 and CI integration from Phase 6.

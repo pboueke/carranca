@@ -10,6 +10,7 @@ source "$SCRIPT_DIR/lib/identity.sh"
 source "$SCRIPT_DIR/lib/log.sh"
 source "$SCRIPT_DIR/lib/runtime.sh"
 source "$SCRIPT_DIR/lib/session.sh"
+source "$SCRIPT_DIR/lib/lifecycle.sh"
 
 CARRANCA_HOME="${CARRANCA_HOME:-$HOME/.local/share/carranca}"
 STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
@@ -18,26 +19,29 @@ STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
 
 SELECTED_AGENT=""
 TRUST_REPO_FLAGS="false"
+CLI_TIMEOUT=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     help)
-      echo "Usage: carranca run [--agent <name>] [--trust-repo-flags]"
+      echo "Usage: carranca run [--agent <name>] [--trust-repo-flags] [--timeout <seconds>]"
       echo "  Start an agent session in a containerized runtime."
       echo "  Requires .carranca.yml in the current directory."
       echo ""
       echo "Options:"
       echo "  --agent <name>       Run the named configured agent instead of the default first agent"
       echo "  --trust-repo-flags   Skip validation of runtime.extra_flags and runtime.logger_extra_flags"
+      echo "  --timeout <seconds>  Maximum session duration (overrides policy.max_duration; minimum wins)"
       exit 0
       ;;
     -h|--help)
-      echo "Usage: carranca run [--agent <name>] [--trust-repo-flags]"
+      echo "Usage: carranca run [--agent <name>] [--trust-repo-flags] [--timeout <seconds>]"
       echo "  Start an agent session in a containerized runtime."
       echo "  Requires .carranca.yml in the current directory."
       echo ""
       echo "Options:"
       echo "  --agent <name>       Run the named configured agent instead of the default first agent"
       echo "  --trust-repo-flags   Skip validation of runtime.extra_flags and runtime.logger_extra_flags"
+      echo "  --timeout <seconds>  Maximum session duration (overrides policy.max_duration; minimum wins)"
       exit 0
       ;;
     --agent)
@@ -47,6 +51,12 @@ while [ "$#" -gt 0 ]; do
       ;;
     --trust-repo-flags)
       TRUST_REPO_FLAGS="true"
+      ;;
+    --timeout)
+      shift
+      [ "$#" -gt 0 ] || carranca_die "Missing value for --timeout"
+      CLI_TIMEOUT="$1"
+      [ "$CLI_TIMEOUT" -gt 0 ] 2>/dev/null || carranca_die "Invalid --timeout value '$CLI_TIMEOUT' — must be a positive integer (seconds)"
       ;;
     *)
       carranca_die "Unknown argument: $1"
@@ -195,6 +205,16 @@ fi
 
 # --- Policy: time-boxed sessions (4.5) ---
 MAX_DURATION="$(carranca_config_get_with_global policy.max_duration)"
+# CLI --timeout overrides config; when both are set, the minimum wins.
+if [ -n "$CLI_TIMEOUT" ]; then
+  if [ -n "$MAX_DURATION" ] && [ "$MAX_DURATION" -gt 0 ] 2>/dev/null; then
+    if [ "$CLI_TIMEOUT" -lt "$MAX_DURATION" ]; then
+      MAX_DURATION="$CLI_TIMEOUT"
+    fi
+  else
+    MAX_DURATION="$CLI_TIMEOUT"
+  fi
+fi
 
 # --- Policy: filesystem access control (4.2) ---
 ENFORCE_WATCHED_PATHS="$(carranca_config_get_with_global policy.filesystem.enforce_watched_paths)"
@@ -405,19 +425,32 @@ OBSERVER_NAME="$(carranca_session_observer_name "$SESSION_ID")"
 
 carranca_log info "Starting carranca session $SESSION_ID"
 carranca_log info "Repo: $REPO_NAME ($REPO_ID)"
-carranca_log info "Agent: $SELECTED_AGENT_NAME ($AGENT_COMMAND)"
 carranca_log info "Runtime: $CONTAINER_RUNTIME"
 carranca_log info "Log: $STATE_DIR/$SESSION_ID.jsonl"
 
-# --- Build images ---
+# --- Multi-agent orchestration (Phase 6.2) ---
+# If orchestration config exists and multiple agents are configured,
+# delegate to the orchestrator instead of single-agent mode.
 
-carranca_log info "Building images..."
-carranca_runtime_build -q -t "$LOGGER_IMAGE" -f "$CARRANCA_HOME/runtime/Containerfile.logger" "$CARRANCA_HOME/runtime" >/dev/null
-carranca_runtime_build -q -t "$AGENT_IMAGE" -f ".carranca/Containerfile" ".carranca" >/dev/null
+ORCH_MODE_CONFIG="$(carranca_config_get orchestration.mode 2>/dev/null || true)"
+AGENT_COUNT="$(carranca_config_agent_count)"
 
-# --- Create shared FIFO volume ---
+if [ -n "$ORCH_MODE_CONFIG" ] && [ "$AGENT_COUNT" -ge 2 ]; then
+  source "$SCRIPT_DIR/lib/orchestrator.sh"
+  carranca_log info "Orchestration: $ORCH_MODE_CONFIG ($AGENT_COUNT agents)"
 
-carranca_runtime_volume create "$FIFO_VOLUME" --driver local --opt type=tmpfs --opt device=tmpfs >/dev/null
+  ORCH_EXIT=0
+  carranca_orchestrate_session || ORCH_EXIT=$?
+  carranca_workspace_cleanup 2>/dev/null || true
+  exit "$ORCH_EXIT"
+fi
+
+carranca_log info "Agent: $SELECTED_AGENT_NAME ($AGENT_COMMAND)"
+
+# --- Build images and create FIFO ---
+
+carranca_lifecycle_build_images
+carranca_lifecycle_create_fifo
 
 # --- Create persistent cache (survives across sessions) ---
 #
@@ -500,82 +533,11 @@ _cleanup() {
 }
 trap _cleanup SIGINT SIGTERM EXIT
 
-# --- Start logger (detached) ---
+# --- Start logger, wait for FIFO, start observer ---
 
-carranca_log info "Starting logger..."
-# shellcheck disable=SC2086
-carranca_runtime_run -d --rm \
-  --name "$LOGGER_NAME" \
-  $LOGGER_CAP_FLAGS \
-  $PTRACE_CAP_FLAG \
-  -v "$FIFO_VOLUME:/fifo" \
-  -v "$WORKSPACE:/workspace:ro" \
-  -v "$STATE_DIR:/state" \
-  -e "SESSION_ID=$SESSION_ID" \
-  -e "REPO_ID=$REPO_ID" \
-  -e "REPO_NAME=$REPO_NAME" \
-  -e "REPO_PATH=$WORKSPACE" \
-  -e "WATCHED_PATHS=$WATCHED_PATHS_ENV" \
-  -e "AGENT_NAME=$SELECTED_AGENT_NAME" \
-  -e "AGENT_ADAPTER=$AGENT_ADAPTER" \
-  -e "ENGINE=$CONTAINER_RUNTIME" \
-  -e "EXECVE_TRACING=${EXECVE_TRACING:-}" \
-  -v /sys/fs/cgroup:/hostcgroup:ro \
-  -e "RESOURCE_INTERVAL=${RESOURCE_INTERVAL:-}" \
-  -e "AGENT_CONTAINER_NAME=$AGENT_CONTAINER_NAME" \
-  -e "SECRET_MONITORING=${SECRET_MONITORING:-}" \
-  -e "NETWORK_LOGGING=${NETWORK_LOGGING:-}" \
-  -e "NETWORK_INTERVAL=${NETWORK_INTERVAL:-}" \
-  -e "MAX_DURATION=${MAX_DURATION:-}" \
-  -e "RESOURCE_MEMORY_LIMIT=${RESOURCE_MEMORY:-}" \
-  -e "ENFORCE_WATCHED_PATHS=${ENFORCE_WATCHED_PATHS:-}" \
-  -e "ENFORCED_PATHS=${ENFORCED_PATHS:-}" \
-  -e "DEGRADED_GLOBS=${DEGRADED_GLOBS:-}" \
-  -e "NETWORK_MODE=${NETWORK_MODE:-full}" \
-  -e "NETWORK_POLICY_RULES=${NETWORK_POLICY_RULES:-}" \
-  -e "INDEPENDENT_OBSERVER=${INDEPENDENT_OBSERVER:-}" \
-  -e "AGENT_GID=$HOST_GID" \
-  $SECRETMON_CAP_FLAG \
-  $LOGGER_EXTRA_FLAGS \
-  "$LOGGER_IMAGE" >/dev/null
-
-# --- Wait for FIFO (logger healthcheck equivalent) ---
-
-WAIT=0
-while [ "$WAIT" -lt 30 ]; do
-  # Check if FIFO exists by running test -p inside the logger container
-  if carranca_runtime_exec "$LOGGER_NAME" test -p /fifo/events 2>/dev/null; then
-    break
-  fi
-  sleep 0.5
-  WAIT=$((WAIT + 1))
-done
-
-if [ "$WAIT" -ge 30 ]; then
-  carranca_die "Logger FIFO not ready after 15s — fail closed (session cannot proceed without logging)"
-fi
-
-# --- Start observer sidecar (Phase 5.1, optional) ---
-
-if [ "$INDEPENDENT_OBSERVER" = "true" ]; then
-  carranca_log info "Starting independent observer..."
-  # Observer reuses the logger image (already has strace, bash, tools).
-  # It gets --pid=host to see all host processes and CAP_SYS_PTRACE for strace.
-  # It shares the FIFO volume and state directory but no namespace with the agent.
-  # shellcheck disable=SC2086
-  carranca_runtime_run -d --rm \
-    --name "$OBSERVER_NAME" \
-    --pid=host \
-    --cap-add SYS_PTRACE \
-    -v "$FIFO_VOLUME:/fifo" \
-    -v "$STATE_DIR:/state" \
-    -e "SESSION_ID=$SESSION_ID" \
-    -e "AGENT_CONTAINER_NAME=$AGENT_CONTAINER_NAME" \
-    -e "NETWORK_LOGGING=${NETWORK_LOGGING:-}" \
-    -e "NETWORK_INTERVAL=${NETWORK_INTERVAL:-}" \
-    --entrypoint /usr/local/bin/observer.sh \
-    "$LOGGER_IMAGE" >/dev/null
-fi
+carranca_lifecycle_start_logger
+carranca_lifecycle_wait_fifo
+carranca_lifecycle_start_observer
 
 # --- Run agent interactively ---
 
@@ -592,97 +554,14 @@ fi
 carranca_log ok "Agent ready — entering interactive session"
 echo ""
 
-# Use -it when stdin is a TTY, -i only otherwise (e.g. in tests/CI)
-TTY_FLAGS="-i"
-if [ -t 0 ]; then
-  TTY_FLAGS="-it"
-fi
+# Resolve agent container ID in background for resource sampler cgroup lookup
+carranca_lifecycle_resolve_agent_id &
 
-# Resolve agent container ID in background for resource sampler cgroup lookup.
-# The logger polls /state/agent-container-id for the resolved full ID.
-_resolve_agent_container_id() {
-  local attempts=0
-  while [ "$attempts" -lt 30 ]; do
-    local cid
-    cid="$(carranca_runtime_call inspect --format '{{.Id}}' "$AGENT_CONTAINER_NAME" 2>/dev/null || true)"
-    if [ -n "$cid" ]; then
-      printf '%s' "$cid" > "$STATE_DIR/agent-container-id"
-      return 0
-    fi
-    sleep 1
-    attempts=$((attempts + 1))
-  done
-} &
+carranca_lifecycle_run_agent
 
-# shellcheck disable=SC2086
-AGENT_EXIT_CODE=0
-# When network-setup entrypoint is active, the container must start as root
-# for iptables. network-setup.sh drops privileges before exec-ing shell-wrapper.
-EFFECTIVE_IDENTITY_FLAGS="$AGENT_IDENTITY_FLAGS"
-if [ -n "$NETWORK_POLICY_ENTRYPOINT" ]; then
-  EFFECTIVE_IDENTITY_FLAGS=""
-fi
+# --- Post-agent checks and summary ---
 
-carranca_runtime_run $TTY_FLAGS --rm \
-  --name "$AGENT_CONTAINER_NAME" \
-  $EFFECTIVE_IDENTITY_FLAGS \
-  $PID_NS_FLAG \
-  -v "$FIFO_VOLUME:/fifo" \
-  -v "$WORKSPACE:/workspace:rw" \
-  -v "$CARRANCA_EMPTY_DIR:/workspace/.carranca:ro" \
-  -v /dev/null:/workspace/.carranca.yml:ro \
-  -e "HOME=$AGENT_HOME" \
-  -e "USER=carranca" \
-  $CACHE_FLAGS \
-  $CUSTOM_VOLUME_FLAGS \
-  $SKILL_MOUNT_FLAGS \
-  $EXTRA_GROUP_FLAGS \
-  $SECCOMP_FLAG \
-  $APPARMOR_FLAG \
-  $CAP_DROP_FLAG \
-  $CAP_ADD_FLAGS \
-  -e "AGENT_COMMAND=$AGENT_COMMAND" \
-  -e "SESSION_ID=$SESSION_ID" \
-  $NETWORK_FLAG \
-  $RESOURCE_LIMIT_FLAGS \
-  $READ_ONLY_FLAGS \
-  $FILESYSTEM_RO_FLAGS \
-  $POLICY_HOOKS_FLAGS \
-  $POLICY_HOOKS_ENV \
-  $NETWORK_POLICY_FLAGS \
-  $NETWORK_POLICY_ENV \
-  $NETWORK_POLICY_ENTRYPOINT \
-  $EXTRA_FLAGS \
-  "$AGENT_IMAGE" || AGENT_EXIT_CODE=$?
-
-# Detect logger loss — if the logger container is gone, the session lost its
-# audit trail and must fail closed regardless of agent exit code.
-LOGGER_RUNNING="$(carranca_runtime_call inspect --format '{{.State.Running}}' "$LOGGER_NAME" 2>/dev/null || true)"
-if [ "$LOGGER_RUNNING" != "true" ]; then
-  carranca_log error "Logger lost during session — fail closed (audit trail interrupted)"
-  AGENT_EXIT_CODE=71  # EX_OSERR — audit trail lost
-fi
-
-if carranca_session_is_active "$SESSION_ID"; then
-  _cleanup
-fi
-
-# Give the logger time to flush remaining FIFO events (shell_command, agent_stop)
-sleep 1
-
-echo ""
-
-# --- Session summary ---
-
-LOG_FILE="$STATE_DIR/$SESSION_ID.jsonl"
-if [ -f "$LOG_FILE" ]; then
-  carranca_log ok "Session $SESSION_ID complete"
-
-  echo ""
-  carranca_session_print_summary "$LOG_FILE"
-  echo ""
-else
-  carranca_log warn "Session $SESSION_ID — no log file found"
-fi
+carranca_lifecycle_post_agent
+carranca_lifecycle_print_summary
 
 exit "$AGENT_EXIT_CODE"
