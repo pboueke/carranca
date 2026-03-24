@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.0] - 2026-03-24
+
+- feat: **operator-provided environment variables** — new `environment` config section passes env vars from the host into agent containers via three mechanisms: `passthrough` (forward named host vars), `env_file` (load from a `.env` file), and `vars` (define directly in config); priority: vars > env_file > passthrough
+- feat: **env_file parser** — standard `.env` format with `#` comments, `export` prefix, single/double quoted values, blank line handling; invalid variable names are rejected with warnings
+- feat: **env validation at startup** — `carranca_env_validate` checks passthrough names and env_file existence during config validation; bad names fail fast, missing files abort before container launch
+- docs: `environment.passthrough`, `environment.env_file`, and `environment.vars` fields added to `doc/configuration.md` with examples
+- test: 918 tests, 44 suites, 0 failures, 100% function coverage (147/147)
+
 ## [0.16.1] - 2026-03-24
 
 - fix: **config sandbox hardened** — `carranca config` now applies `--cap-drop ALL`, `--read-only` root FS, seccomp profile, and AppArmor profile, matching the `carranca run` sandbox

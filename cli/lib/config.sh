@@ -573,4 +573,9 @@ carranca_config_validate() {
   fi
 
   carranca_config_validate_values "$file"
+
+  # Validate environment section if env.sh is loaded
+  if declare -F carranca_env_validate >/dev/null 2>&1; then
+    carranca_env_validate "$file" || carranca_die "Environment configuration validation failed"
+  fi
 }

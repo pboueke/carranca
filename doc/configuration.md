@@ -117,6 +117,9 @@ observability:
 | `orchestration.mode` | No | — | Multi-agent mode: `pipeline` (sequential, fail-fast) or `parallel` (concurrent). Requires 2+ agents. See [multi-agent.md](multi-agent.md) |
 | `orchestration.workspace` | No | `isolated` | Workspace isolation: `isolated` (per-agent copy) or `shared` (single mount) |
 | `orchestration.merge` | No | `carry` | Pipeline workspace merge: `carry` (next agent sees previous changes) or `discard` (each agent gets original workspace) |
+| `environment.passthrough` | No | — | List of host environment variable names to forward to the agent container. Only vars that exist in the host env are passed; missing vars are skipped with a warning |
+| `environment.env_file` | No | — | Path to a `.env` file on the host. Supports `~` expansion. Standard format: `KEY=VALUE`, optional `export` prefix, `#` comments, quoted values. File must exist if configured |
+| `environment.vars` | No | — | Map of environment variables defined directly in the config (e.g., `MY_VAR: value`). Requires yq for map parsing; awk fallback supports simple `key: value` pairs |
 
 ### Runtime resolution
 
@@ -250,6 +253,29 @@ runtime:
   cap_add:
     - SYS_PTRACE
 ```
+
+Agent with environment variables:
+
+```yaml
+agents:
+  - name: claude
+    adapter: claude
+    command: claude
+
+environment:
+  # Forward these host env vars into the agent container
+  passthrough:
+    - ANTHROPIC_API_KEY
+    - GITHUB_TOKEN
+  # Load additional vars from a .env file
+  env_file: .env.carranca
+  # Define vars directly (lowest priority for duplicates)
+  vars:
+    REGION: us-east-1
+    LOG_LEVEL: debug
+```
+
+Priority when the same variable appears in multiple sources: `vars` overrides `env_file` overrides `passthrough`.
 
 ## Configuration examples
 

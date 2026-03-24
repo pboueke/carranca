@@ -149,7 +149,7 @@ carranca_lifecycle_resolve_agent_id() {
 #          NETWORK_FLAG, RESOURCE_LIMIT_FLAGS, READ_ONLY_FLAGS,
 #          FILESYSTEM_RO_FLAGS, POLICY_HOOKS_FLAGS, POLICY_HOOKS_ENV,
 #          NETWORK_POLICY_FLAGS, NETWORK_POLICY_ENV,
-#          NETWORK_POLICY_ENTRYPOINT, EXTRA_FLAGS, AGENT_IMAGE
+#          NETWORK_POLICY_ENTRYPOINT, EXTRA_FLAGS, AGENT_ENV_FLAGS, AGENT_IMAGE
 carranca_lifecycle_run_agent() {
   local tty_flags="-i"
   if [ -t 0 ]; then
@@ -192,6 +192,7 @@ carranca_lifecycle_run_agent() {
     $NETWORK_POLICY_FLAGS \
     $NETWORK_POLICY_ENV \
     $NETWORK_POLICY_ENTRYPOINT \
+    $AGENT_ENV_FLAGS \
     $EXTRA_FLAGS \
     "$AGENT_IMAGE" || AGENT_EXIT_CODE=$?
 }

@@ -11,6 +11,7 @@ source "$SCRIPT_DIR/lib/log.sh"
 source "$SCRIPT_DIR/lib/runtime.sh"
 source "$SCRIPT_DIR/lib/session.sh"
 source "$SCRIPT_DIR/lib/lifecycle.sh"
+source "$SCRIPT_DIR/lib/env.sh"
 
 CARRANCA_HOME="${CARRANCA_HOME:-$HOME/.local/share/carranca}"
 STATE_BASE="${CARRANCA_STATE:-$HOME/.local/state/carranca}"
@@ -431,6 +432,18 @@ while IFS= read -r wp; do
     WATCHED_PATHS_ENV="$WATCHED_PATHS_ENV:$wp"
   fi
 done < <(carranca_config_get_list watched_paths 2>/dev/null || true)
+
+# --- Environment variables for agent ---
+
+AGENT_ENV_FLAGS=""
+if carranca_env_validate; then
+  AGENT_ENV_FLAGS="$(carranca_env_build_flags)"
+  if [ -n "$AGENT_ENV_FLAGS" ]; then
+    # Count env vars (number of -e flags)
+    local_env_count="$(printf '%s' "$AGENT_ENV_FLAGS" | grep -o ' -e ' | wc -l)"
+    carranca_log info "Environment: ${local_env_count} variable(s) configured"
+  fi
+fi
 
 # --- Naming ---
 
