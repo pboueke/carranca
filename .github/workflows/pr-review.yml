@@ -33,14 +33,14 @@ jobs:
           PR_AUTHOR="${{ github.event.pull_request.user.login }}"
           PR_TITLE="${{ github.event.pull_request.title }}"
 
-          # Generate diff (truncate at 100KB to stay within context limits)
-          git diff "origin/${BASE_REF}...HEAD" > _review_diff.patch
-          DIFF_SIZE=$(wc -c < _review_diff.patch)
+          # Generate diff (truncate at ~100KB on a line boundary)
+          git diff "origin/${BASE_REF}...HEAD" > _review_diff_full.patch
+          DIFF_SIZE=$(wc -c < _review_diff_full.patch)
           if [ "$DIFF_SIZE" -gt 102400 ]; then
-            head -c 102400 _review_diff.patch > _review_diff_truncated.patch
-            mv _review_diff_truncated.patch _review_diff.patch
-            TRUNCATED_NOTE="**Note:** The diff was truncated to 100KB. Review may be incomplete for very large PRs."
+            head -c 102400 _review_diff_full.patch | head -n -1 > _review_diff.patch
+            TRUNCATED_NOTE="**WARNING: The diff was truncated from ${DIFF_SIZE} bytes to ~100KB. Your review is INCOMPLETE — flag this to the PR author.**"
           else
+            cp _review_diff_full.patch _review_diff.patch
             TRUNCATED_NOTE=""
           fi
 
@@ -86,9 +86,19 @@ jobs:
           cat > _review.sh <<'SCRIPT_EOF'
           #!/usr/bin/env bash
           set -euo pipefail
+
+          # Configure opencode with zai-coding-plan provider.
+          # Uses python3 json.dump for safe escaping of API key characters.
           mkdir -p ~/.config/opencode
-          printf '{"provider":{"zai-coding-plan":{"options":{"apiKey":"%s"}}},"model":"zai-coding-plan/glm-4.6"}' \
-            "$OPENAI_API_KEY" > ~/.config/opencode/opencode.json
+          python3 -c "
+          import json, os
+          cfg = {
+            'provider': {'zai-coding-plan': {'options': {'apiKey': os.environ['OPENAI_API_KEY']}}},
+            'model': 'zai-coding-plan/glm-4.6'
+          }
+          json.dump(cfg, open(os.path.expanduser('~/.config/opencode/opencode.json'), 'w'))
+          "
+
           opencode run 'Review this PR per the attached file' \
             -f /workspace/_review_prompt.md > /workspace/_review_output.md
           SCRIPT_EOF

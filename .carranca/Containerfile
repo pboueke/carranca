@@ -1,56 +1,56 @@
-# Carranca agent container                                                                              
-# Customize this file to install your agent CLI and project dependencies.                               
-# The shell wrapper is injected automatically — do not remove the last lines.                           
-#                                                                                                       
-# Examples:                                                                                             
-#   - Install Python: RUN apk add python3 py3-pip                                                    
-#   - Install Node.js: RUN apk add nodejs npm                                                           
+# Carranca agent container
+# Customize this file to install your agent CLI and project dependencies.
+# The shell wrapper is injected automatically — do not remove the last lines.
+#
+# Examples:
+#   - Install Python: RUN apk add python3 py3-pip
+#   - Install Node.js: RUN apk add nodejs npm
 #   - Install Go: RUN apk add go
-                                                                                                        
-FROM alpine:3.21                                                                                     
+
+FROM alpine:3.21
 
 # Install base tools
 RUN apk add --no-cache \
     bash \
-    coreutils \                                                                                       
+    coreutils \
     curl \
-    git \                                                                                             
-    ca-certificates                                                                                
+    git \
+    ca-certificates
 
 RUN mkdir -p /home/carranca && chmod 0777 /home/carranca
 
 # ──────────────────────────────────────────────
 # Project-specific development dependencies
-# (Bash/C project: needs make, shellcheck, C compiler, YAML linting)                                    
+# (Bash/C project: needs make, shellcheck, C compiler, YAML linting)
 RUN apk add --no-cache \
-    make \                                                                                            
-    shellcheck \                                                                                   
+    make \
+    shellcheck \
     gcc \
     musl-dev \
     py3-pip \
     python3 && \
-    pip install --break-system-packages yamllint                                                        
+    pip install --break-system-packages yamllint
 # ──────────────────────────────────────────────
-                                                                                                        
-# ──────────────────────────────────────────────                                                     
+
+# ──────────────────────────────────────────────
 # Add your agent and project dependencies below:
 # Claude Code
 RUN apk add --no-cache nodejs npm && \
-    npm install -g @anthropic-ai/claude-code                                                            
+    npm install -g @anthropic-ai/claude-code
 # OpenAI Codex CLI
-RUN apk add --no-cache bubblewrap && \                                                                  
-    npm install -g @openai/codex                                                                     
+RUN apk add --no-cache bubblewrap && \
+    npm install -g @openai/codex
 # OpenCode CLI
-RUN curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path && \                           
+RUN curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path && \
     mv /root/.opencode/bin/opencode /usr/local/bin/opencode && \
-    chmod 0755 /usr/local/bin/opencode && \                                                             
-    rm -rf /root/.opencode                                                                              
+    chmod 0755 /usr/local/bin/opencode && \
+    rm -rf /root/.opencode
 # ──────────────────────────────────────────────
-                                                                                                        
-# ──────────────────────────────────────────────                                                     
+
+# ──────────────────────────────────────────────
 # Carranca shell wrapper (do not remove)
 # ──────────────────────────────────────────────
-COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh                                                   
+COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
 RUN chmod +x /usr/local/bin/shell-wrapper.sh
-WORKDIR /workspace                                                                                      
-ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]   
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
