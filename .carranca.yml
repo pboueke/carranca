@@ -16,7 +16,7 @@ agents:
 
   - name: reviewer
     adapter: stdin
-    command: "mkdir -p ~/.config/opencode && python3 -c \"import json,os; json.dump({'provider':{'zai-coding-plan':{'options':{'apiKey':os.environ['OPENAI_API_KEY']}}},'model':'zai-coding-plan/glm-4.6'}, open(os.path.expanduser('~/.config/opencode/opencode.json'),'w'))\" && opencode run 'Review this PR per the attached file' -f /workspace/_review_prompt.md > /workspace/_review_output.md"
+    command: bash /workspace/_review.sh
 
 # Container runtime settings
 runtime:

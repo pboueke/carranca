@@ -82,6 +82,18 @@ jobs:
           where {agent signature} is your model name and version.
           PROMPT_EOF
 
+          # Generate reviewer agent script (runs inside the carranca container)
+          cat > _review.sh <<'SCRIPT_EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          mkdir -p ~/.config/opencode
+          printf '{"provider":{"zai-coding-plan":{"options":{"apiKey":"%s"}}},"model":"zai-coding-plan/glm-4.6"}' \
+            "$OPENAI_API_KEY" > ~/.config/opencode/opencode.json
+          opencode run 'Review this PR per the attached file' \
+            -f /workspace/_review_prompt.md > /workspace/_review_output.md
+          SCRIPT_EOF
+          chmod +x _review.sh
+
       - name: Run carranca reviewer
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
