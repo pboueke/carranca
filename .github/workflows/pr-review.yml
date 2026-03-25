@@ -1,0 +1,142 @@
+name: PR Review
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  review:
+    name: Carranca AI Review
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'pboueke'
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install carranca
+        run: |
+          mkdir -p ~/.local/share ~/.local/bin
+          ln -s "$GITHUB_WORKSPACE" ~/.local/share/carranca
+          ln -s ~/.local/share/carranca/cli/carranca ~/.local/bin/carranca
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Generate review prompt
+        run: |
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          PR_NUM="${{ github.event.pull_request.number }}"
+          PR_BRANCH="${{ github.event.pull_request.head.ref }}"
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+          PR_TITLE="${{ github.event.pull_request.title }}"
+
+          # Generate diff (truncate at ~100KB on a line boundary)
+          git diff "origin/${BASE_REF}...HEAD" > _review_diff_full.patch
+          DIFF_SIZE=$(wc -c < _review_diff_full.patch)
+          if [ "$DIFF_SIZE" -gt 102400 ]; then
+            head -c 102400 _review_diff_full.patch | head -n -1 > _review_diff.patch
+            TRUNCATED_NOTE="**WARNING: The diff was truncated from ${DIFF_SIZE} bytes to ~100KB. Your review is INCOMPLETE — flag this to the PR author.**"
+          else
+            cp _review_diff_full.patch _review_diff.patch
+            TRUNCATED_NOTE=""
+          fi
+
+          cat > _review_prompt.md <<PROMPT_EOF
+          You are a senior code reviewer for carranca, a container-based security
+          sandbox for AI coding agents. The project is primarily Bash shell scripts
+          with container orchestration (Docker/Podman).
+
+          Review the following pull request.
+
+          - PR #${PR_NUM}: "${PR_TITLE}"
+          - Branch: ${PR_BRANCH}
+          - Author: ${PR_AUTHOR}
+
+          Focus your review on:
+          1. Security implications (command injection, container escapes, secret leaks, OWASP top 10)
+          2. Shell script correctness (quoting, word splitting, error handling, set -euo pipefail)
+          3. Container security (capability handling, mount points, network isolation)
+          4. Config parsing edge cases (YAML parsing, missing fields, validation)
+          5. Test coverage for new/changed functionality
+          6. Documentation accuracy
+
+          ${TRUNCATED_NOTE}
+
+          Here is the diff:
+
+          \`\`\`diff
+          $(cat _review_diff.patch)
+          \`\`\`
+
+          Produce your review as Markdown with these sections:
+          - **Summary**: 1-3 sentence overview of what the PR does
+          - **Findings**: A list of issues or observations, each with severity (critical/high/medium/low/info) and file:line reference where applicable
+          - **Verdict**: One of APPROVE, REQUEST_CHANGES, or COMMENT
+
+          Do not modify any project files. Only produce the review text.
+
+          Sign the end of your review with: "carranca bound {agent signature}"
+          where {agent signature} is your model name and version.
+          PROMPT_EOF
+
+          # Generate reviewer agent script (runs inside the carranca container)
+          cat > _review.sh <<'SCRIPT_EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          # Configure opencode with zai-coding-plan provider.
+          # Uses python3 json.dump for safe escaping of API key characters.
+          mkdir -p ~/.config/opencode
+          python3 -c "
+          import json, os
+          cfg = {
+            'provider': {'zai-coding-plan': {'options': {'apiKey': os.environ['OPENAI_API_KEY']}}},
+            'model': 'zai-coding-plan/glm-4.6'
+          }
+          json.dump(cfg, open(os.path.expanduser('~/.config/opencode/opencode.json'), 'w'))
+          "
+
+          opencode run 'Review this PR per the attached file' \
+            -f /workspace/_review_prompt.md > /workspace/_review_output.md
+          SCRIPT_EOF
+          chmod +x _review.sh
+
+      - name: Run carranca reviewer
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CARRANCA_CONTAINER_RUNTIME: docker
+        run: carranca run --agent reviewer --timeout 600
+
+      - name: Post review comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ github.event.pull_request.number }}"
+
+          if [ -s _review_output.md ]; then
+            # Wrap review in a collapsible section with header
+            {
+              echo "## Carranca AI Review"
+              echo ""
+              cat _review_output.md
+              echo ""
+              echo "---"
+              echo "*Automated review by [carranca](https://github.com/pboueke/carranca) sandbox*"
+            } > _review_comment.md
+
+            gh pr comment "$PR_NUM" --body-file _review_comment.md
+          else
+            gh pr comment "$PR_NUM" --body "## Carranca AI Review
+
+          :warning: The automated review did not produce output. The agent may have failed or timed out.
+
+          See the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+
+          ---
+          *Automated review by [carranca](https://github.com/pboueke/carranca) sandbox*"
+          fi
+

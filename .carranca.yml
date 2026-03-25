@@ -14,6 +14,10 @@ agents:
     adapter: opencode
     command: opencode
 
+  - name: reviewer
+    adapter: stdin
+    command: bash /workspace/_review.sh
+
 # Container runtime settings
 runtime:
   engine: podman
@@ -37,6 +41,11 @@ watched_paths:
   - .env
   - secrets/
   - "*.key"
+
+# Environment variables forwarded into agent containers
+environment:
+  passthrough:
+    - OPENAI_API_KEY
 
 # Deep observability — all features opt-in, degrade gracefully
 observability:

@@ -11,13 +11,26 @@ FROM alpine:3.21
 
 # Install base tools
 RUN apk add --no-cache \
-      bash \
-      coreutils \
-      curl \
-      git \
-      ca-certificates
+    bash \
+    coreutils \
+    curl \
+    git \
+    ca-certificates
 
 RUN mkdir -p /home/carranca && chmod 0777 /home/carranca
+
+# ──────────────────────────────────────────────
+# Project-specific development dependencies
+# (Bash/C project: needs make, shellcheck, C compiler, YAML linting)
+RUN apk add --no-cache \
+    make \
+    shellcheck \
+    gcc \
+    musl-dev \
+    py3-pip \
+    python3 && \
+    pip install --break-system-packages yamllint
+# ──────────────────────────────────────────────
 
 # ──────────────────────────────────────────────
 # Add your agent and project dependencies below:
