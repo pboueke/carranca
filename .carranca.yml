@@ -16,7 +16,7 @@ agents:
 
   - name: reviewer
     adapter: stdin
-    command: "opencode run 'Review this PR per the attached file' -f /workspace/_review_prompt.md > /workspace/_review_output.md"
+    command: "opencode run -m zai-coding-plan/glm-4.6 'Review this PR per the attached file' -f /workspace/_review_prompt.md > /workspace/_review_output.md"
 
 # Container runtime settings
 runtime:
