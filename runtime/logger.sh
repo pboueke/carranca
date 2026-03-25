@@ -28,8 +28,9 @@ SEQ_FILE="/tmp/carranca-seq"
 SEQ_LOCK="/tmp/carranca-seq.lock"
 HMAC_KEY_FILE="/state/${SESSION_ID}.hmac-key"
 HMAC_KEY=""
-PREV_HMAC="0"
+PREV_HMAC_FILE="/tmp/carranca-prev-hmac"
 CHECKSUM_FILE="/state/${SESSION_ID}.checksums"
+PREV_CHECKSUM_FILE="/tmp/carranca-prev-checksum"
 CARRANCA_TMPDIR="${CARRANCA_TMPDIR:-/state}"
 
 # FIFO forgery detection state (Phase 5.2)
@@ -83,16 +84,19 @@ write_log() {
       echo "write_log: WARNING: skipping line not ending with '}': ${line:0:120}" >&2
       return
     fi
+    # Read shared HMAC chain state from file (survives across subshells)
+    local prev_hmac
+    prev_hmac="$(cat "$PREV_HMAC_FILE" 2>/dev/null || echo 0)"
     # Inject seq into the JSON object
     local line_with_seq="${line%\}},\"seq\":$seq}"
     # Extract ts for HMAC input
     local ts
     ts="$(printf '%s' "$line_with_seq" | grep -o '"ts":"[^"]*"' | head -1 | cut -d'"' -f4)"
     # Compute HMAC over: prev_hmac | seq | ts | line_with_seq
-    local hmac_input="${PREV_HMAC}|${seq}|${ts}|${line_with_seq}"
+    local hmac_input="${prev_hmac}|${seq}|${ts}|${line_with_seq}"
     local hmac_value
     hmac_value="$(compute_hmac "$hmac_input")"
-    PREV_HMAC="$hmac_value"
+    echo "$hmac_value" > "$PREV_HMAC_FILE"
     # Inject hmac and write to log file
     local final_line="${line_with_seq%\}},\"hmac\":\"$hmac_value\"}"
     printf '%s\n' "$final_line" >> "$LOG_FILE"
@@ -159,12 +163,15 @@ compute_hmac() {
 # Write SHA-256 checksum of a log line to parallel checksum file.
 # This provides tamper detection even when chattr +a is unavailable.
 # Each checksum chains the previous hash, so reordering or deletion is detectable.
-_PREV_CHECKSUM_HASH=""
 write_checksum() {
   local line="$1"
+  # Read shared checksum chain state from file (survives across subshells).
+  # Called inside the flock block of write_log, so no additional locking needed.
+  local prev_checksum
+  prev_checksum="$(cat "$PREV_CHECKSUM_FILE" 2>/dev/null || true)"
   local hash
-  hash="$(printf '%s' "${_PREV_CHECKSUM_HASH}${line}" | openssl dgst -sha256 -hex 2>/dev/null | awk '{print $NF}')"
-  _PREV_CHECKSUM_HASH="$hash"
+  hash="$(printf '%s' "${prev_checksum}${line}" | openssl dgst -sha256 -hex 2>/dev/null | awk '{print $NF}')"
+  echo "$hash" > "$PREV_CHECKSUM_FILE"
   printf '%s\n' "$hash" >> "$CHECKSUM_FILE"
 }
 
@@ -276,8 +283,10 @@ _validate_fifo_event() {
 
 # --- Setup ---
 
-# Initialize seq counter
+# Initialize seq counter and chain state files
 echo "0" > "$SEQ_FILE"
+echo "0" > "$PREV_HMAC_FILE"
+: > "$PREV_CHECKSUM_FILE"
 
 # Create FIFO. If AGENT_GID is set, restrict to 0620 with the agent's group
 # for write access. Otherwise fall back to 0666 so sessions don't break.

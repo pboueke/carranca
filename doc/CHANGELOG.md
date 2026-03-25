@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.17.2
+- fix: **HMAC/checksum chain broken across subshells** — `PREV_HMAC` and `_PREV_CHECKSUM_HASH` were shell variables (process-local), so background file watchers (`inotifywait`, `fswatch`, `fanotify`) forked with stale chain state; replaced with file-backed state read/written inside the existing `flock` block, matching how the seq counter already works
+- test: add `test_log_verify.sh` — 13 tests covering write→verify roundtrip: sequential writes, cross-subshell writes, concurrent subshell writes, tamper detection, reorder detection, and deletion detection
+
 ## 0.17.1
 
 - docs: fix stale roadmap — mark Phase 6 complete, update descriptions to match implementation (no `--non-interactive` flag, correct `--pretty` semantics, iptables not nftables)
