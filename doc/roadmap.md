@@ -3,7 +3,7 @@
 Phased plan for extending carranca from foundation through adversarial
 hardening and into broader operational integration.
 
-Phases 1 through 5 are complete. The remaining items describe ecosystem and
+Phases 1 through 6 are complete. The remaining items describe platform
 integration work. Items within a phase are independent unless noted.
 
 ---
@@ -125,8 +125,8 @@ runtime:
       - "registry.npmjs.org:443"
 ```
 
-Implement via container network namespace + nftables rules or a
-userspace proxy. Log all blocked attempts.
+Implemented via container network namespace + iptables rules in
+`network-setup.sh`. Blocked attempts logged as policy events.
 
 ### ~~4.2 Filesystem access control~~ ✓
 Enforce read-only or deny access to paths listed in `watched_paths`.
@@ -188,24 +188,28 @@ defaults.
 
 Make carranca useful beyond single-engineer local runs.
 
-### 6.1 CI/CD integration
-Provide a `carranca run --non-interactive` mode for headless agent
-execution in CI pipelines. Add `--timeout` as a convenience alias for
-`policy.max_duration`. Session logs become CI artifacts. Exit code
-reflects agent success + policy compliance. Document CI usage patterns.
+### ~~6.1 CI/CD integration~~ ✓
+`carranca run` auto-detects non-TTY environments and adjusts container
+flags accordingly — no `--non-interactive` flag needed. `--timeout`
+serves as a CLI convenience for `policy.max_duration` (minimum wins).
+Session logs become CI artifacts via `carranca log --export`. Exit code
+reflects agent success + policy compliance: 0 success, 71 logger loss,
+124 timeout. CI usage patterns documented in `doc/ci.md`.
 
-### 6.2 Multi-agent orchestration
-Support running multiple agents in a single session with independent
-logging streams. Agents may run sequentially (pipeline) or in parallel
-with isolated or shared workspaces. Each agent gets its own container,
-security boundary, and log stream. Useful for pipelines where one
-agent generates code and another reviews it.
+### ~~6.2 Multi-agent orchestration~~ ✓
+Multiple agents run in a single session with independent logging
+streams. `orchestration.mode: pipeline` runs agents sequentially
+(fail-fast); `orchestration.mode: parallel` runs them concurrently.
+Each agent gets its own container, FIFO, logger, and security boundary.
+Workspace isolation via `cp -a` with configurable merge strategy.
+Documented in `doc/multi-agent.md`.
 
-### 6.3 Session diff and comparison
+### ~~6.3 Session diff and comparison~~ ✓
 `carranca diff <session-a> <session-b>` compares two sessions: files
-touched, commands run, duration, resource usage. Default output is
-human-readable; `--pretty` flag for formatted display. Useful for
-reproducibility checks and regression analysis.
+touched, commands run, duration, resource usage, network activity, and
+policy violations. Default output is compact tab-separated; `--pretty`
+flag for human-readable formatted display. Supports cross-repo
+comparison via `--repo-a`/`--repo-b`.
 
 ---
 
@@ -229,31 +233,5 @@ forking carranca.
 
 ## Sequencing and dependencies
 
-```
-Phase 1  ──────────────────────────────────────────────►
-           Foundation (all items independent)
-
-Phase 2  ────────────────────────────────────►
-           Verified audits (2.1 before 2.4)
-
-Phase 3        ──────────────────────────────────────►
-                Deep observability (3.1 before 5.1)
-
-Phase 4              ──────────────────────────────►
-                      Policy enforcement (independent of 2/3)
-
-Phase 5                    ──────────────────────────►
-                            Adversarial (requires 3.1, 2.1)
-
-Phase 6                          ──────────────────────────►
-                                  Ecosystem (requires 2.4, 4.5)
-
-Phase 7                                ──────────────────────────►
-                                        Platform (requires 2.4, 6.1)
-```
-
-Phases 1–2 can begin immediately. Phase 3 and 4 can run in parallel
-once Phase 1 is done. Phase 5 depends on kernel-level tracing from
-Phase 3 and signing from Phase 2. Phase 6 depends on exportable logs
-from Phase 2 and time-boxed sessions from Phase 4. Phase 7 depends on
+Phases 1–6 are complete. Phase 7 (platform integration) depends on
 exportable logs from Phase 2 and CI integration from Phase 6.

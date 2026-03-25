@@ -33,6 +33,9 @@ watched_paths:
   - .env
   - secrets/
 
+environment:
+  env_file: .env.client
+
 observability:
   resource_interval: 10
   execve_tracing: true

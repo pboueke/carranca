@@ -12,10 +12,10 @@ if [ ! -f doc/CHANGELOG.md ]; then
   exit 1
 fi
 
-VERSION="$(grep -m1 '## \[' doc/CHANGELOG.md | sed 's/.*\[\(.*\)\].*/\1/')"
+VERSION="$(grep -m1 '^## [0-9]' doc/CHANGELOG.md | awk '{print $2}')"
 if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "ERROR: doc/CHANGELOG.md first version header is not valid semver: '$VERSION'"
-  echo "Expected format: ## [X.Y.Z] - YYYY-MM-DD"
+  echo "Expected format: ## X.Y.Z"
   exit 1
 fi
 

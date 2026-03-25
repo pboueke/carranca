@@ -25,6 +25,11 @@ watched_paths:
   - findings/
   - /session-archive
 
+environment:
+  vars:
+    CASE_ID: pending
+    ANALYST: unnamed
+
 observability:
   resource_interval: 30
   execve_tracing: true

@@ -34,6 +34,12 @@ watched_paths:
   - approvals/
   - migrations/
 
+environment:
+  env_file: .env.carranca
+  vars:
+    COMPLIANCE_MODE: strict
+    AUDIT_TRAIL: required
+
 observability:
   independent_observer: true
   resource_interval: 10

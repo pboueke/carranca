@@ -31,6 +31,11 @@ watched_paths:
   - /session-archive
   - detections/
 
+environment:
+  vars:
+    REVIEW_MODE: incident
+    EVIDENCE_DIR: /session-archive
+
 observability:
   independent_observer: true
   resource_interval: 5

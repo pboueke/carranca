@@ -35,6 +35,11 @@ watched_paths:
   - deploy/
   - secrets/
 
+environment:
+  passthrough:
+    - GITHUB_TOKEN
+    - NPM_TOKEN
+
 observability:
   resource_interval: 10
   execve_tracing: true

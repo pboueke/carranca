@@ -8,7 +8,7 @@ OUT_FILE="$OUT_DIR/index.html"
 TMP_FILE="$(mktemp)"
 CHANGELOG_FILE="$ROOT_DIR/doc/CHANGELOG.md"
 
-VERSION="$(grep -m1 '## \[' "$CHANGELOG_FILE" 2>/dev/null | sed 's/.*\[\(.*\)\].*/\1/' || true)"
+VERSION="$(grep -m1 '^## [0-9]' "$CHANGELOG_FILE" 2>/dev/null | awk '{print $2}' || true)"
 SOURCE_LABEL="source"
 [ -n "$VERSION" ] && SOURCE_LABEL="${SOURCE_LABEL} ${VERSION}"
 

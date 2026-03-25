@@ -94,9 +94,8 @@ Notes:
 - `make test` runs unit tests only.
 - `bash tests/run_tests.sh` auto-detects `podman` first, then `docker`, for
   integration and failure suites.
-- `make test-all` currently delegates to `tests/run_tests.sh`, but its help text
-  still says "requires Docker". In practice, either supported runtime works.
-- `make build` and `make clean` are still Docker-specific helper targets.
+- `make test-all` delegates to `tests/run_tests.sh` — either supported runtime works.
+- `make build` and `make clean` auto-detect the available container runtime.
 
 If you only changed docs, say so in the PR. You do not need to invent code
 changes or unrelated test edits.
@@ -145,7 +144,7 @@ explicitly in the PR description.
 ## Versioning
 
 Versioning is driven by `doc/CHANGELOG.md`.
-The first `## [X.Y.Z]` entry is the current version, and `make version` reads it
+The first `## X.Y.Z` entry is the current version, and `make version` reads it
 from there. If a contribution changes shipped behavior, update the changelog in
 the same pull request.
 

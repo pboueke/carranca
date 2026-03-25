@@ -1,22 +1,34 @@
 # Changelog
 
-## [0.17.0] - 2026-03-24
+## 0.17.1
 
+- docs: fix stale roadmap — mark Phase 6 complete, update descriptions to match implementation (no `--non-interactive` flag, correct `--pretty` semantics, iptables not nftables)
+- docs: fix ci.md placeholder URL (`yourorg/carranca` → `pboueke/carranca`) and simplify session ID discovery scripts
+- docs: update configuration.md Containerfile example to match actual template (`lib/json.sh`, `iptables`, `/home/carranca`)
+- docs: add commented-out `orchestration` and `environment` stubs to full `.carranca.yml` example in configuration.md
+- docs: add `environment` sections to all persona examples demonstrating `passthrough`, `env_file`, and `vars` mechanisms
+- docs: add PATH persistence note to README quick start; note local-only nature of technical reference link
+- docs: update CONTRIBUTING.md to remove stale Docker-only workaround notes
+- chore: switch changelog headers from `## [X.Y.Z] - date` to `## X.Y.Z`; update all version parsers (Makefile, pre-commit hook, badge updater, doc page builder)
+- chore: expand Makefile `SHELL_SRC` and `SHELL_RUNTIME` to cover all shell scripts (74 files linted, up from ~40)
+- chore: add missing agent Containerfile templates to `CONTAINERFILES` lint list
+- chore: make `build` and `clean` Makefile targets auto-detect podman/docker instead of hardcoding docker
+- chore: fix `test-all` help text to say "Docker or Podman"
+
+## 0.17.0
 - feat: **operator-provided environment variables** — new `environment` config section passes env vars from the host into agent containers via three mechanisms: `passthrough` (forward named host vars), `env_file` (load from a `.env` file), and `vars` (define directly in config); priority: vars > env_file > passthrough
 - feat: **env_file parser** — standard `.env` format with `#` comments, `export` prefix, single/double quoted values, blank line handling; invalid variable names are rejected with warnings
 - feat: **env validation at startup** — `carranca_env_validate` checks passthrough names and env_file existence during config validation; bad names fail fast, missing files abort before container launch
 - docs: `environment.passthrough`, `environment.env_file`, and `environment.vars` fields added to `doc/configuration.md` with examples
 - test: 918 tests, 44 suites, 0 failures, 100% function coverage (147/147)
 
-## [0.16.1] - 2026-03-24
-
+## 0.16.1
 - fix: **config sandbox hardened** — `carranca config` now applies `--cap-drop ALL`, `--read-only` root FS, seccomp profile, and AppArmor profile, matching the `carranca run` sandbox
 - fix: **IPv6 network policy safety** — `run.sh` filters `getent ahosts` to IPv4 only with degradation warning; `network-setup.sh` has defense-in-depth check rejecting IPv6 entries; prevents ambiguous `IP:PORT` serialization and unenforced egress via IPv6
 - fix: **allowlist-based config redaction** — replaced brittle `grep -vE` denylist with awk allowlist; only `agents`, `runtime`, and `volumes` sections pass through; `runtime.network` allow-list details stripped; unknown future sections denied by default
 - test: 877 tests, 43 suites, 0 failures, 100% function coverage (142/142)
 
-## [0.16.0] - 2026-03-24
-
+## 0.16.0
 ### Phase 6 — Ecosystem and integration
 
 - feat: **`carranca diff`** — new command comparing two sessions across duration, agent, commands, files, resources, network, and policy; compact tab-separated default output, `--pretty` for human-readable format; supports cross-repo comparison via `--repo-a`/`--repo-b`
@@ -33,8 +45,7 @@
 - docs: exit code table added to `doc/usage.md`; `diff` command documented; `orchestration.*` fields added to `doc/configuration.md`
 - test: 725 tests, 34 suites, 0 failures
 
-## [0.15.4] - 2026-03-24
-
+## 0.15.4
 - fix: **config trust boundary** — agent container can no longer read `.carranca.yml` or `.carranca/` during `carranca run`; `.carranca/` hidden via tmpfs overlay, `.carranca.yml` hidden via `/dev/null` bind mount; prevents agents from learning network rules, watched paths, hooks, and timer limits
 - fix: **config agent policy redaction** — `carranca config` now strips policy-sensitive fields (watched_paths, policy.*, observability.*) from `.carranca.yml` before mounting into the config agent container; agent sees only agents, runtime, and volumes sections
 - chore: remove unused `plan` skill — was copied to `.carranca/skills/carranca/plan/` on init but never referenced by any agent prompt; `confiskill` (actively used by `cli/config.sh`) is preserved
@@ -50,14 +61,12 @@
 - test: `test_config.sh` updated — verifies policy redaction (agent cannot see docs_before_code, tests_before_impl)
 - test: 767 tests, 39 suites, 0 failures, 100% function coverage
 
-## [0.15.3] - 2026-03-24
-
+## 0.15.3
 - docs: move persona configuration examples out of `doc/configuration.md` into standalone directories under `doc/examples/`
 - docs: add one example per persona with `.carranca.yml`, `.carranca/Containerfile`, and a persona-specific README
 - docs: reference the new examples directory from README, objective.md, usage.md, configuration.md, and regenerate `doc/page/index.html`
 
-## [0.15.2] - 2026-03-24
-
+## 0.15.2
 - fix: **JSON injection** — RFC 8259 compliant `json_escape()` in new shared `runtime/lib/json.sh`; applied to all JSON producers: fanotify-watcher.c, strace-parser.sh, observer.sh, logger.sh, shell-wrapper.sh
 - fix: **fanotify-watcher.c** — add `json_escape_string()` C function for path escaping; harden readlink bounds check; skip events on buffer overflow
 - fix: **network-setup.sh fail-closed** — exit 1 when iptables is unavailable or fails instead of silently running with full network access; opt-in `CARRANCA_NETWORK_ALLOW_DEGRADED` preserves old behavior
@@ -80,16 +89,14 @@
 - test: 652 tests, 33 suites, 0 failures, 93% function coverage
 - test: new tests for json_escape (9), json_validate_line (4), config parser fail-closed (4), FIFO permissions, millisecond timestamps
 
-## [0.15.1] - 2026-03-24
-
+## 0.15.1
 - docs: rename `doc/vision.md` to `doc/objective.md` and rewrite it around current positioning, target users, non-goals, and comparison with other sandbox models
 - docs: remove phased-development framing from all docs except `doc/roadmap.md`; present Carranca as a current-state runtime across README, trust model, usage, session log, and generated reference page
 - docs: restructure the trust model so limitations and non-goals no longer list already-shipped capabilities under "does not provide"
 - docs: regenerate `doc/page/index.html` from the updated markdown sources
 - docs: add search/social metadata and JSON-LD to the generated docs page for better discoverability without hidden text
 
-## [0.15.0] - 2026-03-24
-
+## 0.15.0
 - feat: **capability drop** — `runtime.cap_drop_all: true` (default) adds `--cap-drop ALL` to the agent container; `runtime.cap_add` becomes a strict allowlist applied after the drop
 - feat: **read-only root filesystem** — `runtime.read_only: true` (default) adds `--read-only` with explicit tmpfs mounts for `/tmp`, `/var/tmp`, `/run`; when cache is disabled, `/home/carranca` gets a tmpfs mount
 - feat: **seccomp filtering** — default seccomp profile at `runtime/security/seccomp-agent.json` blocks dangerous syscalls (ptrace, mount, unshare, reboot, module loading, pivot_root, swapon/swapoff, sethostname/setdomainname, setns); configurable via `runtime.seccomp_profile`
@@ -110,8 +117,7 @@
 - test: new suites — `test_cap_drop.sh`, `test_seccomp_profile.sh`, `test_fifo_validation.sh`, `test_observer.sh`, `test_strace_parser.sh`
 - test: updated suites — `test_session.sh` (observer cleanup), `test_execve_parser.sh` (shared parser)
 
-## [0.14.0] - 2026-03-23
-
+## 0.14.0
 - feat: **resource limits** — `policy.resource_limits.{memory,cpus,pids}` passed as `--memory`, `--cpus`, `--pids-limit` container runtime flags; kernel enforces via cgroup limits
 - feat: **OOM kill detection** — resource sampler polls cgroup `memory.events` for `oom_kill` counter increments; emits `policy_event` with `action: oom_kill`
 - feat: **time-boxed sessions** — `policy.max_duration` (seconds) triggers FIFO removal after the wall-clock limit, which activates the agent's fail-closed watchdog and terminates the session
@@ -132,8 +138,7 @@
 - test: new suites — `test_policy_resource_limits.sh`, `test_policy_timer.sh`, `test_policy_filesystem.sh`, `test_policy_hooks.sh`, `test_policy_network.sh`
 - test: updated suites — `test_timeline.sh` (policy P glyph), `test_resource_sampler.sh` (policy_event counting in summary), `test_config.sh` (policy global fallback)
 
-## [0.13.0] - 2026-03-23
-
+## 0.13.0
 - feat: add `carranca log --timeline` for ASCII timeline rendering of session events
 - feat: add `execve` tracing via strace — captures all process execution in agent PID namespace (`observability.execve_tracing`)
 - feat: add network connection logging by polling `/proc/net/tcp` (`observability.network_logging`)
@@ -149,8 +154,7 @@
 - test: add coverage for timeline rendering, strace parser, network monitor, resource sampler, and fanotify integration
 - test: 392 tests, 17 suites, 0 failures
 
-## [0.12.0] - 2026-03-23
-
+## 0.12.0
 - feat: add HMAC-signed event chain — per-session key signs each JSONL event with chained HMAC-SHA256; `carranca log --verify` validates the chain
 - feat: add parallel SHA-256 checksum file for tamper detection when `chattr +a` is unavailable (rootless Podman, macOS)
 - feat: add event provenance tagging — `source` field on all events distinguishes ground-truth observations from agent-reported data
@@ -169,8 +173,7 @@
 - test: add init, config, and help coverage for `opencode` starter and adapter flows
 - test: 294 tests, 12 suites, 100% function coverage
 
-## [0.11.0] - 2026-03-23
-
+## 0.11.0
 - feat: add `runtime.cap_add` config — list of Linux capabilities passed as `--cap-add` flags to the agent container
 - feat: wire up `watched_paths` — file events matching watched patterns are tagged with `"watched":true` in session logs
 - feat: add agent, adapter, and engine metadata to session start events and log/status summary
@@ -180,13 +183,11 @@
 - feat: use `yq` as primary YAML parser when available, with awk fallback and schema compatibility warnings
 - chore: replace TODOS.md with doc/roadmap.md for phased feature planning
 
-## [0.10.0] - 2026-03-22
-
+## 0.10.0
 - fix: detect and warn on cache ownership mismatch when switching between Docker and rootless Podman
 - docs: rewrite CONTRIBUTING.md, README, architecture, configuration, session-log, and trust-model docs for accuracy and Podman-era terminology
 
-## [0.9.0] - 2026-03-22
-
+## 0.9.0
 - feat: add Podman and OCI runtime support with auto-detection (prefers Podman, falls back to Docker)
 - feat: add `runtime.engine` config (`auto`, `docker`, `podman`) and `CARRANCA_CONTAINER_RUNTIME` env override
 - feat: rootless Podman support with `--userns keep-id` for both logger and agent containers
@@ -204,8 +205,7 @@
 - test: update all integration and failure tests for runtime-agnostic container commands
 - test: 316 tests, 18 suites, 100% function coverage (69/69)
 
-## [0.8.0] - 2026-03-22
-
+## 0.8.0
 - feat: add `carranca kill` to stop one exact session or all active Carranca sessions after confirmation
 - feat: add shared session lifecycle helpers so `run`, `status`, and `kill` use the same container teardown logic
 - fix: stop interrupted `carranca run` sessions cleanly so agent and logger containers do not remain running after `Ctrl+C`
@@ -213,16 +213,14 @@
 - test: add unit and Docker integration coverage for session helpers and `carranca kill`
 - test: 278 tests, 18 suites, 100% function coverage (48/48)
 
-## [0.7.0] - 2026-03-22
-
+## 0.7.0
 - feat: add `carranca status` to show active sessions and the 5 most recent session logs for the current repo
 - feat: add `carranca status --session <exact-id>` for detailed per-session status, including active state, summary, touched paths, and commands
 - docs: update README command docs for the new `status` command and detailed session mode
 - test: add unit and Docker integration coverage for status overview, detailed session output, recent-session limits, and missing-session failures
 - test: 253 tests, 15 suites, 100% function coverage (39/39)
 
-## [0.6.0] - 2026-03-22
-
+## 0.6.0
 - feat: move project config to ordered `agents:` entries only and drop legacy single-agent config support
 - feat: add canonical `--agent <name>` selection for `carranca init`, `carranca run`, and `carranca config`
 - feat: add `carranca config --prompt <text>` so free-form operator requests are passed into the config-agent prompt
@@ -233,8 +231,7 @@
 - test: expand unit, integration, and failure coverage for agent selection, prompt plumbing, and `agents:` validation
 - test: 214 tests, 13 suites, 100% function coverage (35/35)
 
-## [0.5.0] - 2026-03-22
-
+## 0.5.0
 - feat: add `carranca log` to pretty-print the latest or selected session log for the current repo
 - feat: improve `carranca log` with unique-path counts, file-event totals, top touched paths, and clearer agent-native edit summaries
 - feat: add command-specific help routing via both `carranca help <command>` and `carranca <command> help`
@@ -242,8 +239,7 @@
 - test: add coverage for help routing, sparse-session summaries, and log parsing helpers
 - test: 191 tests, 13 suites, 100% function coverage (27/27)
 
-## [0.4.0] - 2026-03-22
-
+## 0.4.0
 - feat: add `carranca config` to launch the bound agent, apply `confiskill`, and propose `.carranca.yml` and `.carranca/Containerfile` updates
 - feat: run `carranca config` with the same interactive TTY flow as `carranca run` so cached agent auth/session state is reused
 - feat: mount Carranca-managed and user-managed skills separately inside the agent container
@@ -253,8 +249,7 @@
 - test: add integration, failure-mode, and unit coverage for `carranca config` and adapter resolution
 - test: 132 tests, 10 suites, 100% function coverage (18/18)
 
-## [0.3.0] - 2026-03-22
-
+## 0.3.0
 - feat: switch the default agent command and project scaffold to Codex
 - feat: run the agent container as the invoking host user and preserve supplemental groups
 - feat: move the default agent home and cache mount to `/home/carranca`
@@ -264,8 +259,7 @@
 - test: 108 tests, 9 suites, 100% function coverage (17/17)
 - docs: update configuration and architecture docs for the Codex-based runtime defaults
 
-## [0.2.0] - 2026-03-22
-
+## 0.2.0
 - feat: persistent agent home directory across sessions (`volumes.cache` config)
 - feat: custom volume mounts via `volumes.extra` config (e.g. SSH keys, reference docs)
 - feat: YAML list parsing in config (`carranca_config_get_list`)
@@ -280,8 +274,7 @@
 - test: 93 tests, 9 suites, 100% function coverage (17/17)
 - docs: document cache volumes, custom volumes, and badge workflow
 
-## [0.1.0] - 2026-03-22
-
+## 0.1.0
 - feat: add `carranca init` to scaffold project config with `--claude` and `--codex` flags
 - feat: add `carranca run` to start interactive containerized agent sessions
 - feat: two-container architecture (agent + logger) connected via FIFO, no compose

@@ -77,6 +77,18 @@ observability:
   network_interval: 5
   secret_monitoring: false
   independent_observer: false
+
+# orchestration:
+#   mode: pipeline       # pipeline | parallel
+#   workspace: isolated  # isolated | shared
+#   merge: carry         # carry | discard (pipeline only)
+
+# environment:
+#   passthrough:
+#     - ANTHROPIC_API_KEY
+#   env_file: .env.carranca
+#   vars:
+#     REGION: us-east-1
 ```
 
 ### Field reference
@@ -378,17 +390,27 @@ not mounted into the logger, and `config` currently uses its own fixed mount set
 ## `.carranca/Containerfile`
 
 `carranca init` creates `.carranca/Containerfile`. You own the dependency and
-tool installation steps above the shell-wrapper block; Carranca depends on the
-shell-wrapper block remaining intact.
+tool installation steps between the marker comments; Carranca depends on the
+shell-wrapper block at the bottom remaining intact.
 
 ```Dockerfile
 FROM alpine:3.21
 
-RUN apk add --no-cache bash coreutils curl git ca-certificates
+RUN apk add --no-cache \
+      bash \
+      coreutils \
+      curl \
+      git \
+      ca-certificates \
+      iptables
+
+RUN mkdir -p /home/carranca && chmod 0777 /home/carranca
 
 # Your agent and project dependencies here
 RUN apk add --no-cache nodejs npm
 
+# Carranca shell wrapper (do not remove)
+COPY lib/json.sh /usr/local/bin/lib/json.sh
 COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
 RUN chmod +x /usr/local/bin/shell-wrapper.sh
 WORKDIR /workspace
@@ -397,6 +419,7 @@ ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]
 
 `carranca config` validates that proposed Containerfiles still contain:
 
+- `COPY lib/json.sh /usr/local/bin/lib/json.sh`
 - `COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh`
 - `ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]`
 

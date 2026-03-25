@@ -1,17 +1,22 @@
 .PHONY: help lint lint-shell lint-docker lint-yaml test test-all check build clean install hooks page version
 
 # Version derived from doc/CHANGELOG.md — single source of truth
-VERSION := $(shell grep -m1 '## \[' doc/CHANGELOG.md 2>/dev/null | sed 's/.*\[\(.*\)\].*/\1/' || echo "0.0.0")
+VERSION := $(shell grep -m1 '^## [0-9]' doc/CHANGELOG.md 2>/dev/null | awk '{print $$2}' || echo "0.0.0")
 
 # Shell files to lint
-SHELL_SRC := cli/carranca cli/config.sh cli/init.sh cli/log.sh cli/run.sh cli/lib/common.sh cli/lib/config.sh cli/lib/identity.sh cli/lib/log.sh
-SHELL_RUNTIME := runtime/config-runner.sh runtime/shell-wrapper.sh runtime/logger.sh
+SHELL_SRC := cli/carranca cli/config.sh cli/diff.sh cli/init.sh cli/kill.sh cli/log.sh cli/run.sh cli/status.sh \
+             cli/lib/common.sh cli/lib/config.sh cli/lib/env.sh cli/lib/identity.sh cli/lib/lifecycle.sh \
+             cli/lib/log.sh cli/lib/orchestrator.sh cli/lib/runtime.sh cli/lib/session.sh cli/lib/timeline.sh \
+             cli/lib/workspace.sh
+SHELL_RUNTIME := runtime/config-runner.sh runtime/logger.sh runtime/network-setup.sh runtime/observer.sh \
+                 runtime/shell-wrapper.sh runtime/lib/json.sh runtime/lib/strace-parser.sh
 SHELL_TESTS := $(wildcard tests/unit/*.sh) $(wildcard tests/integration/*.sh) $(wildcard tests/failure/*.sh) tests/run_tests.sh
 SHELL_HOOKS := .githooks/pre-commit .githooks/update-badges.sh .githooks/build-doc-page.sh
 SHELL_ALL := $(SHELL_SRC) $(SHELL_RUNTIME) $(SHELL_TESTS) $(SHELL_HOOKS)
 
 # Containerfiles to lint
-CONTAINERFILES := runtime/Containerfile.logger templates/Containerfile
+CONTAINERFILES := runtime/Containerfile.logger templates/Containerfile templates/agents/claude.containerfile \
+                  templates/agents/codex.containerfile templates/agents/opencode.containerfile
 
 # YAML files to lint
 YAML_FILES := templates/carranca.yml.tmpl
@@ -56,7 +61,7 @@ test: ## Run unit tests (fast, no Docker)
 	@echo "=== unit tests ==="
 	@for f in tests/unit/test_*.sh; do bash "$$f" || exit 1; done
 
-test-all: ## Run all tests (unit + integration + failure, requires Docker)
+test-all: ## Run all tests (unit + integration + failure, requires Docker or Podman)
 	@bash tests/run_tests.sh
 
 check: lint test ## Run lint + unit tests (used by pre-commit hook)
@@ -64,13 +69,15 @@ check: lint test ## Run lint + unit tests (used by pre-commit hook)
 	@echo "=== All checks passed ==="
 
 build: ## Build logger image
-	@echo "Building carranca logger image..."
-	@docker build -t carranca-logger -f runtime/Containerfile.logger runtime/
+	@RUNTIME=$$(command -v podman 2>/dev/null || command -v docker 2>/dev/null) && \
+	echo "Building carranca logger image ($$RUNTIME)..." && \
+	$$RUNTIME build -t carranca-logger -f runtime/Containerfile.logger runtime/
 
-clean: ## Remove carranca Docker images
-	@echo "Cleaning..."
-	@docker images --filter "reference=carranca-*" -q | xargs -r docker rmi 2>/dev/null || true
-	@echo "Done"
+clean: ## Remove carranca container images
+	@RUNTIME=$$(command -v podman 2>/dev/null || command -v docker 2>/dev/null) && \
+	echo "Cleaning ($$RUNTIME)..." && \
+	$$RUNTIME images --filter "reference=carranca-*" -q | xargs -r $$RUNTIME rmi 2>/dev/null || true && \
+	echo "Done"
 
 install: ## Install carranca CLI (symlink to ~/.local/bin/)
 	@mkdir -p ~/.local/bin

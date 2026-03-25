@@ -17,7 +17,7 @@ fi
 
 version=""
 if [ -f "$CHANGELOG" ]; then
-  version="$(grep -m1 '## \[' "$CHANGELOG" | sed 's/.*\[\(.*\)\].*/\1/')"
+  version="$(grep -m1 '^## [0-9]' "$CHANGELOG" | awk '{print $2}')"
 fi
 
 if [ -n "$version" ]; then

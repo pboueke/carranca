@@ -5,7 +5,7 @@
   <h1>Carranca</h1>
 
   <p>
-    <img src="https://img.shields.io/badge/version-0.17.0-blue" alt="version: 0.17.0" />
+    <img src="https://img.shields.io/badge/version-0.17.1-blue" alt="version: 0.17.1" />
     <img src="https://img.shields.io/badge/tests-918%2F918_passed-brightgreen" alt="tests: 918/918 passed" />
     <img src="https://img.shields.io/badge/coverage-100%25_(147%2F147_functions)-brightgreen" alt="coverage: 100%" />
     <img src="https://img.shields.io/badge/license-MIT-green" alt="license: MIT" />
@@ -22,6 +22,7 @@
 # Install
 git clone https://github.com/pboueke/carranca.git ~/.local/share/carranca
 export PATH="$HOME/.local/share/carranca/cli:$PATH"
+# Add the export line to ~/.bashrc or ~/.zshrc to persist across sessions
 
 # Initialize a project
 cd your-project
@@ -94,7 +95,7 @@ Persona-oriented example setups live under [doc/examples/](doc/examples/).
 
 | Doc | What it covers |
 |-----|---------------|
-| [Technical reference](doc/page/index.html) | Primary browsable reference for architecture, configuration, session log schema, trust model, roadmap, versioning, and changelog |
+| [Technical reference](doc/page/index.html) | Primary browsable reference (open locally after cloning) for architecture, configuration, session log schema, trust model, roadmap, versioning, and changelog |
 | [Usage](doc/usage.md) | Detailed CLI command reference, options, and operator workflows |
 | [Architecture](doc/architecture.md) | Container layout, data flow, directory structure |
 | [Configuration](doc/configuration.md) | `.carranca.yml` reference, Containerfile, init flags |

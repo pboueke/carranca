@@ -143,7 +143,7 @@ mkdir -p "$TMPDIR/doc"
 cat > "$TMPDIR/doc/CHANGELOG.md" <<'EOF'
 # Changelog
 
-## [2.5.0] - 2026-03-22
+## 2.5.0
 
 - feat: something new
 EOF
@@ -207,11 +207,11 @@ assert_contains "version-only: badges updated message" "badges updated" "$VONLY_
 cat > "$TMPDIR/doc/CHANGELOG.md" <<'EOF'
 # Changelog
 
-## [1.0.0] - 2026-01-01
+## 1.0.0
 
 - first stable release
 
-## [0.9.0] - 2025-12-01
+## 0.9.0
 
 - beta
 EOF

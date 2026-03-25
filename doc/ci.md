@@ -57,8 +57,11 @@ killed after the configured duration.
 After `carranca run`, export the session log as a signed archive:
 
 ```bash
-# Find the latest session id
-SESSION_ID=$(basename "$(ls -t ~/.local/state/carranca/sessions/*//*.jsonl 2>/dev/null | head -1)" .jsonl)
+# Parse repo ID from carranca status (first line: "Repo: <name> (<id>)")
+REPO_ID=$(carranca status 2>/dev/null | head -1 | grep -oE '[a-f0-9]{12}')
+
+# Find the latest session log by modification time
+SESSION_ID=$(basename "$(ls -t ~/.local/state/carranca/sessions/"$REPO_ID"/*.jsonl 2>/dev/null | head -1)" .jsonl)
 
 # Export as .tar + .tar.sig
 carranca log --export --session "$SESSION_ID"
@@ -71,13 +74,14 @@ The export produces two files next to the session log:
 ## Session ID discovery
 
 The session ID is a 16-character hex string generated at session start.
-To discover it after a run:
+To discover it after a run, parse the repo ID from `carranca status` and
+list session logs by modification time:
 
 ```bash
-# Latest session for the current repo
-ls -t ~/.local/state/carranca/sessions/"$(carranca status 2>/dev/null | head -1 | awk '{print $NF}')"/*.jsonl | head -1
+REPO_ID=$(carranca status 2>/dev/null | head -1 | grep -oE '[a-f0-9]{12}')
+ls -t ~/.local/state/carranca/sessions/"$REPO_ID"/*.jsonl | head -1
 
-# Or parse from carranca status output
+# Or inspect recent sessions interactively
 carranca status
 ```
 
@@ -95,7 +99,7 @@ jobs:
 
       - name: Install carranca
         run: |
-          git clone https://github.com/yourorg/carranca ~/.local/share/carranca
+          git clone https://github.com/pboueke/carranca ~/.local/share/carranca
           ln -s ~/.local/share/carranca/cli/carranca ~/.local/bin/carranca
 
       - name: Run agent
@@ -104,8 +108,8 @@ jobs:
       - name: Export session log
         if: always()
         run: |
-          REPO_ID=$(cd . && carranca status 2>&1 | grep -oP '[a-f0-9]{12}' | head -1 || true)
-          SESSION=$(basename "$(ls -t ~/.local/state/carranca/sessions/$REPO_ID/*.jsonl 2>/dev/null | head -1)" .jsonl || true)
+          REPO_ID=$(carranca status 2>/dev/null | head -1 | grep -oE '[a-f0-9]{12}' || true)
+          SESSION=$(basename "$(ls -t ~/.local/state/carranca/sessions/"$REPO_ID"/*.jsonl 2>/dev/null | head -1)" .jsonl || true)
           if [ -n "$SESSION" ]; then
             carranca log --export --session "$SESSION"
           fi

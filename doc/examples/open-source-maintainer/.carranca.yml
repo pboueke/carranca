@@ -27,6 +27,10 @@ watched_paths:
   - SECURITY.md
   - MAINTAINERS.md
 
+environment:
+  passthrough:
+    - GITHUB_TOKEN
+
 observability:
   resource_interval: 15
   execve_tracing: true
