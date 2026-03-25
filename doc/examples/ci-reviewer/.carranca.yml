@@ -1,0 +1,30 @@
+agents:
+  - name: reviewer
+    adapter: stdin
+    command: bash /workspace/_review.sh
+
+runtime:
+  engine: auto
+  network: true
+
+volumes:
+  cache: false
+
+policy:
+  docs_before_code: off
+  tests_before_impl: off
+  max_duration: 600
+  resource_limits:
+    memory: 2g
+    cpus: "2.0"
+    pids: 256
+
+environment:
+  passthrough:
+    - OPENAI_API_KEY
+
+observability:
+  resource_interval: 0
+  execve_tracing: false
+  network_logging: false
+  secret_monitoring: false

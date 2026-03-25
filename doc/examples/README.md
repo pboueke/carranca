@@ -16,7 +16,7 @@ variables into agent containers:
 
 | Mechanism | Used by |
 |-----------|---------|
-| `passthrough` (forward host env vars) | platform-engineer, open-source-maintainer |
+| `passthrough` (forward host env vars) | platform-engineer, open-source-maintainer, ci-reviewer |
 | `env_file` (load from a dotfile) | consultant-client-code, regulated-team-lead |
 | `vars` (define inline in config) | security-engineer, forensic-analyst, regulated-team-lead |
 
@@ -39,3 +39,6 @@ Available examples:
   (`passthrough` for GitHub API access)
 - [forensic-analyst/](forensic-analyst/): replay prior sessions and inspect
   exported evidence with networking disabled (`vars` for case metadata)
+- [ci-reviewer/](ci-reviewer/): run automated AI code reviews inside CI
+  pipelines with bounded execution and secret surface control
+  (`passthrough` for API key)

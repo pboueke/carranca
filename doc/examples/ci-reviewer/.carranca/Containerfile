@@ -1,0 +1,24 @@
+FROM alpine:3.21
+
+RUN apk add --no-cache \
+      bash \
+      ca-certificates \
+      coreutils \
+      curl \
+      git \
+      python3
+
+# Install the agent CLI (opencode in this example; substitute your own)
+RUN curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path && \
+    mv /root/.opencode/bin/opencode /usr/local/bin/opencode && \
+    chmod 0755 /usr/local/bin/opencode && \
+    rm -rf /root/.opencode
+
+RUN mkdir -p /home/carranca && chmod 0777 /home/carranca
+
+COPY lib/json.sh /usr/local/bin/lib/json.sh
+COPY shell-wrapper.sh /usr/local/bin/shell-wrapper.sh
+RUN chmod +x /usr/local/bin/shell-wrapper.sh
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/shell-wrapper.sh"]

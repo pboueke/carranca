@@ -307,6 +307,7 @@ matches your operating model:
 - [examples/consultant-client-code/](examples/consultant-client-code/)
 - [examples/open-source-maintainer/](examples/open-source-maintainer/)
 - [examples/forensic-analyst/](examples/forensic-analyst/)
+- [examples/ci-reviewer/](examples/ci-reviewer/)
 
 ## `carranca config`
 

@@ -123,6 +123,39 @@ jobs:
           if-no-files-found: ignore
 ```
 
+## Real-world example: automated PR review
+
+Carranca's own repository uses a PR review workflow that demonstrates
+CI automation end-to-end. When a PR is opened against `main`, a
+GitHub Actions job:
+
+1. Generates a diff and review prompt from the PR metadata
+2. Runs `carranca run --agent reviewer --timeout 600` with a `stdin`
+   adapter agent that invokes an AI model inside the sandbox
+3. Posts the structured review back as a PR comment
+
+The workflow restricts execution to PRs from the repository owner to
+protect the API key secret. Only the AI provider key enters the
+container via `environment.passthrough`; the GitHub token stays on the
+runner and is used only for posting the comment.
+
+Key patterns from this setup:
+
+- **Agent script as a workspace file**: the workflow generates
+  `_review.sh` at runtime and the agent command is simply
+  `bash /workspace/_review.sh`, avoiding YAML escaping issues with
+  complex inline commands
+- **Engine override**: the project config specifies `runtime.engine:
+  podman` for local use, but the CI job sets
+  `CARRANCA_CONTAINER_RUNTIME=docker` to match the runner
+- **No cache volume**: `volumes.cache: false` is appropriate for
+  ephemeral CI runs where the agent home directory does not need to
+  persist
+
+See `.github/workflows/pr-review.yml` and the
+[ci-reviewer example](examples/ci-reviewer/) for the full
+configuration.
+
 ## Recommended policy for CI
 
 For unattended runs, set explicit limits in `.carranca.yml`:

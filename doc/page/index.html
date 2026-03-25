@@ -359,6 +359,9 @@ runtime rather than outsource that control to a hosted sandbox provider.
   reproducible, and bounded by technical policy
 - **Regulated or client-sensitive teams**: need signed logs, bounded runtime
   behavior, and traceable operator activity
+- **CI/CD pipelines and automation**: need unattended agent tasks (code
+  review, generation, analysis) to run inside the same sandbox with bounded
+  execution, controlled secret exposure, and auditable session logs
 - **Security-conscious individual engineers**: want local coding agents with a
   smaller blast radius than a normal unrestricted shell session
 
@@ -418,6 +421,9 @@ personas live under [examples/](examples/).
   reviewable with more context than a bare git diff
 - **A forensic analyst or incident responder** replays prior sessions from log
   exports to understand what an agent ran, touched, or attempted to access
+- **A CI pipeline operator** runs automated agent tasks (PR review, code
+  generation, analysis) inside carranca with bounded execution, secret
+  isolation, and session evidence as CI artifacts
 
 ## What remains ahead
 
@@ -922,6 +928,7 @@ matches your operating model:
 - [examples/consultant-client-code/](examples/consultant-client-code/)
 - [examples/open-source-maintainer/](examples/open-source-maintainer/)
 - [examples/forensic-analyst/](examples/forensic-analyst/)
+- [examples/ci-reviewer/](examples/ci-reviewer/)
 
 ## `carranca config`
 
@@ -1340,6 +1347,205 @@ carranca run --agent codex
 - [examples/README.md](examples/README.md): persona-based example configs and images
 - [session-log.md](session-log.md): event types and log semantics
 - [trust-model.md](trust-model.md): guarantees, limitations, and degraded modes
+</pre>
+      </div>
+    </details>
+
+    <details id="doc-ci">
+      <summary>CI/CD Integration <span class="desc">Headless execution, exit codes, session artifacts, and automated PR review</span></summary>
+      <div class="doc-content">
+        <pre class="doc-markdown-static">
+Carranca runs headless in CI pipelines without special flags. This guide
+covers the patterns for using it in automated environments.
+
+## Headless execution
+
+`carranca run` auto-detects non-TTY environments and adjusts container
+flags accordingly (omits `-t`). No `--non-interactive` flag is needed.
+
+For CI use, configure the agent with the `stdin` adapter or pass the
+prompt as part of the command:
+
+```yaml
+agents:
+  - name: codex
+    adapter: codex
+    command: "codex --quiet --approval-mode full-auto"
+```
+
+The agent receives its command from `.carranca.yml` and runs to
+completion. When stdin is not a TTY, agents that support non-interactive
+mode (like codex with `--quiet`) work without modification.
+
+## Timeout
+
+Use `--timeout &lt;seconds&gt;` to enforce a wall-clock budget:
+
+```bash
+carranca run --agent codex --timeout 600
+```
+
+When both `--timeout` and `policy.max_duration` in `.carranca.yml` are
+set, the minimum wins. This lets the project config set a ceiling while
+the CI job sets a tighter per-run limit.
+
+## Exit codes
+
+Pipeline branching should use these exit codes:
+
+| Code | Meaning |
+|------|---------|
+| 0 | Agent succeeded, no policy violations |
+| 1–125 | Agent exit code (pass-through) |
+| 71 | Logger lost — audit trail interrupted (EX_OSERR) |
+| 124 | Session timed out (max_duration exceeded) |
+
+Exit code 71 means the audit trail was interrupted. The agent may have
+succeeded, but the session is not verifiable. Treat this as a failure
+in compliance-sensitive pipelines.
+
+Exit code 124 matches the `timeout(1)` convention. The session was
+killed after the configured duration.
+
+## Session logs as CI artifacts
+
+After `carranca run`, export the session log as a signed archive:
+
+```bash
+# Parse repo ID from carranca status (first line: "Repo: &lt;name&gt; (&lt;id&gt;)")
+REPO_ID=$(carranca status 2&gt;/dev/null | head -1 | grep -oE '[a-f0-9]{12}')
+
+# Find the latest session log by modification time
+SESSION_ID=$(basename "$(ls -t ~/.local/state/carranca/sessions/"$REPO_ID"/*.jsonl 2&gt;/dev/null | head -1)" .jsonl)
+
+# Export as .tar + .tar.sig
+carranca log --export --session "$SESSION_ID"
+```
+
+The export produces two files next to the session log:
+- `&lt;session-id&gt;.tar` — contains the JSONL log, HMAC key, and checksums
+- `&lt;session-id&gt;.tar.sig` — HMAC-SHA256 signature of the archive
+
+## Session ID discovery
+
+The session ID is a 16-character hex string generated at session start.
+To discover it after a run, parse the repo ID from `carranca status` and
+list session logs by modification time:
+
+```bash
+REPO_ID=$(carranca status 2&gt;/dev/null | head -1 | grep -oE '[a-f0-9]{12}')
+ls -t ~/.local/state/carranca/sessions/"$REPO_ID"/*.jsonl | head -1
+
+# Or inspect recent sessions interactively
+carranca status
+```
+
+## Example: GitHub Actions workflow
+
+```yaml
+name: Agent task
+on: [workflow_dispatch]
+
+jobs:
+  agent-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install carranca
+        run: |
+          git clone https://github.com/pboueke/carranca ~/.local/share/carranca
+          ln -s ~/.local/share/carranca/cli/carranca ~/.local/bin/carranca
+
+      - name: Run agent
+        run: carranca run --agent codex --timeout 600
+
+      - name: Export session log
+        if: always()
+        run: |
+          REPO_ID=$(carranca status 2&gt;/dev/null | head -1 | grep -oE '[a-f0-9]{12}' || true)
+          SESSION=$(basename "$(ls -t ~/.local/state/carranca/sessions/"$REPO_ID"/*.jsonl 2&gt;/dev/null | head -1)" .jsonl || true)
+          if [ -n "$SESSION" ]; then
+            carranca log --export --session "$SESSION"
+          fi
+
+      - name: Upload session archive
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: carranca-session
+          path: ~/.local/state/carranca/sessions/**/*.tar*
+          if-no-files-found: ignore
+```
+
+## Real-world example: automated PR review
+
+Carranca's own repository uses a PR review workflow that demonstrates
+CI automation end-to-end. When a PR is opened against `main`, a
+GitHub Actions job:
+
+1. Generates a diff and review prompt from the PR metadata
+2. Runs `carranca run --agent reviewer --timeout 600` with a `stdin`
+   adapter agent that invokes an AI model inside the sandbox
+3. Posts the structured review back as a PR comment
+
+The workflow restricts execution to PRs from the repository owner to
+protect the API key secret. Only the AI provider key enters the
+container via `environment.passthrough`; the GitHub token stays on the
+runner and is used only for posting the comment.
+
+Key patterns from this setup:
+
+- **Agent script as a workspace file**: the workflow generates
+  `_review.sh` at runtime and the agent command is simply
+  `bash /workspace/_review.sh`, avoiding YAML escaping issues with
+  complex inline commands
+- **Engine override**: the project config specifies `runtime.engine:
+  podman` for local use, but the CI job sets
+  `CARRANCA_CONTAINER_RUNTIME=docker` to match the runner
+- **No cache volume**: `volumes.cache: false` is appropriate for
+  ephemeral CI runs where the agent home directory does not need to
+  persist
+
+See `.github/workflows/pr-review.yml` and the
+[ci-reviewer example](examples/ci-reviewer/) for the full
+configuration.
+
+## Recommended policy for CI
+
+For unattended runs, set explicit limits in `.carranca.yml`:
+
+```yaml
+policy:
+  max_duration: 1800        # 30 minute ceiling
+  resource_limits:
+    memory: 4g
+    cpus: "2.0"
+    pids: 256
+  docs_before_code: warn    # or enforce
+  tests_before_impl: warn   # or enforce
+
+runtime:
+  network:
+    default: deny
+    allow:
+      - "registry.npmjs.org:443"
+      - "*.anthropic.com:443"
+```
+
+This ensures the agent cannot run indefinitely, consume unbounded
+resources, or make unexpected network connections.
+
+## Verification
+
+To verify a session log after a CI run (e.g., in a follow-up audit
+step):
+
+```bash
+carranca log --verify --session "$SESSION_ID"
+```
+
+This replays the HMAC chain and checksums, reporting any tampering.
 </pre>
       </div>
     </details>

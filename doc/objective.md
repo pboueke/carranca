@@ -48,6 +48,9 @@ runtime rather than outsource that control to a hosted sandbox provider.
   reproducible, and bounded by technical policy
 - **Regulated or client-sensitive teams**: need signed logs, bounded runtime
   behavior, and traceable operator activity
+- **CI/CD pipelines and automation**: need unattended agent tasks (code
+  review, generation, analysis) to run inside the same sandbox with bounded
+  execution, controlled secret exposure, and auditable session logs
 - **Security-conscious individual engineers**: want local coding agents with a
   smaller blast radius than a normal unrestricted shell session
 
@@ -107,6 +110,9 @@ personas live under [examples/](examples/).
   reviewable with more context than a bare git diff
 - **A forensic analyst or incident responder** replays prior sessions from log
   exports to understand what an agent ran, touched, or attempted to access
+- **A CI pipeline operator** runs automated agent tasks (PR review, code
+  generation, analysis) inside carranca with bounded execution, secret
+  isolation, and session evidence as CI artifacts
 
 ## What remains ahead
 

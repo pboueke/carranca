@@ -355,6 +355,7 @@ emit_doc_section "objective" "Objective" "Who Carranca is for, who it is not for
 emit_doc_section "architecture" "Architecture" "Container layout, data flow, and session lifecycle" "$ROOT_DIR/doc/architecture.md"
 emit_doc_section "configuration" "Configuration" "Complete .carranca.yml reference" "$ROOT_DIR/doc/configuration.md"
 emit_doc_section "usage" "Usage" "Detailed command line reference and operator workflows" "$ROOT_DIR/doc/usage.md"
+emit_doc_section "ci" "CI/CD Integration" "Headless execution, exit codes, session artifacts, and automated PR review" "$ROOT_DIR/doc/ci.md"
 emit_doc_section "session-log" "Session Log Format" "JSONL schema, event types, and HMAC chain" "$ROOT_DIR/doc/session-log.md"
 emit_doc_section "trust-model" "Trust Model" "Security boundaries and failure behavior" "$ROOT_DIR/doc/trust-model.md"
 emit_doc_section "changelog" "Changelog" "Release history and version source of truth" "$ROOT_DIR/doc/CHANGELOG.md"
