@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="doc/carranca.jpg" alt="Carranca" width="600" />
+  <img src="doc/page/carranca.jpg" alt="Carranca" width="600" />
   <p><em>A Carranca photographed by Marcel Gautherot in 1946. Instituto Moreira Salles collection.</em></p>
 
   <h1>Carranca</h1>

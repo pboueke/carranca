@@ -325,7 +325,7 @@ cat > "$TMP_FILE" <<'EOF'
 </head>
 <body>
   <div class="hero">
-    <img src="../carranca.jpg" alt="A Carranca figurehead on a boat" />
+    <img src="carranca.jpg" alt="A Carranca figurehead on a boat" />
     <p class="caption">A Carranca photographed by Marcel Gautherot in 1946. Instituto Moreira Salles collection.</p>
     <h1>Carranca</h1>
     <p class="tagline">
