@@ -20,7 +20,7 @@ jobs:
 
       - name: Install carranca
         run: |
-          git clone https://github.com/pboueke/carranca ~/.local/share/carranca
+          ln -s "$GITHUB_WORKSPACE" ~/.local/share/carranca
           mkdir -p ~/.local/bin
           ln -s ~/.local/share/carranca/cli/carranca ~/.local/bin/carranca
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
