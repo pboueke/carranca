@@ -196,7 +196,7 @@ if [ -n "$TARGET_USER" ]; then
   if command -v su-exec >/dev/null 2>&1; then
     exec su-exec "$target_uid:$target_gid" env HOME="$agent_home" /usr/local/bin/shell-wrapper.sh
   else
-    exec su -s /bin/sh -c "HOME=$agent_home /usr/local/bin/shell-wrapper.sh" carranca
+    exec su -s /bin/sh -c "HOME='$agent_home' /usr/local/bin/shell-wrapper.sh" carranca
   fi
 else
   exec /usr/local/bin/shell-wrapper.sh
