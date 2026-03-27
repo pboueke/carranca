@@ -136,6 +136,30 @@ carranca log --verify --session abc12345
 carranca log --timeline --session abc12345
 ```
 
+Example `--timeline` output:
+
+```
+Timeline: session a3f7c91d2e4b8016
+──────────────────────────────────────────────────────────────
+TIME              EVENT
+──────────────────────────────────────────────────────────────
+14:00:00  >>  session start (codex via podman)
+14:00:03   $  git status (exit=0, 312ms)
+14:00:07  F~  /workspace/src/main.py MODIFY
+14:00:08   $  python -m pytest tests/ (exit=0, 2847ms)
+14:00:12  F+  /workspace/tests/test_main.py CREATE
+14:00:15   N  142.251.46.206:443 tcp ESTABLISHED
+14:00:30   .  heartbeat
+14:01:45  <<  agent stop (exit=0)
+──────────────────────────────────────────────────────────────
+Duration: 1m 45s | 2 commands | 2 file events | 0 failures
+```
+
+Glyphs: `>>` session/agent start, `<<` stop, `$` shell command, `F+` file
+create, `F~` modify, `F-` delete, `N` network connection, `X` execve,
+`R` resource sample, `A` file access (fanotify), `P` policy event,
+`.` heartbeat, `!!` degraded, `??` invalid event.
+
 ## `carranca diff`
 
 ```text

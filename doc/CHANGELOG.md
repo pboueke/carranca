@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.17.4
+- feat: **IPv6 network policy** — `ip6tables` rules alongside iptables for dual-stack egress filtering; bracket notation (`[addr]:port`) for IPv6 address serialization; malformed entry validation; log message distinguishes IPv4-only vs IPv4+IPv6 enforcement
+- feat: **strict seccomp profile** — allowlist-based `seccomp-strict.json` (~200 syscalls) with `SCMP_ACT_ERRNO` default; exposed via `runtime.seccomp_profile: strict`; builtin profile existence validated at startup
+- feat: **base image digest pinning** — Alpine image pinned by SHA-256 digest in `Containerfile.logger` and template Containerfile; overridable via `--build-arg ALPINE_IMAGE`
+- feat: **SECURITY.md** — responsible disclosure policy, supported versions, scope definition separating carranca vulnerabilities from operator misconfigurations
+- feat: **integration test CI** — weekly `make test-all` workflow on GitHub Actions with container runtime
+- feat: **UID/namespace documentation** — architecture doc updated with agent UID model across Docker and rootless Podman
+- docs: README updated with example session output, preemptive FAQ, and log verification examples
+- docs: trust model and configuration docs updated for IPv6, strict seccomp, and digest pinning
+- test: hardening tests for digest pinning, IPv6 bracket parsing, and seccomp strict profile
+
 ## 0.17.3
 - docs: updates reame structure and adds phase 8 to roadmap
 - docs: index links to repo

@@ -294,7 +294,7 @@
       enforceable guardrails, and forgery detection.
     </p>
     <div class="links">
-      <a href="https://github.com/pboueke/carranca">source 0.17.3</a>
+      <a href="https://github.com/pboueke/carranca">source 0.17.4</a>
     </div>
   </div>
 
@@ -613,6 +613,29 @@ Two or three containers share a tmpfs volume containing a Unix FIFO:
 Falls back to `sha256(realpath(.))[:12]` for repos without a remote. Two repos
 with the same name at different paths get distinct IDs. Moving a repo orphans
 old sessions (documented, not a bug).
+
+## UID and user namespace model
+
+The agent container never runs as UID 0 (container root). The exact mechanism
+depends on the runtime and network configuration:
+
+- **Rootless Podman** uses `--userns keep-id`, which maps the host UID:GID
+  directly into the container. The user namespace provides an additional
+  isolation layer: the container user has no privileges on the host even if it
+  escalates inside the namespace.
+- **Rootful Docker** passes the host UID:GID as an explicit user mapping.
+  `--userns-remap` is supported but not the default configuration.
+- **Network policy mode** (`network-setup.sh`) is the one case where the
+  entrypoint starts as container root — it needs to apply iptables and
+  ip6tables rules. After configuring the firewall it drops privileges to the
+  target UID:GID via `su`. Both values are validated as positive integers &gt; 0
+  before the transition.
+
+Because the container UID matches the host UID in every mode, workspace files
+written by the agent retain usable host ownership — no post-session `chown` is
+needed. The persistent cache volume
+(`~/.local/state/carranca/cache/&lt;repo-id&gt;/home/`) follows the same ownership
+model.
 </pre>
       </div>
     </details>
@@ -726,7 +749,7 @@ observability:
 | `runtime.network.allow` | No | — | List of `host:port` entries allowed through the firewall (e.g., `*.anthropic.com:443`). Requires yq |
 | `runtime.extra_flags` | No | — | Extra flags appended to the agent container `run` command |
 | `runtime.logger_extra_flags` | No | — | Extra flags appended to the logger container `run` command |
-| `runtime.seccomp_profile` | No | `default` | Seccomp profile for agent container. `default` uses carranca's built-in profile blocking dangerous syscalls (ptrace, mount, unshare, etc.). `unconfined` disables seccomp. Absolute path for custom profile. Linux only |
+| `runtime.seccomp_profile` | No | `default` | Seccomp profile for agent container. `default` (denylist — blocks dangerous syscalls, auto-permits new ones). `strict` (allowlist — only permits needed syscalls, tighter but may need operator tuning). `unconfined` disables seccomp. Absolute path for custom profile. Linux only |
 | `runtime.apparmor_profile` | No | — | AppArmor profile name for agent container. Must be pre-loaded via `apparmor_parser -r`. `unconfined` to disable. Empty (default) uses runtime default. Linux only |
 | `runtime.cap_drop_all` | No | `true` | When `true`, drops all Linux capabilities from the agent container via `--cap-drop ALL`. `cap_add` becomes a strict allowlist applied after the drop |
 | `runtime.read_only` | No | `true` | When `true`, runs agent container with `--read-only` root filesystem. `/tmp`, `/var/tmp`, `/run` get tmpfs mounts. `/workspace`, `/fifo`, and cache home are unaffected. When cache is disabled, `/home/carranca` gets a tmpfs mount |
@@ -1015,8 +1038,12 @@ not mounted into the logger, and `config` currently uses its own fixed mount set
 tool installation steps between the marker comments; Carranca depends on the
 shell-wrapper block at the bottom remaining intact.
 
+The template Containerfile pins the Alpine base image by digest. To override,
+pass `--build-arg ALPINE_IMAGE=alpine:3.22` (or any image) when building.
+
 ```Dockerfile
-FROM alpine:3.21
+ARG ALPINE_IMAGE=alpine:3.21@sha256:...
+FROM ${ALPINE_IMAGE}
 
 RUN apk add --no-cache \
       bash \
@@ -1207,6 +1234,30 @@ carranca log --verify --session abc12345
 # event timeline
 carranca log --timeline --session abc12345
 ```
+
+Example `--timeline` output:
+
+```
+Timeline: session a3f7c91d2e4b8016
+──────────────────────────────────────────────────────────────
+TIME              EVENT
+──────────────────────────────────────────────────────────────
+14:00:00  &gt;&gt;  session start (codex via podman)
+14:00:03   $  git status (exit=0, 312ms)
+14:00:07  F~  /workspace/src/main.py MODIFY
+14:00:08   $  python -m pytest tests/ (exit=0, 2847ms)
+14:00:12  F+  /workspace/tests/test_main.py CREATE
+14:00:15   N  142.251.46.206:443 tcp ESTABLISHED
+14:00:30   .  heartbeat
+14:01:45  &lt;&lt;  agent stop (exit=0)
+──────────────────────────────────────────────────────────────
+Duration: 1m 45s | 2 commands | 2 file events | 0 failures
+```
+
+Glyphs: `&gt;&gt;` session/agent start, `&lt;&lt;` stop, `$` shell command, `F+` file
+create, `F~` modify, `F-` delete, `N` network connection, `X` execve,
+`R` resource sample, `A` file access (fanotify), `P` policy event,
+`.` heartbeat, `!!` degraded, `??` invalid event.
 
 ## `carranca diff`
 
@@ -2000,7 +2051,7 @@ cross-referencing to detect unreported or forged activity.
 | Network policies | Hard boundary | iptables rules restrict outbound traffic to allow-listed destinations (rootful mode only) |
 | Capability drop | Hard boundary | `--cap-drop ALL` removes all Linux capabilities; `runtime.cap_add` is a strict allowlist |
 | Read-only root FS | Hard boundary | `--read-only` prevents agent from modifying its own runtime environment; explicit tmpfs for writable paths |
-| Seccomp filtering | Hard boundary | Default seccomp profile blocks dangerous syscalls (ptrace, mount, unshare, module loading, etc.) |
+| Seccomp filtering | Hard boundary | Default denylist profile blocks dangerous syscalls (ptrace, mount, unshare, module loading, etc.). `strict` allowlist profile (~200 syscalls, `SCMP_ACT_ERRNO` default) available via `runtime.seccomp_profile: strict` for tighter filtering at the cost of potential operator tuning |
 | AppArmor confinement | Opt-in hardening | Reference AppArmor profile restricts file access, mounts, and ptrace; user must load and configure |
 
 ## Current limitations and non-goals
@@ -2025,7 +2076,7 @@ cross-referencing to detect unreported or forged activity.
 | Agent bypasses shell wrapper | Partially mitigated | Independent observer captures execve calls from outside agent namespace; cross-referencing flags unreported activity as a heuristic for review. Observer must attach to the container init process to trace all descendants |
 | Agent reads secrets from repo | Mitigated | fanotify captures file reads on `watched_paths` when `observability.secret_monitoring: true` |
 | Agent exfiltrates over network | Partially mitigated | Network logging records outbound connections; set `runtime.network: false` to disable entirely |
-| Agent connects via IPv6 to bypass allow-list | Partially mitigated | iptables filters IPv4 only; IPv6 destinations bypass the allow-list. Degradation warning and policy event logged. Mitigate with `runtime.network: false` for full isolation |
+| Agent connects via IPv6 to bypass allow-list | Mitigated | ip6tables rules mirror iptables allow-list for IPv6 destinations. Degraded mode if ip6tables unavailable |
 | Agent exfiltrates via DNS tunneling | Known limitation | DNS queries to configured resolvers are unrestricted. Data can be encoded in DNS subdomains. Use `runtime.network: false` or a DNS filtering proxy for high-security environments |
 | Agent writes malicious code | Allowed by design | Review via session log + git diff |
 | Malicious `.carranca.yml` (repo compromise) | Operator-scoped risk | `.carranca.yml` is operator-authored trusted input; `eval` of `AGENT_COMMAND` is by design to support shell syntax. If an attacker controls `.carranca.yml` they control the agent command — same as controlling any shell script in the repo. Config is hidden from the agent at runtime via `/dev/null` bind mount |
@@ -2044,6 +2095,9 @@ cross-referencing to detect unreported or forged activity.
 | cgroup mount unreadable | Degraded mode — session proceeds without resource tracking |
 | fanotify unavailable or `SYS_ADMIN` denied | Degraded mode — session proceeds without secret read monitoring |
 | `/proc/net/tcp` unreadable (no PID ns sharing) | Degraded mode — session proceeds without network logging |
+
+For details on the container UID model and user namespace isolation, see
+[architecture.md — UID and user namespace model](architecture.md#uid-and-user-namespace-model).
 
 ## Summary
 
@@ -2069,6 +2123,17 @@ evidence.
       <summary>Changelog <span class="desc">Release history and version source of truth</span></summary>
       <div class="doc-content" data-source-path="doc/CHANGELOG.md">
         <pre class="doc-markdown-static">
+## 0.17.4
+- feat: **IPv6 network policy** — `ip6tables` rules alongside iptables for dual-stack egress filtering; bracket notation (`[addr]:port`) for IPv6 address serialization; malformed entry validation; log message distinguishes IPv4-only vs IPv4+IPv6 enforcement
+- feat: **strict seccomp profile** — allowlist-based `seccomp-strict.json` (~200 syscalls) with `SCMP_ACT_ERRNO` default; exposed via `runtime.seccomp_profile: strict`; builtin profile existence validated at startup
+- feat: **base image digest pinning** — Alpine image pinned by SHA-256 digest in `Containerfile.logger` and template Containerfile; overridable via `--build-arg ALPINE_IMAGE`
+- feat: **SECURITY.md** — responsible disclosure policy, supported versions, scope definition separating carranca vulnerabilities from operator misconfigurations
+- feat: **integration test CI** — weekly `make test-all` workflow on GitHub Actions with container runtime
+- feat: **UID/namespace documentation** — architecture doc updated with agent UID model across Docker and rootless Podman
+- docs: README updated with example session output, preemptive FAQ, and log verification examples
+- docs: trust model and configuration docs updated for IPv6, strict seccomp, and digest pinning
+- test: hardening tests for digest pinning, IPv6 bracket parsing, and seccomp strict profile
+
 ## 0.17.3
 - docs: updates reame structure and adds phase 8 to roadmap
 - docs: index links to repo

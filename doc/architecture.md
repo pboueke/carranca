@@ -176,3 +176,26 @@ Two or three containers share a tmpfs volume containing a Unix FIFO:
 Falls back to `sha256(realpath(.))[:12]` for repos without a remote. Two repos
 with the same name at different paths get distinct IDs. Moving a repo orphans
 old sessions (documented, not a bug).
+
+## UID and user namespace model
+
+The agent container never runs as UID 0 (container root). The exact mechanism
+depends on the runtime and network configuration:
+
+- **Rootless Podman** uses `--userns keep-id`, which maps the host UID:GID
+  directly into the container. The user namespace provides an additional
+  isolation layer: the container user has no privileges on the host even if it
+  escalates inside the namespace.
+- **Rootful Docker** passes the host UID:GID as an explicit user mapping.
+  `--userns-remap` is supported but not the default configuration.
+- **Network policy mode** (`network-setup.sh`) is the one case where the
+  entrypoint starts as container root — it needs to apply iptables and
+  ip6tables rules. After configuring the firewall it drops privileges to the
+  target UID:GID via `su`. Both values are validated as positive integers > 0
+  before the transition.
+
+Because the container UID matches the host UID in every mode, workspace files
+written by the agent retain usable host ownership — no post-session `chown` is
+needed. The persistent cache volume
+(`~/.local/state/carranca/cache/<repo-id>/home/`) follows the same ownership
+model.

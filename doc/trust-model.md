@@ -34,7 +34,7 @@ cross-referencing to detect unreported or forged activity.
 | Network policies | Hard boundary | iptables rules restrict outbound traffic to allow-listed destinations (rootful mode only) |
 | Capability drop | Hard boundary | `--cap-drop ALL` removes all Linux capabilities; `runtime.cap_add` is a strict allowlist |
 | Read-only root FS | Hard boundary | `--read-only` prevents agent from modifying its own runtime environment; explicit tmpfs for writable paths |
-| Seccomp filtering | Hard boundary | Default seccomp profile blocks dangerous syscalls (ptrace, mount, unshare, module loading, etc.) |
+| Seccomp filtering | Hard boundary | Default denylist profile blocks dangerous syscalls (ptrace, mount, unshare, module loading, etc.). `strict` allowlist profile (~200 syscalls, `SCMP_ACT_ERRNO` default) available via `runtime.seccomp_profile: strict` for tighter filtering at the cost of potential operator tuning |
 | AppArmor confinement | Opt-in hardening | Reference AppArmor profile restricts file access, mounts, and ptrace; user must load and configure |
 
 ## Current limitations and non-goals
@@ -59,7 +59,7 @@ cross-referencing to detect unreported or forged activity.
 | Agent bypasses shell wrapper | Partially mitigated | Independent observer captures execve calls from outside agent namespace; cross-referencing flags unreported activity as a heuristic for review. Observer must attach to the container init process to trace all descendants |
 | Agent reads secrets from repo | Mitigated | fanotify captures file reads on `watched_paths` when `observability.secret_monitoring: true` |
 | Agent exfiltrates over network | Partially mitigated | Network logging records outbound connections; set `runtime.network: false` to disable entirely |
-| Agent connects via IPv6 to bypass allow-list | Partially mitigated | iptables filters IPv4 only; IPv6 destinations bypass the allow-list. Degradation warning and policy event logged. Mitigate with `runtime.network: false` for full isolation |
+| Agent connects via IPv6 to bypass allow-list | Mitigated | ip6tables rules mirror iptables allow-list for IPv6 destinations. Degraded mode if ip6tables unavailable |
 | Agent exfiltrates via DNS tunneling | Known limitation | DNS queries to configured resolvers are unrestricted. Data can be encoded in DNS subdomains. Use `runtime.network: false` or a DNS filtering proxy for high-security environments |
 | Agent writes malicious code | Allowed by design | Review via session log + git diff |
 | Malicious `.carranca.yml` (repo compromise) | Operator-scoped risk | `.carranca.yml` is operator-authored trusted input; `eval` of `AGENT_COMMAND` is by design to support shell syntax. If an attacker controls `.carranca.yml` they control the agent command — same as controlling any shell script in the repo. Config is hidden from the agent at runtime via `/dev/null` bind mount |
@@ -78,6 +78,9 @@ cross-referencing to detect unreported or forged activity.
 | cgroup mount unreadable | Degraded mode — session proceeds without resource tracking |
 | fanotify unavailable or `SYS_ADMIN` denied | Degraded mode — session proceeds without secret read monitoring |
 | `/proc/net/tcp` unreadable (no PID ns sharing) | Degraded mode — session proceeds without network logging |
+
+For details on the container UID model and user namespace isolation, see
+[architecture.md — UID and user namespace model](architecture.md#uid-and-user-namespace-model).
 
 ## Summary
 

@@ -116,7 +116,11 @@ assert_contains "drops to target user via su" "exec su -s /bin/bash" "$CONTENT"
 assert_contains "creates group for target GID" 'addgroup -g "$target_gid"' "$CONTENT"
 assert_contains "creates user for target UID" 'adduser -D -u "$target_uid"' "$CONTENT"
 
-# UID/GID validation
+# UID:GID format validation
+assert_contains "validates UID:GID format (rejects no colon)" 'NETWORK_POLICY_USER must be UID:GID' "$CONTENT"
+assert_contains "validates UID:GID format (rejects multiple colons)" 'contains multiple colons' "$CONTENT"
+
+# UID/GID numeric validation
 assert_contains "validates UID is numeric" 'Invalid UID in NETWORK_POLICY_USER' "$CONTENT"
 assert_contains "validates GID is numeric" 'Invalid GID in NETWORK_POLICY_USER' "$CONTENT"
 assert_contains "validates UID > 0" 'UID must be > 0' "$CONTENT"
@@ -127,6 +131,35 @@ assert_contains "degraded mode checks ALLOW_DEGRADED" 'ALLOW_DEGRADED" = "true"'
 
 # Empty rules skip
 assert_contains "skips iptables when no rules" 'No network policy rules' "$CONTENT"
+
+# ip6tables rules (IPv6 egress filtering)
+echo ""
+echo "--- network-setup.sh IPv6 / ip6tables ---"
+
+test_start
+assert_contains "sets ip6tables default OUTPUT DROP" "ip6tables -P OUTPUT DROP" "$CONTENT"
+assert_contains "ip6tables allows loopback" "ip6tables -A OUTPUT -o lo -j ACCEPT" "$CONTENT"
+assert_contains "ip6tables allows ESTABLISHED,RELATED" 'ip6tables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT' "$CONTENT"
+
+# ip6tables DNS rules
+assert_contains "ip6tables allows DNS port 53 UDP" 'ip6tables -A OUTPUT -p udp -d "$resolver" --dport 53' "$CONTENT"
+assert_contains "ip6tables allows DNS port 53 TCP" 'ip6tables -A OUTPUT -p tcp -d "$resolver" --dport 53' "$CONTENT"
+
+# Bracket-notation parsing for IPv6 entries
+assert_contains "parses bracket-notation IPv6 entries" '\[*' "$CONTENT"
+assert_contains "applies ip6tables for IPv6 entries" 'ip6tables -A OUTPUT -p tcp -d "$local_ip" --dport "$local_port" -j ACCEPT' "$CONTENT"
+
+# ip6tables availability check with degraded/fail-closed
+assert_contains "checks ip6tables availability" "command -v ip6tables" "$CONTENT"
+assert_contains "ip6tables degraded mode" "ip6tables not available" "$CONTENT"
+assert_contains "ip6tables fail-closed reason" "ip6tables_unavailable" "$CONTENT"
+
+# IPV6_ENFORCED guards ip6tables -P OUTPUT DROP (no redundant call after degraded)
+assert_contains "IPV6_ENFORCED guards ip6tables policy" 'IPV6_ENFORCED" = "true"' "$CONTENT"
+
+# No remaining IPv4-only skip logic
+assert_not_contains "no IPv4-only skip warning" "iptables is IPv4-only" "$CONTENT"
+assert_not_contains "no IPv6 skip logic" "skipping IPv6 entry" "$CONTENT"
 
 # Cleanup
 rm -rf "$TMPDIR"
