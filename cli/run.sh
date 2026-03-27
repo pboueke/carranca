@@ -68,9 +68,10 @@ done
 
 # --- Precondition checks ---
 
-[ -f ".carranca.yml" ] || carranca_die "No .carranca.yml found. Run 'carranca init' first."
+[ -f "$CARRANCA_CONFIG_FILE" ] || carranca_die "No $CARRANCA_CONFIG_FILE found. Run 'carranca init' first."
 [ -f ".carranca/Containerfile" ] || carranca_die "No .carranca/Containerfile found. Run 'carranca init' to create one."
 carranca_config_validate
+carranca_log info "Config: $CARRANCA_CONFIG_FILE"
 carranca_runtime_require
 
 # Track security features that degrade in the current environment.
@@ -379,7 +380,8 @@ if [ "$NETWORK_MODE" = "filtered" ]; then
   done < <(carranca_config_get_list runtime.network.allow 2>/dev/null || true)
 
   if [ -n "$NETWORK_POLICY_RULES" ]; then
-    NETWORK_POLICY_FLAGS="--cap-add NET_ADMIN -v $CARRANCA_HOME/runtime/network-setup.sh:/usr/local/bin/network-setup.sh:ro"
+    # NET_ADMIN for iptables; SETUID+SETGID for privilege drop after iptables setup
+    NETWORK_POLICY_FLAGS="--cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID -v $CARRANCA_HOME/runtime/network-setup.sh:/usr/local/bin/network-setup.sh:ro"
     NETWORK_POLICY_ENV="-e NETWORK_POLICY_RULES=$NETWORK_POLICY_RULES -e NETWORK_POLICY_USER=$HOST_UID:$HOST_GID"
     NETWORK_POLICY_ENTRYPOINT="--entrypoint /usr/local/bin/network-setup.sh"
     carranca_log info "Network policy: filtered (${NETWORK_POLICY_RULES})"
