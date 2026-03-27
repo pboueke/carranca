@@ -53,6 +53,8 @@ if ! command -v iptables >/dev/null 2>&1; then
   _fail_closed "iptables required for network policy but not available" "iptables_unavailable"
 fi
 
+# IPv6 enforcement state — starts optimistic, downgraded only in degraded mode.
+# This is a single-threaded script; no concurrency concern with the flag.
 IPV6_ENFORCED="true"
 if ! command -v ip6tables >/dev/null 2>&1; then
   if [ "$ALLOW_DEGRADED" = "true" ]; then
@@ -72,14 +74,16 @@ iptables -P OUTPUT DROP 2>/dev/null || {
   _fail_closed "cannot set iptables OUTPUT policy" "iptables_output_policy_failed"
 }
 
-ip6tables -P OUTPUT DROP 2>/dev/null || {
-  if [ "$ALLOW_DEGRADED" = "true" ]; then
-    _log "WARNING: ip6tables failed (likely insufficient privileges) — IPv6 network policy not enforced (degraded mode)"
-    IPV6_ENFORCED="false"
-  else
-    _fail_closed "cannot set ip6tables OUTPUT policy" "ip6tables_output_policy_failed"
-  fi
-}
+if [ "$IPV6_ENFORCED" = "true" ]; then
+  ip6tables -P OUTPUT DROP 2>/dev/null || {
+    if [ "$ALLOW_DEGRADED" = "true" ]; then
+      _log "WARNING: ip6tables failed (likely insufficient privileges) — IPv6 network policy not enforced (degraded mode)"
+      IPV6_ENFORCED="false"
+    else
+      _fail_closed "cannot set ip6tables OUTPUT policy" "ip6tables_output_policy_failed"
+    fi
+  }
+fi
 
 # Allow loopback
 iptables -A OUTPUT -o lo -j ACCEPT
@@ -157,10 +161,20 @@ fi
 # Drop privileges and exec shell-wrapper.
 # TARGET_USER is UID:GID from the host, passed via NETWORK_POLICY_USER.
 if [ -n "$TARGET_USER" ]; then
+  # Validate UID:GID format before splitting (defense-in-depth).
+  # The value is set by cli/run.sh from the host UID:GID — this check guards
+  # against malformed values, not against a compromised CLI (which would be
+  # a host-level compromise outside carranca's threat model).
+  case "$TARGET_USER" in
+    *:*:*) _fail_closed "NETWORK_POLICY_USER contains multiple colons: $TARGET_USER" "invalid_user_format" ;;
+    *:*)   ;; # exactly one colon — valid format
+    *)     _fail_closed "NETWORK_POLICY_USER must be UID:GID, got: $TARGET_USER" "invalid_user_format" ;;
+  esac
+
   target_uid="${TARGET_USER%%:*}"
   target_gid="${TARGET_USER##*:}"
 
-  # Validate UID/GID are positive integers (defense-in-depth)
+  # Validate UID/GID are positive integers
   case "$target_uid" in ''|*[!0-9]*) _fail_closed "Invalid UID in NETWORK_POLICY_USER: $target_uid" ;; esac
   case "$target_gid" in ''|*[!0-9]*) _fail_closed "Invalid GID in NETWORK_POLICY_USER: $target_gid" ;; esac
   [ "$target_uid" -gt 0 ] 2>/dev/null || _fail_closed "UID must be > 0"
