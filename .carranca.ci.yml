@@ -23,6 +23,7 @@ runtime:
       - "api.openai.com:443"
       - "*.anthropic.com:443"
       - "z.ai:443"
+      - "api.z.ai:443"
   seccomp_profile: default
   read_only: true
   cap_drop_all: true
