@@ -213,17 +213,29 @@ comparison via `--repo-a`/`--repo-b`.
 
 ---
 
-## Phase 7 — Platform integration
+## Phase 7 — Hardening, process, and presentation
+
+Strengthen the runtime against known gaps, establish security project
+hygiene, and improve first-contact presentation before broader community
+exposure. See [phase7.md](phase7.md) for the full breakdown.
+
+Items include: IPv6 egress filtering, allowlist-based seccomp profile,
+SECURITY.md, base image pinning, integration tests in CI, example
+session in README, preemptive FAQ, and UID model documentation.
+
+---
+
+## Phase 8 — Platform integration
 
 Extend carranca into a team-wide platform with remote storage and
 extensibility.
 
-### 7.1 Central log aggregation
+### 8.1 Central log aggregation
 `carranca log --push` sends session logs to a remote endpoint (S3,
 GCS, or a custom receiver). Enables team-wide session review and
 compliance dashboards.
 
-### 7.2 Plugin / extension API
+### 8.2 Plugin / extension API
 Define a hook interface (`on_event`, `on_session_start`,
 `on_session_end`) that external scripts can implement. Enables custom
 alerting, metrics export, or integration with internal tools without
@@ -233,5 +245,7 @@ forking carranca.
 
 ## Sequencing and dependencies
 
-Phases 1–6 are complete. Phase 7 (platform integration) depends on
-exportable logs from Phase 2 and CI integration from Phase 6.
+Phases 1–6 are complete. Phase 7 (hardening, process, and
+presentation) is independent work that should land before public
+announcement. Phase 8 (platform integration) depends on exportable
+logs from Phase 2 and CI integration from Phase 6.

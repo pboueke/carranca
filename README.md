@@ -5,7 +5,7 @@
   <h1>Carranca</h1>
 
   <p>
-    <img src="https://img.shields.io/badge/version-0.17.2-blue" alt="version: 0.17.2" />
+    <img src="https://img.shields.io/badge/version-0.17.3-blue" alt="version: 0.17.3" />
     <img src="https://img.shields.io/badge/tests-931%2F931_passed-brightgreen" alt="tests: 931/931 passed" />
     <img src="https://img.shields.io/badge/coverage-100%25_(147%2F147_functions)-brightgreen" alt="coverage: 100%" />
     <img src="https://img.shields.io/badge/license-MIT-green" alt="license: MIT" />
@@ -15,6 +15,20 @@
 </p>
 </div>
 
+## Documentation
+
+| Doc | What it covers |
+|-----|---------------|
+| [Objective](doc/objective.md) | Current product position, intended users, non-goals, and comparison with other sandbox models |
+| [Technical reference](doc/page/index.html) | Primary browsable reference (open locally after cloning) for architecture, configuration, session log schema, trust model, roadmap, versioning, and changelog |
+| [Usage](doc/usage.md) | Detailed CLI command reference, options, and operator workflows |
+| [Architecture](doc/architecture.md) | Container layout, data flow, directory structure |
+| [CI/CD integration](doc/ci.md) | Headless execution, timeouts, exit codes, session artifacts, and GitHub Actions patterns |
+| [Configuration](doc/configuration.md) | `.carranca.yml` reference, Containerfile, init flags |
+| [Examples](doc/examples/README.md) | Persona-based example `.carranca.yml` and `.carranca/Containerfile` setups |
+| [Session log](doc/session-log.md) | JSONL schema, event types, `jq` query examples |
+| [Trust model](doc/trust-model.md) | Threat table, failure behavior, honest scope |
+| [Versioning](doc/versioning.md) | Semver policy, changelog format |
 
 ## Quick start
 
@@ -49,31 +63,50 @@ carranca help run
 
 ## How it works
 
-Carranca uses a container runtime CLI directly. Today that means Podman or
-Docker, selected by `CARRANCA_CONTAINER_RUNTIME` or `runtime.engine`; `auto`
-prefers Podman and falls back to Docker.
+Carranca invokes the container runtime CLI directly. Supported engines are
+Podman and Docker, selected by `CARRANCA_CONTAINER_RUNTIME` or
+`runtime.engine`; `auto` prefers Podman and falls back to Docker.
 
-Two (or three) runtime-managed containers share a FIFO on a tmpfs volume. The
-agent gets an interactive TTY with a hardened container (read-only root FS, all
-capabilities dropped, seccomp filtering). The logger writes a structured JSONL
-session log plus a parallel checksum file and per-session HMAC key that the
-agent cannot access. An optional independent observer sidecar runs execve
-tracing and network monitoring outside the agent's namespaces.
-On Linux, the agent container runs as the invoking host UID:GID, or with
-`--userns keep-id` on rootless Podman, so workspace writes keep usable host
-ownership.
+Each `carranca run` session creates a small set of runtime resources:
+
+- an **agent container** built from `.carranca/Containerfile`
+- a **logger container** that receives events and writes audit artifacts
+- an optional **observer container** for independent execve and network tracing
+- a shared **tmpfs volume** containing a Unix FIFO for event transport
+
+The user-controlled surface is the project configuration:
+`.carranca.yml` defines the agent command, runtime settings, and policy;
+`.carranca/Containerfile` defines the toolchain available inside the agent
+container. Carranca manages the logger, observer, transient images, and session
+state.
+
+During execution, the agent container receives the workspace as a bind mount and
+runs with a hardened baseline: read-only root filesystem, all capabilities
+dropped, and seccomp filtering. On Linux, it runs as the invoking host UID:GID,
+or with `--userns keep-id` on rootless Podman, so workspace writes retain
+usable host ownership.
+
+The shell wrapper inside the agent container emits events to the FIFO. The
+logger consumes those events and writes a structured JSONL session log, a
+checksum file, and a per-session HMAC key that the agent cannot access. When
+enabled, the independent observer records a second view of process execution and
+network activity from outside the agent's namespaces.
 
 ```
   carranca run
        │
-       ├── <runtime> run -d  (logger: FIFO + inotifywait + cgroup + fanotify → JSONL)
+       ├── <runtime> run -d  (logger: FIFO + file observation + JSONL/HMAC)
        ├── <runtime> run -d  (observer: strace + /proc/net/tcp, optional)
-       └── <runtime> run -it (agent: shell-wrapper → FIFO)
+       └── <runtime> run -it (agent: shell-wrapper + configured agent command)
 ```
 
-Open [doc/page/index.html](doc/page/index.html) for the full technical reference.
-The markdown files in [`doc/`](doc/) remain the source chapters and companion
-guides.
+After the session, `carranca log` inspects, verifies, or exports the resulting
+artifacts, and `carranca status` shows active and recent sessions for the
+current repository.
+
+Open [doc/page/index.html](doc/page/index.html) for the full technical
+reference. The markdown files in [`doc/`](doc/) remain the source chapters and
+companion guides.
 
 ## Commands
 
@@ -90,20 +123,6 @@ Run `carranca help <command>` for command-specific options. See
 [usage.md](doc/usage.md) for the full CLI reference and
 [configuration.md](doc/configuration.md) for the `.carranca.yml` schema.
 Persona-oriented example setups live under [doc/examples/](doc/examples/).
-
-## Documentation
-
-| Doc | What it covers |
-|-----|---------------|
-| [Technical reference](doc/page/index.html) | Primary browsable reference (open locally after cloning) for architecture, configuration, session log schema, trust model, roadmap, versioning, and changelog |
-| [Usage](doc/usage.md) | Detailed CLI command reference, options, and operator workflows |
-| [Architecture](doc/architecture.md) | Container layout, data flow, directory structure |
-| [Configuration](doc/configuration.md) | `.carranca.yml` reference, Containerfile, init flags |
-| [Examples](doc/examples/README.md) | Persona-based example `.carranca.yml` and `.carranca/Containerfile` setups |
-| [Session log](doc/session-log.md) | JSONL schema, event types, `jq` query examples |
-| [Trust model](doc/trust-model.md) | Threat table, failure behavior, honest scope |
-| [Objective](doc/objective.md) | Current product position, intended users, non-goals, and comparison with other sandbox models |
-| [Versioning](doc/versioning.md) | Semver policy, changelog format |
 
 ## Platform support
 

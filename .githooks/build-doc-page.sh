@@ -7,6 +7,7 @@ OUT_DIR="$ROOT_DIR/doc/page"
 OUT_FILE="$OUT_DIR/index.html"
 TMP_FILE="$(mktemp)"
 CHANGELOG_FILE="$ROOT_DIR/doc/CHANGELOG.md"
+REPO_BLOB_BASE="https://github.com/pboueke/carranca/blob/main"
 
 VERSION="$(grep -m1 '^## [0-9]' "$CHANGELOG_FILE" 2>/dev/null | awk '{print $2}' || true)"
 SOURCE_LABEL="source"
@@ -26,11 +27,12 @@ emit_doc_section() {
   local title="$2"
   local desc="$3"
   local file="$4"
+  local relative_file="${file#$ROOT_DIR/}"
 
   {
     printf '    <details id="doc-%s">\n' "$id"
     printf '      <summary>%s <span class="desc">%s</span></summary>\n' "$title" "$desc"
-    printf '      <div class="doc-content">\n'
+    printf '      <div class="doc-content" data-source-path="%s">\n' "$relative_file"
     printf '        <pre class="doc-markdown-static">'
     sed '1{/^# /d;}' "$file" | html_escape
     printf '</pre>\n'
@@ -368,21 +370,62 @@ cat >> "$TMP_FILE" <<'EOF'
   </footer>
 
   <script>
-    document.querySelectorAll('.doc-rendered a[href$=".md"]').forEach(link => {
-      const href = link.getAttribute('href');
-      if (!href || href.startsWith('http')) return;
-      link.setAttribute('href', `../${href.replace(/^\.\//, '')}`);
-    });
+    const repoBlobBase = '__REPO_BLOB_BASE__';
+
+    function hasExternalScheme(href) {
+      return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href);
+    }
+
+    function resolveRelativeDocPath(sourcePath, href) {
+      const [rawPath, rawHash = ''] = href.split('#');
+      if (!rawPath) {
+        return null;
+      }
+
+      const sourceParts = sourcePath.split('/');
+      sourceParts.pop();
+
+      rawPath.split('/').forEach(part => {
+        if (!part || part === '.') {
+          return;
+        }
+        if (part === '..') {
+          if (sourceParts.length > 0) {
+            sourceParts.pop();
+          }
+          return;
+        }
+        sourceParts.push(part);
+      });
+
+      return {
+        path: sourceParts.join('/'),
+        hash: rawHash ? `#${rawHash}` : ''
+      };
+    }
 
     document.querySelectorAll('.doc-content').forEach(container => {
       const source = container.querySelector('.doc-markdown-static');
       if (!source) return;
 
       const md = source.textContent || "";
+      const sourcePath = container.dataset.sourcePath || "";
       if (window.marked && typeof window.marked.parse === "function") {
         const rendered = document.createElement('div');
         rendered.className = 'doc-rendered';
         rendered.innerHTML = window.marked.parse(md);
+        rendered.querySelectorAll('a[href]').forEach(link => {
+          const href = link.getAttribute('href');
+          if (!href || href.startsWith('#') || hasExternalScheme(href)) return;
+
+          const cleanHref = href.replace(/^\.\//, '');
+          if (!/\.md(?:#.*)?$/.test(cleanHref)) return;
+
+          const resolved = resolveRelativeDocPath(sourcePath, cleanHref);
+          if (!resolved || !resolved.path) return;
+
+          link.setAttribute('href', `${repoBlobBase}/${resolved.path}${resolved.hash}`);
+        });
         source.style.display = 'none';
         container.appendChild(rendered);
       }
@@ -394,6 +437,7 @@ cat >> "$TMP_FILE" <<'EOF'
 EOF
 
 sed -i "s|__SOURCE_LABEL__|$SOURCE_LABEL|g" "$TMP_FILE"
+sed -i "s|__REPO_BLOB_BASE__|$REPO_BLOB_BASE|g" "$TMP_FILE"
 
 mv "$TMP_FILE" "$OUT_FILE"
 chmod 0644 "$OUT_FILE"

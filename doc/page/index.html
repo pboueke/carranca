@@ -294,7 +294,7 @@
       enforceable guardrails, and forgery detection.
     </p>
     <div class="links">
-      <a href="https://github.com/pboueke/carranca">source 0.17.2</a>
+      <a href="https://github.com/pboueke/carranca">source 0.17.3</a>
     </div>
   </div>
 
@@ -309,7 +309,7 @@
 
     <details id="doc-objective">
       <summary>Objective <span class="desc">Who Carranca is for, who it is not for, and how it differs from other sandbox models</span></summary>
-      <div class="doc-content">
+      <div class="doc-content" data-source-path="doc/objective.md">
         <pre class="doc-markdown-static">
 Carranca is a local agent runtime for engineers and teams that want coding
 agents to run inside operator-controlled containers with reviewable evidence and
@@ -435,7 +435,7 @@ runtime capabilities. See [roadmap.md](roadmap.md) for planned future work.
 
     <details id="doc-architecture">
       <summary>Architecture <span class="desc">Container layout, data flow, and session lifecycle</span></summary>
-      <div class="doc-content">
+      <div class="doc-content" data-source-path="doc/architecture.md">
         <pre class="doc-markdown-static">
 ## Overview
 
@@ -619,7 +619,7 @@ old sessions (documented, not a bug).
 
     <details id="doc-configuration">
       <summary>Configuration <span class="desc">Complete .carranca.yml reference</span></summary>
-      <div class="doc-content">
+      <div class="doc-content" data-source-path="doc/configuration.md">
         <pre class="doc-markdown-static">
 ## What Carranca reads
 
@@ -1070,7 +1070,7 @@ honoring repo-local user skills.
 
     <details id="doc-usage">
       <summary>Usage <span class="desc">Detailed command line reference and operator workflows</span></summary>
-      <div class="doc-content">
+      <div class="doc-content" data-source-path="doc/usage.md">
         <pre class="doc-markdown-static">
 `page/index.html` is the primary technical reference. This document is the
 task-oriented CLI guide: what each command does, which flags it accepts, and
@@ -1353,7 +1353,7 @@ carranca run --agent codex
 
     <details id="doc-ci">
       <summary>CI/CD Integration <span class="desc">Headless execution, exit codes, session artifacts, and automated PR review</span></summary>
-      <div class="doc-content">
+      <div class="doc-content" data-source-path="doc/ci.md">
         <pre class="doc-markdown-static">
 Carranca runs headless in CI pipelines without special flags. This guide
 covers the patterns for using it in automated environments.
@@ -1552,7 +1552,7 @@ This replays the HMAC chain and checksums, reporting any tampering.
 
     <details id="doc-session-log">
       <summary>Session Log Format <span class="desc">JSONL schema, event types, and HMAC chain</span></summary>
-      <div class="doc-content">
+      <div class="doc-content" data-source-path="doc/session-log.md">
         <pre class="doc-markdown-static">
 ## Overview
 
@@ -1964,7 +1964,7 @@ after teardown.
 
     <details id="doc-trust-model">
       <summary>Trust Model <span class="desc">Security boundaries and failure behavior</span></summary>
-      <div class="doc-content">
+      <div class="doc-content" data-source-path="doc/trust-model.md">
         <pre class="doc-markdown-static">
 ## Design assumption
 
@@ -2067,14 +2067,17 @@ evidence.
 
     <details id="doc-changelog">
       <summary>Changelog <span class="desc">Release history and version source of truth</span></summary>
-      <div class="doc-content">
+      <div class="doc-content" data-source-path="doc/CHANGELOG.md">
         <pre class="doc-markdown-static">
+## 0.17.3
+- docs: updates reame structure and adds phase 8 to roadmap
+- docs: index links to repo
+
 ## 0.17.2
 - fix: **HMAC/checksum chain broken across subshells** — `PREV_HMAC` and `_PREV_CHECKSUM_HASH` were shell variables (process-local), so background file watchers (`inotifywait`, `fswatch`, `fanotify`) forked with stale chain state; replaced with file-backed state read/written inside the existing `flock` block, matching how the seq counter already works
 - test: add `test_log_verify.sh` — 13 tests covering write→verify roundtrip: sequential writes, cross-subshell writes, concurrent subshell writes, tamper detection, reorder detection, and deletion detection
 
 ## 0.17.1
-
 - docs: fix stale roadmap — mark Phase 6 complete, update descriptions to match implementation (no `--non-interactive` flag, correct `--pretty` semantics, iptables not nftables)
 - docs: fix ci.md placeholder URL (`yourorg/carranca` → `pboueke/carranca`) and simplify session ID discovery scripts
 - docs: update configuration.md Containerfile example to match actual template (`lib/json.sh`, `iptables`, `/home/carranca`)
@@ -2386,21 +2389,62 @@ evidence.
   </footer>
 
   <script>
-    document.querySelectorAll('.doc-rendered a[href$=".md"]').forEach(link => {
-      const href = link.getAttribute('href');
-      if (!href || href.startsWith('http')) return;
-      link.setAttribute('href', `../${href.replace(/^\.\//, '')}`);
-    });
+    const repoBlobBase = 'https://github.com/pboueke/carranca/blob/main';
+
+    function hasExternalScheme(href) {
+      return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href);
+    }
+
+    function resolveRelativeDocPath(sourcePath, href) {
+      const [rawPath, rawHash = ''] = href.split('#');
+      if (!rawPath) {
+        return null;
+      }
+
+      const sourceParts = sourcePath.split('/');
+      sourceParts.pop();
+
+      rawPath.split('/').forEach(part => {
+        if (!part || part === '.') {
+          return;
+        }
+        if (part === '..') {
+          if (sourceParts.length > 0) {
+            sourceParts.pop();
+          }
+          return;
+        }
+        sourceParts.push(part);
+      });
+
+      return {
+        path: sourceParts.join('/'),
+        hash: rawHash ? `#${rawHash}` : ''
+      };
+    }
 
     document.querySelectorAll('.doc-content').forEach(container => {
       const source = container.querySelector('.doc-markdown-static');
       if (!source) return;
 
       const md = source.textContent || "";
+      const sourcePath = container.dataset.sourcePath || "";
       if (window.marked && typeof window.marked.parse === "function") {
         const rendered = document.createElement('div');
         rendered.className = 'doc-rendered';
         rendered.innerHTML = window.marked.parse(md);
+        rendered.querySelectorAll('a[href]').forEach(link => {
+          const href = link.getAttribute('href');
+          if (!href || href.startsWith('#') || hasExternalScheme(href)) return;
+
+          const cleanHref = href.replace(/^\.\//, '');
+          if (!/\.md(?:#.*)?$/.test(cleanHref)) return;
+
+          const resolved = resolveRelativeDocPath(sourcePath, cleanHref);
+          if (!resolved || !resolved.path) return;
+
+          link.setAttribute('href', `${repoBlobBase}/${resolved.path}${resolved.hash}`);
+        });
         source.style.display = 'none';
         container.appendChild(rendered);
       }
