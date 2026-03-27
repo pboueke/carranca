@@ -149,7 +149,7 @@ done
 
 # Signal that network rules are ready
 if [ -d "/fifo" ]; then
-  touch /fifo/network-ready
+  touch /fifo/network-ready 2>/dev/null || true
 fi
 
 if [ "$IPV6_ENFORCED" = "true" ]; then
@@ -187,10 +187,15 @@ if [ -n "$TARGET_USER" ]; then
   # su-exec does a direct exec (no fork, no intermediate shell) which avoids
   # bash job-control initialization failures inside container PID namespaces.
   # Falls back to BusyBox su if su-exec is not installed.
+  #
+  # Preserve HOME: adduser fails silently on read-only root filesystems, so
+  # the uid may not exist in /etc/passwd. su-exec resets HOME to "/" when the
+  # uid has no passwd entry. Use env to re-set HOME after the uid switch.
+  agent_home="${HOME:-/home/carranca}"
   if command -v su-exec >/dev/null 2>&1; then
-    exec su-exec "$target_uid:$target_gid" /usr/local/bin/shell-wrapper.sh
+    exec su-exec "$target_uid:$target_gid" env HOME="$agent_home" /usr/local/bin/shell-wrapper.sh
   else
-    exec su -s /bin/sh -c "/usr/local/bin/shell-wrapper.sh" carranca
+    exec su -s /bin/sh -c "HOME=$agent_home /usr/local/bin/shell-wrapper.sh" carranca
   fi
 else
   exec /usr/local/bin/shell-wrapper.sh
