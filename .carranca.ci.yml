@@ -8,7 +8,7 @@
 #   - All deep observability off (no tracing capabilities in CI)
 #   - Cache disabled (ephemeral CI environment)
 #   - Resource limits enforced
-#   - Strict seccomp profile
+#   - Default (denylist) seccomp profile
 
 agents:
   - name: reviewer
@@ -23,7 +23,7 @@ runtime:
       - "api.openai.com:443"
       - "*.anthropic.com:443"
       - "z.ai:443"
-  seccomp_profile: strict
+  seccomp_profile: default
   read_only: true
   cap_drop_all: true
 
