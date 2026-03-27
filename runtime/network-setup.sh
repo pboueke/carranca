@@ -184,7 +184,14 @@ if [ -n "$TARGET_USER" ]; then
   addgroup -g "$target_gid" carranca 2>/dev/null || true
   adduser -D -u "$target_uid" -G carranca -h /home/carranca -s /bin/bash carranca 2>/dev/null || true
 
-  exec su -s /bin/sh -c "/usr/local/bin/shell-wrapper.sh" carranca
+  # su-exec does a direct exec (no fork, no intermediate shell) which avoids
+  # bash job-control initialization failures inside container PID namespaces.
+  # Falls back to BusyBox su if su-exec is not installed.
+  if command -v su-exec >/dev/null 2>&1; then
+    exec su-exec "$target_uid:$target_gid" /usr/local/bin/shell-wrapper.sh
+  else
+    exec su -s /bin/sh -c "/usr/local/bin/shell-wrapper.sh" carranca
+  fi
 else
   exec /usr/local/bin/shell-wrapper.sh
 fi
