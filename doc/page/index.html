@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Carranca: Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening</title>
-  <meta name="description" content="Carranca is a local agent runtime for coding agents with isolated container execution, tamper-evident audit logs, observability, policy enforcement, and adversarial hardening." />
+  <title>Carranca: Isolated agent runtime with reviewable evidence, deep observability, policy enforcement, and adversarial hardening</title>
+  <meta name="description" content="Carranca is a local agent runtime for coding agents that adds workflow, policy, and audit controls on top of container execution." />
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1" />
   <meta name="application-name" content="Carranca" />
   <meta name="keywords" content="Carranca, coding agent sandbox, agent runtime, containerized agent, tamper-evident logs, coding agent security, developer tooling, audit logging, policy enforcement, adversarial hardening" />
-  <meta property="og:title" content="Carranca: Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening" />
-  <meta property="og:description" content="Local runtime for coding agents with hardened container isolation, reviewable session logs, policy controls, and independent observability." />
+  <meta property="og:title" content="Carranca: Isolated agent runtime with reviewable evidence, deep observability, policy enforcement, and adversarial hardening" />
+  <meta property="og:description" content="Local runtime for coding agents that adds workflow, policy, and audit controls on top of hardened container execution." />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Carranca" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Carranca: Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening" />
-  <meta name="twitter:description" content="Local runtime for coding agents with hardened container isolation, reviewable session logs, policy controls, and independent observability." />
+  <meta name="twitter:title" content="Carranca: Isolated agent runtime with reviewable evidence, deep observability, policy enforcement, and adversarial hardening" />
+  <meta name="twitter:description" content="Local runtime for coding agents that adds workflow, policy, and audit controls on top of hardened container execution." />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -26,7 +26,7 @@
           "license": "https://github.com/pboueke/carranca/blob/main/LICENSE",
           "programmingLanguage": "Bash",
           "runtimePlatform": "Docker, Podman",
-          "description": "Carranca is a local agent runtime for coding agents with isolated container execution, tamper-evident audit logs, observability, policy enforcement, and adversarial hardening."
+          "description": "Carranca is a local agent runtime for coding agents that adds workflow, policy, and audit controls on top of container execution."
         },
         {
           "@type": "TechArticle",
@@ -287,7 +287,7 @@
     <p class="caption">A Carranca photographed by Marcel Gautherot in 1946. Instituto Moreira Salles collection.</p>
     <h1>Carranca</h1>
     <p class="tagline">
-      Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening.
+      Isolated agent runtime with reviewable evidence, deep observability, policy enforcement, and adversarial hardening.
       Named after the carved figureheads on boats in Brazil's S&atilde;o Francisco river,
       believed to protect sailors. Carranca protects engineers from coding agents
       by running them in hardened containers with tamper-evident logs, kernel-level tracing,
@@ -315,6 +315,11 @@ Carranca is a local agent runtime for engineers and teams that want coding
 agents to run inside operator-controlled containers with reviewable evidence and
 enforceable guardrails.
 
+It is best understood as a workflow, policy, and audit layer around agent
+execution, not as a claim to replace every stronger isolation substrate or
+kernel-native telemetry mechanism. Carranca's current execution boundary is the
+container runtime plus the hardening and observability Carranca adds around it.
+
 Its objective is not just to make agent sessions visible after the fact. It is
 to make them easier to constrain, inspect, and reason about while they run:
 
@@ -324,6 +329,15 @@ to make them easier to constrain, inspect, and reason about while they run:
 - with optional independent observation outside the agent's namespaces
 
 ## Current position
+
+Carranca sits above the raw execution substrate.
+
+- It uses Podman or Docker as the execution boundary today
+- It adds agent-specific policy, audit, and session controls on top of that
+- It is complementary to stronger isolation technologies such as gVisor, Kata
+  Containers, or Firecracker rather than a replacement for them
+- It is also complementary to kernel-native telemetry and enforcement tools
+  such as eBPF rather than an alternative to that class of tooling
 
 Carranca already provides:
 
@@ -344,7 +358,11 @@ Carranca already provides:
 
 This means Carranca is beyond a transparency-only wrapper. The current product
 is a local runtime for people who need coding agents to stay useful without
-becoming opaque.
+becoming opaque, while keeping the distinction clear between:
+
+- the underlying isolation substrate
+- Carranca's policy and audit layer above it
+- the host-level trust assumptions documented in the trust model
 
 ## Who Carranca is for
 
@@ -376,13 +394,16 @@ local, auditable, policy-aware agent execution.
   remain experimental, especially for file-event coverage
 - Teams looking for a generic browser, desktop, or VM sandbox rather than a
   code-in-repository runtime
+- Teams whose main requirement is the strongest possible workload boundary from
+  hardware virtualization or microVMs alone, without much need for
+  agent-specific policy, audit, or repo-scoped workflow controls
 - Workflows that need formal remote attestation, centralized control planes, or
   fleet orchestration out of the box; those sit in Carranca's future ecosystem
   layer rather than the current runtime core
 - Users who mainly want faster remote compute or disposable preview
   environments and do not care much about local auditability or guardrails
 
-## Comparison with other agent sandboxes
+## Comparison with other agent sandboxes and substrates
 
 Carranca fits a different operating model from most cloud-first agent
 sandboxes.
@@ -402,7 +423,8 @@ sandboxes.
 
 The tradeoff is deliberate: Carranca gives up some convenience and cloud-scale
 abstractions in exchange for stronger operator control over a local coding
-workflow.
+workflow. It also gives up the stronger isolation properties of VM and microVM
+substrates in exchange for a simpler direct-container operating model today.
 
 ## Personas That See Value
 
@@ -2153,6 +2175,39 @@ Post-session log tampering is detectable via the HMAC chain and parallel
 checksum file. The current value proposition is not blind trust, but observable
 execution with enforceable guardrails, adversarial hardening, and verifiable
 evidence.
+</pre>
+      </div>
+    </details>
+
+    <details id="doc-faq">
+      <summary>FAQ <span class="desc">Design choices, trust assumptions, and common objections</span></summary>
+      <div class="doc-content" data-source-path="doc/faq.md">
+        <pre class="doc-markdown-static">
+**Why Bash?**
+
+The entire runtime is ~4000 lines of auditable shell that calls `podman`/`docker`
+directly. No framework, no compiled binary the operator can't read, no transitive
+dependencies. `shellcheck` enforces lint on every commit.
+
+**`eval` of `AGENT_COMMAND` looks dangerous**
+
+`.carranca.yml` is operator configuration, like a Makefile or CI workflow. The
+operator controls what command runs. Carranca does not accept agent-authored
+commands. The config is hidden from the agent at runtime.
+
+**The HMAC key is on the same machine**
+
+HMAC protects against post-session accidental or agent-initiated tampering, not
+against a malicious operator with host access. For that, ship logs to an external
+system. This is defense-in-depth, not a single guarantee.
+
+**Is carranca competing with gVisor, Kata, Firecracker, or eBPF?**
+
+Not directly. Carranca is a higher-level agent workflow layer: it manages
+session policy, audit evidence, and operator controls around agent execution.
+gVisor, Kata Containers, and Firecracker are stronger isolation substrates.
+eBPF is a kernel technology for observability and enforcement. Those tools are
+mostly complementary to Carranca rather than interchangeable with it.
 </pre>
       </div>
     </details>

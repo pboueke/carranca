@@ -17,3 +17,11 @@ commands. The config is hidden from the agent at runtime.
 HMAC protects against post-session accidental or agent-initiated tampering, not
 against a malicious operator with host access. For that, ship logs to an external
 system. This is defense-in-depth, not a single guarantee.
+
+**Is carranca competing with gVisor, Kata, Firecracker, or eBPF?**
+
+Not directly. Carranca is a higher-level agent workflow layer: it manages
+session policy, audit evidence, and operator controls around agent execution.
+gVisor, Kata Containers, and Firecracker are stronger isolation substrates.
+eBPF is a kernel technology for observability and enforcement. Those tools are
+mostly complementary to Carranca rather than interchangeable with it.

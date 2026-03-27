@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/badge/license-MIT-green" alt="license: MIT" />
   </p>
 
-  <p><strong>Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening.</strong> Named after the carved figureheads on boats in Brazil's São Francisco river, believed to protect sailors. Carranca protects engineers from coding agents by running them in hardened containers with tamper-evident logs, kernel-level tracing, enforceable guardrails, and forgery detection.
+  <p><strong>Isolated agent runtime with reviewable evidence, deep observability, policy enforcement, and adversarial hardening.</strong> Named after the carved figureheads on boats in Brazil's São Francisco river, believed to protect sailors. Carranca protects engineers from coding agents by running them in hardened containers with tamper-evident logs, kernel-level tracing, enforceable guardrails, and forgery detection.
 </p>
 </div>
 

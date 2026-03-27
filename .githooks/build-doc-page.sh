@@ -47,18 +47,18 @@ cat > "$TMP_FILE" <<'EOF'
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Carranca: Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening</title>
-  <meta name="description" content="Carranca is a local agent runtime for coding agents with isolated container execution, tamper-evident audit logs, observability, policy enforcement, and adversarial hardening." />
+  <title>Carranca: Isolated agent runtime with reviewable evidence, deep observability, policy enforcement, and adversarial hardening</title>
+  <meta name="description" content="Carranca is a local agent runtime for coding agents that adds workflow, policy, and audit controls on top of container execution." />
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1" />
   <meta name="application-name" content="Carranca" />
   <meta name="keywords" content="Carranca, coding agent sandbox, agent runtime, containerized agent, tamper-evident logs, coding agent security, developer tooling, audit logging, policy enforcement, adversarial hardening" />
-  <meta property="og:title" content="Carranca: Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening" />
-  <meta property="og:description" content="Local runtime for coding agents with hardened container isolation, reviewable session logs, policy controls, and independent observability." />
+  <meta property="og:title" content="Carranca: Isolated agent runtime with reviewable evidence, deep observability, policy enforcement, and adversarial hardening" />
+  <meta property="og:description" content="Local runtime for coding agents that adds workflow, policy, and audit controls on top of hardened container execution." />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Carranca" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Carranca: Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening" />
-  <meta name="twitter:description" content="Local runtime for coding agents with hardened container isolation, reviewable session logs, policy controls, and independent observability." />
+  <meta name="twitter:title" content="Carranca: Isolated agent runtime with reviewable evidence, deep observability, policy enforcement, and adversarial hardening" />
+  <meta name="twitter:description" content="Local runtime for coding agents that adds workflow, policy, and audit controls on top of hardened container execution." />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -70,7 +70,7 @@ cat > "$TMP_FILE" <<'EOF'
           "license": "https://github.com/pboueke/carranca/blob/main/LICENSE",
           "programmingLanguage": "Bash",
           "runtimePlatform": "Docker, Podman",
-          "description": "Carranca is a local agent runtime for coding agents with isolated container execution, tamper-evident audit logs, observability, policy enforcement, and adversarial hardening."
+          "description": "Carranca is a local agent runtime for coding agents that adds workflow, policy, and audit controls on top of container execution."
         },
         {
           "@type": "TechArticle",
@@ -331,7 +331,7 @@ cat > "$TMP_FILE" <<'EOF'
     <p class="caption">A Carranca photographed by Marcel Gautherot in 1946. Instituto Moreira Salles collection.</p>
     <h1>Carranca</h1>
     <p class="tagline">
-      Isolated agent runtime with verified audits, deep observability, policy enforcement, and adversarial hardening.
+      Isolated agent runtime with reviewable evidence, deep observability, policy enforcement, and adversarial hardening.
       Named after the carved figureheads on boats in Brazil's S&atilde;o Francisco river,
       believed to protect sailors. Carranca protects engineers from coding agents
       by running them in hardened containers with tamper-evident logs, kernel-level tracing,
@@ -360,6 +360,7 @@ emit_doc_section "usage" "Usage" "Detailed command line reference and operator w
 emit_doc_section "ci" "CI/CD Integration" "Headless execution, exit codes, session artifacts, and automated PR review" "$ROOT_DIR/doc/ci.md"
 emit_doc_section "session-log" "Session Log Format" "JSONL schema, event types, and HMAC chain" "$ROOT_DIR/doc/session-log.md"
 emit_doc_section "trust-model" "Trust Model" "Security boundaries and failure behavior" "$ROOT_DIR/doc/trust-model.md"
+emit_doc_section "faq" "FAQ" "Design choices, trust assumptions, and common objections" "$ROOT_DIR/doc/faq.md"
 emit_doc_section "changelog" "Changelog" "Release history and version source of truth" "$ROOT_DIR/doc/CHANGELOG.md"
 
 cat >> "$TMP_FILE" <<'EOF'

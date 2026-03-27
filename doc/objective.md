@@ -4,6 +4,11 @@ Carranca is a local agent runtime for engineers and teams that want coding
 agents to run inside operator-controlled containers with reviewable evidence and
 enforceable guardrails.
 
+It is best understood as a workflow, policy, and audit layer around agent
+execution, not as a claim to replace every stronger isolation substrate or
+kernel-native telemetry mechanism. Carranca's current execution boundary is the
+container runtime plus the hardening and observability Carranca adds around it.
+
 Its objective is not just to make agent sessions visible after the fact. It is
 to make them easier to constrain, inspect, and reason about while they run:
 
@@ -13,6 +18,15 @@ to make them easier to constrain, inspect, and reason about while they run:
 - with optional independent observation outside the agent's namespaces
 
 ## Current position
+
+Carranca sits above the raw execution substrate.
+
+- It uses Podman or Docker as the execution boundary today
+- It adds agent-specific policy, audit, and session controls on top of that
+- It is complementary to stronger isolation technologies such as gVisor, Kata
+  Containers, or Firecracker rather than a replacement for them
+- It is also complementary to kernel-native telemetry and enforcement tools
+  such as eBPF rather than an alternative to that class of tooling
 
 Carranca already provides:
 
@@ -33,7 +47,11 @@ Carranca already provides:
 
 This means Carranca is beyond a transparency-only wrapper. The current product
 is a local runtime for people who need coding agents to stay useful without
-becoming opaque.
+becoming opaque, while keeping the distinction clear between:
+
+- the underlying isolation substrate
+- Carranca's policy and audit layer above it
+- the host-level trust assumptions documented in the trust model
 
 ## Who Carranca is for
 
@@ -65,13 +83,16 @@ local, auditable, policy-aware agent execution.
   remain experimental, especially for file-event coverage
 - Teams looking for a generic browser, desktop, or VM sandbox rather than a
   code-in-repository runtime
+- Teams whose main requirement is the strongest possible workload boundary from
+  hardware virtualization or microVMs alone, without much need for
+  agent-specific policy, audit, or repo-scoped workflow controls
 - Workflows that need formal remote attestation, centralized control planes, or
   fleet orchestration out of the box; those sit in Carranca's future ecosystem
   layer rather than the current runtime core
 - Users who mainly want faster remote compute or disposable preview
   environments and do not care much about local auditability or guardrails
 
-## Comparison with other agent sandboxes
+## Comparison with other agent sandboxes and substrates
 
 Carranca fits a different operating model from most cloud-first agent
 sandboxes.
@@ -91,7 +112,8 @@ sandboxes.
 
 The tradeoff is deliberate: Carranca gives up some convenience and cloud-scale
 abstractions in exchange for stronger operator control over a local coding
-workflow.
+workflow. It also gives up the stronger isolation properties of VM and microVM
+substrates in exchange for a simpler direct-container operating model today.
 
 ## Personas That See Value
 
