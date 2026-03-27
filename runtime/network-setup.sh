@@ -147,7 +147,8 @@ for entry in "${entries[@]}"; do
   esac
 done
 
-# Signal that network rules are ready
+# Signal that network rules are ready (coordination only — iptables rules
+# are already applied above; failure here does not weaken network policy).
 if [ -d "/fifo" ]; then
   touch /fifo/network-ready 2>/dev/null || true
 fi
