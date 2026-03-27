@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.17.5
+- feat: **`CARRANCA_CONFIG_FILE` env override** — select an alternate project config file (e.g., `.carranca.ci.yml`) without changing `.carranca.yml`; follows existing `CARRANCA_CONFIG_DIR` pattern; logged at startup
+- feat: **`.carranca.ci.yml`** — CI-hardened config with network deny-by-default (allowlist: `api.openai.com`, `*.anthropic.com`, `z.ai`, `api.z.ai`), cap-drop-all, read-only root FS, resource limits, and disabled sidecar; PR review workflow updated to use it
+- feat: **full observability in `.carranca.yml`** — project config now enables independent observer, execve tracing, network logging, and secret monitoring for local development; serves as a functional reference example
+- fix: **seccomp-strict missing `getpgid`** — the allowlist profile blocked `getpgid`, causing `bash: initialize_job_control: getpgrp failed` when the strict profile was combined with network policy entrypoint
+- fix: **`su-exec` for privilege dropping** — `network-setup.sh` now uses `su-exec` (direct exec, no fork) instead of BusyBox `su` which caused bash job-control failures in container PID namespaces; `su-exec` added to base Containerfile template; falls back to `su` if unavailable
+- fix: **HOME preserved on read-only root FS** — `adduser`/`addgroup` fail silently when `/etc/passwd` is read-only; `su-exec` then resets HOME to `/`; fixed by re-setting HOME via `env` after the uid switch
+- fix: **SETUID/SETGID capabilities for network policy** — when network filtering is active, the agent container needs `CAP_SETUID` and `CAP_SETGID` for `su-exec` privilege drop after iptables setup
+- docs: `CARRANCA_CONFIG_FILE` documented in configuration.md; CI-specific config pattern documented in ci.md
+- test: env var override tests for `CARRANCA_CONFIG_FILE`
+
 ## 0.17.4
 - feat: **IPv6 network policy** — `ip6tables` rules alongside iptables for dual-stack egress filtering; bracket notation (`[addr]:port`) for IPv6 address serialization; malformed entry validation; log message distinguishes IPv4-only vs IPv4+IPv6 enforcement
 - feat: **strict seccomp profile** — allowlist-based `seccomp-strict.json` (~200 syscalls) with `SCMP_ACT_ERRNO` default; exposed via `runtime.seccomp_profile: strict`; builtin profile existence validated at startup
@@ -143,7 +154,7 @@
 - feat: **technical policy hooks** — `policy.docs_before_code` and `policy.tests_before_impl` now accept `enforce` (block commit), `warn` (allow + log), or `off`; enforced via git `core.hooksPath` pointing to carranca-managed pre-commit hook injected into the agent container
 - feat: **fine-grained network policies** — `runtime.network` supports an object form (`default: deny` + `allow:` list) alongside the existing boolean; implemented via iptables OUTPUT DROP + per-IP allow rules in `network-setup.sh`, a privilege-dropping entrypoint wrapper
 - feat: **`policy_event` event type** — new JSONL event for all enforcement actions with `policy`, `action`, and `detail` fields; `P` glyph in `--timeline`; counted in session summary
-- feat: **`network-setup.sh`** — agent entrypoint wrapper that runs as root, applies iptables rules, creates a matching user via `adduser`, then drops privileges with `su` before exec-ing shell-wrapper
+- feat: **`network-setup.sh`** — agent entrypoint wrapper that runs as root, applies iptables rules, creates a matching user via `adduser`, then drops privileges with `su-exec` (fallback: `su`) before exec-ing shell-wrapper
 - feat: rootless Podman graceful degradation for network policies (falls back to `--network=none`; clears policy env vars so logger does not emit false-positive enforcement events)
 - feat: `policy.*` keys added to global config fallback alongside `runtime.*`, `volumes.*`, and `observability.*`
 - docs: `policy_event` documented in session-log.md with field reference and provenance table entries for `pre-commit-hook` and `network-setup` sources

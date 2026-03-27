@@ -1,0 +1,58 @@
+# .carranca.ci.yml — CI-hardened carranca configuration
+#
+# Usage:  CARRANCA_CONFIG_FILE=.carranca.ci.yml carranca run --agent reviewer
+#
+# Differences from .carranca.yml (local dev):
+#   - Network egress deny-by-default with explicit allowlist
+#   - Independent observer disabled (CI runners lack host PID namespace)
+#   - All deep observability off (no tracing capabilities in CI)
+#   - Cache disabled (ephemeral CI environment)
+#   - Resource limits enforced
+#   - Default (denylist) seccomp profile
+
+agents:
+  - name: reviewer
+    adapter: stdin
+    command: bash /workspace/_review.sh
+
+runtime:
+  engine: auto
+  network:
+    default: deny
+    allow:
+      - "api.openai.com:443"
+      - "*.anthropic.com:443"
+      - "z.ai:443"
+      - "api.z.ai:443"
+  seccomp_profile: default
+  read_only: true
+  cap_drop_all: true
+
+volumes:
+  cache: false
+
+policy:
+  docs_before_code: off
+  tests_before_impl: off
+  max_duration: 600
+  resource_limits:
+    memory: 2g
+    cpus: "2.0"
+    pids: 256
+
+watched_paths:
+  - .env
+  - secrets/
+  - "*.key"
+
+environment:
+  passthrough:
+    - OPENAI_API_KEY
+
+observability:
+  resource_interval: 10
+  independent_observer: false
+  execve_tracing: false
+  network_logging: false
+  network_interval: 5
+  secret_monitoring: false

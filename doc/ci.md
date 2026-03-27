@@ -181,6 +181,28 @@ runtime:
 This ensures the agent cannot run indefinitely, consume unbounded
 resources, or make unexpected network connections.
 
+## CI-specific config
+
+Projects can maintain a separate `.carranca.ci.yml` alongside the main
+`.carranca.yml`. The CI config typically differs from local config in:
+
+- **Network**: deny-by-default with explicit allowlist (local may use `true`)
+- **Observer**: disabled (CI runners lack host PID namespace access)
+- **Cache**: disabled (ephemeral environment)
+- **Resource limits**: enforced (prevent runaway sessions)
+- **Seccomp**: strict allowlist profile
+
+Use `CARRANCA_CONFIG_FILE` to select the CI config:
+
+```yaml
+    - name: Run agent
+      env:
+        CARRANCA_CONFIG_FILE: .carranca.ci.yml
+      run: carranca run --agent reviewer --timeout 600
+```
+
+See `.carranca.ci.yml` in the carranca repository for a working example.
+
 ## Verification
 
 To verify a session log after a CI run (e.g., in a follow-up audit

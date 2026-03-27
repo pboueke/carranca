@@ -4,10 +4,26 @@
 
 Carranca currently reads configuration from:
 
-- `.carranca.yml` in the project root
+- `.carranca.yml` in the project root (or the file specified by `CARRANCA_CONFIG_FILE`)
 - `.carranca/Containerfile` in the project root
 - `CARRANCA_CONTAINER_RUNTIME` as an environment override for runtime selection
 - `~/.config/carranca/config.yml` for user-wide runtime and volume defaults (overridden by project config)
+
+### Config file override
+
+By default, Carranca reads `.carranca.yml` from the project root. Set
+`CARRANCA_CONFIG_FILE` to use a different file:
+
+```bash
+CARRANCA_CONFIG_FILE=.carranca.ci.yml carranca run --agent reviewer
+```
+
+This is useful for CI pipelines that need stricter runtime settings (network
+deny-by-default, disabled sidecar, resource limits) without changing the
+local development config.
+
+The override only affects the project config file path. Global config
+(`~/.config/carranca/config.yml`) resolution is unaffected.
 
 ## Global config
 

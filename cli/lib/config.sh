@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # carranca/cli/lib/config.sh — YAML config parsing and validation
 
-CARRANCA_CONFIG_FILE=".carranca.yml"
+CARRANCA_CONFIG_FILE="${CARRANCA_CONFIG_FILE:-.carranca.yml}"
 CARRANCA_GLOBAL_CONFIG="${CARRANCA_CONFIG_DIR:-$HOME/.config/carranca}/config.yml"
 
 _CARRANCA_HAS_YQ=""

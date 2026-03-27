@@ -112,7 +112,8 @@ assert_contains "applies per-rule iptables ACCEPT" '-d "$local_ip" --dport "$loc
 assert_contains "signals network-ready" "touch /fifo/network-ready" "$CONTENT"
 
 # Privilege dropping
-assert_contains "drops to target user via su" "exec su -s /bin/bash" "$CONTENT"
+assert_contains "drops to target user via su-exec" "exec su-exec" "$CONTENT"
+assert_contains "falls back to su without su-exec" "exec su -s /bin/sh" "$CONTENT"
 assert_contains "creates group for target GID" 'addgroup -g "$target_gid"' "$CONTENT"
 assert_contains "creates user for target UID" 'adduser -D -u "$target_uid"' "$CONTENT"
 

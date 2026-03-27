@@ -108,6 +108,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CARRANCA_CONTAINER_RUNTIME: docker
+          CARRANCA_CONFIG_FILE: .carranca.ci.yml
         run: carranca run --agent reviewer --timeout 600
 
       - name: Post review comment

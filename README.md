@@ -5,8 +5,8 @@
   <h1>Carranca</h1>
 
   <p>
-    <img src="https://img.shields.io/badge/version-0.17.4-blue" alt="version: 0.17.4" />
-    <img src="https://img.shields.io/badge/tests-976%2F976_passed-brightgreen" alt="tests: 976/976 passed" />
+    <img src="https://img.shields.io/badge/version-0.17.5-blue" alt="version: 0.17.5" />
+    <img src="https://img.shields.io/badge/tests-978%2F978_passed-brightgreen" alt="tests: 978/978 passed" />
     <img src="https://img.shields.io/badge/coverage-100%25_(147%2F147_functions)-brightgreen" alt="coverage: 100%" />
     <img src="https://img.shields.io/badge/license-MIT-green" alt="license: MIT" />
   </p>
