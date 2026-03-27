@@ -1,9 +1,10 @@
-FROM alpine:3.21 AS builder
+ARG ALPINE_IMAGE=alpine:3.21@sha256:22e0ec13c0db6b3e1ba3280e831fc50ba7bffe58e81f31670a64b1afede247bc
+FROM ${ALPINE_IMAGE} AS builder
 RUN apk add --no-cache gcc musl-dev
 COPY fanotify-watcher.c /tmp/
 RUN gcc -static -O2 -o /tmp/fanotify-watcher /tmp/fanotify-watcher.c
 
-FROM alpine:3.21
+FROM ${ALPINE_IMAGE}
 
 RUN apk add --no-cache \
       bash \

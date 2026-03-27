@@ -235,6 +235,22 @@ assert_eq "ipv4 entry parsed" "ALLOW:1.2.3.4:443" "$(_test_entry_parse "1.2.3.4:
 # the defense only catches bracket-notation or raw multi-colon entries.
 # The primary defense is the run.sh filter.
 
+# --- Test base image digest pinning ---
+
+echo ""
+echo "--- base image digest pinning ---"
+
+LOGGER_CF="$(cat "$SCRIPT_DIR/runtime/Containerfile.logger")"
+assert_contains "logger: ARG ALPINE_IMAGE present" "ARG ALPINE_IMAGE=" "$LOGGER_CF"
+assert_contains "logger: FROM references ALPINE_IMAGE (builder)" '${ALPINE_IMAGE} AS builder' "$LOGGER_CF"
+assert_contains "logger: FROM references ALPINE_IMAGE (runtime)" '${ALPINE_IMAGE}' "$LOGGER_CF"
+assert_contains "logger: digest pinned" "@sha256:" "$LOGGER_CF"
+
+TEMPLATE_CF="$(cat "$SCRIPT_DIR/templates/Containerfile")"
+assert_contains "template: ARG ALPINE_IMAGE with digest" "ARG ALPINE_IMAGE=" "$TEMPLATE_CF"
+assert_contains "template: digest pinned" "@sha256:" "$TEMPLATE_CF"
+assert_contains "template: FROM references ALPINE_IMAGE" '${ALPINE_IMAGE}' "$TEMPLATE_CF"
+
 rm -rf "$TMPDIR"
 
 echo ""

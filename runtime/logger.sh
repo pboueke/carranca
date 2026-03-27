@@ -368,11 +368,6 @@ if [ "$NETWORK_MODE" = "filtered" ] && [ -n "$NETWORK_POLICY_RULES" ]; then
   NET_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"network\",\"action\":\"configured\",\"detail\":\"mode:filtered rules:${_esc_netrules}\"}"
   write_log "$NET_EVENT"
 fi
-if [ -n "${IPV6_SKIPPED_HOSTS:-}" ]; then
-  _esc_ipv6hosts="$(json_escape "$IPV6_SKIPPED_HOSTS")"
-  IPV6_EVENT="{\"type\":\"policy_event\",\"source\":\"carranca\",\"ts\":\"$(timestamp)\",\"session_id\":\"$SESSION_ID\",\"policy\":\"network\",\"action\":\"degraded\",\"detail\":\"IPv6 addresses not enforced for: ${_esc_ipv6hosts} (iptables is IPv4-only)\"}"
-  write_log "$IPV6_EVENT"
-fi
 
 # --- File event watcher (background, best-effort) ---
 

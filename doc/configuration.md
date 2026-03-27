@@ -105,7 +105,7 @@ observability:
 | `runtime.network.allow` | No | — | List of `host:port` entries allowed through the firewall (e.g., `*.anthropic.com:443`). Requires yq |
 | `runtime.extra_flags` | No | — | Extra flags appended to the agent container `run` command |
 | `runtime.logger_extra_flags` | No | — | Extra flags appended to the logger container `run` command |
-| `runtime.seccomp_profile` | No | `default` | Seccomp profile for agent container. `default` uses carranca's built-in profile blocking dangerous syscalls (ptrace, mount, unshare, etc.). `unconfined` disables seccomp. Absolute path for custom profile. Linux only |
+| `runtime.seccomp_profile` | No | `default` | Seccomp profile for agent container. `default` (denylist — blocks dangerous syscalls, auto-permits new ones). `strict` (allowlist — only permits needed syscalls, tighter but may need operator tuning). `unconfined` disables seccomp. Absolute path for custom profile. Linux only |
 | `runtime.apparmor_profile` | No | — | AppArmor profile name for agent container. Must be pre-loaded via `apparmor_parser -r`. `unconfined` to disable. Empty (default) uses runtime default. Linux only |
 | `runtime.cap_drop_all` | No | `true` | When `true`, drops all Linux capabilities from the agent container via `--cap-drop ALL`. `cap_add` becomes a strict allowlist applied after the drop |
 | `runtime.read_only` | No | `true` | When `true`, runs agent container with `--read-only` root filesystem. `/tmp`, `/var/tmp`, `/run` get tmpfs mounts. `/workspace`, `/fifo`, and cache home are unaffected. When cache is disabled, `/home/carranca` gets a tmpfs mount |
@@ -394,8 +394,12 @@ not mounted into the logger, and `config` currently uses its own fixed mount set
 tool installation steps between the marker comments; Carranca depends on the
 shell-wrapper block at the bottom remaining intact.
 
+The template Containerfile pins the Alpine base image by digest. To override,
+pass `--build-arg ALPINE_IMAGE=alpine:3.22` (or any image) when building.
+
 ```Dockerfile
-FROM alpine:3.21
+ARG ALPINE_IMAGE=alpine:3.21@sha256:...
+FROM ${ALPINE_IMAGE}
 
 RUN apk add --no-cache \
       bash \

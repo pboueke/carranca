@@ -6,7 +6,7 @@
 
   <p>
     <img src="https://img.shields.io/badge/version-0.17.3-blue" alt="version: 0.17.3" />
-    <img src="https://img.shields.io/badge/tests-931%2F931_passed-brightgreen" alt="tests: 931/931 passed" />
+    <img src="https://img.shields.io/badge/tests-973%2F973_passed-brightgreen" alt="tests: 973/973 passed" />
     <img src="https://img.shields.io/badge/coverage-100%25_(147%2F147_functions)-brightgreen" alt="coverage: 100%" />
     <img src="https://img.shields.io/badge/license-MIT-green" alt="license: MIT" />
   </p>
@@ -29,6 +29,8 @@
 | [Session log](doc/session-log.md) | JSONL schema, event types, `jq` query examples |
 | [Trust model](doc/trust-model.md) | Threat table, failure behavior, honest scope |
 | [Versioning](doc/versioning.md) | Semver policy, changelog format |
+
+Open [doc/page/index.html](https://pboueke.github.io/carranca/) for the full technical reference. The markdown files in [`doc/`](doc/) remain the source chapters and companion guides. Run `carranca help <command>` for command-specific options. See [usage.md](doc/usage.md) for the full CLI reference and [configuration.md](doc/configuration.md) for the `.carranca.yml` schema. Persona-oriented example setups live under [doc/examples/](doc/examples/).
 
 ## Quick start
 
@@ -104,9 +106,47 @@ After the session, `carranca log` inspects, verifies, or exports the resulting
 artifacts, and `carranca status` shows active and recent sessions for the
 current repository.
 
-Open [doc/page/index.html](doc/page/index.html) for the full technical
-reference. The markdown files in [`doc/`](doc/) remain the source chapters and
-companion guides.
+## Example session
+
+```console
+$ carranca run --agent codex
+[carranca] Session: a3f7c91d2e4b8016
+[carranca] Runtime: podman (rootless)
+[carranca] Building logger image...
+[carranca] Building agent image...
+[carranca] Logger started
+[carranca] Agent started — codex
+
+# ... agent works, operator interacts ...
+
+[carranca] Agent exited (0)
+[carranca] Session complete: a3f7c91d2e4b8016
+```
+
+Session logs are structured JSONL with HMAC-signed event chains:
+
+```jsonl
+{"type":"session_event","source":"carranca","event":"start","ts":"2026-03-27T14:00:00.000Z","session_id":"a3f7c91d2e4b8016","agent":"codex","engine":"podman","seq":1,"hmac":"d4f8..."}
+{"type":"shell_command","source":"shell-wrapper","ts":"2026-03-27T14:00:03.421Z","session_id":"a3f7c91d2e4b8016","command":"git status","exit_code":0,"cwd":"/workspace","seq":2,"hmac":"8b1a..."}
+{"type":"file_event","source":"inotifywait","ts":"2026-03-27T14:00:07.893Z","session_id":"a3f7c91d2e4b8016","event":"MODIFY","path":"/workspace/src/main.py","seq":3,"hmac":"c2e7..."}
+{"type":"file_event","source":"inotifywait","ts":"2026-03-27T14:00:12.156Z","session_id":"a3f7c91d2e4b8016","event":"CREATE","path":"/workspace/tests/test_main.py","seq":4,"hmac":"f091..."}
+{"type":"session_event","source":"shell-wrapper","event":"agent_stop","ts":"2026-03-27T14:01:45.000Z","session_id":"a3f7c91d2e4b8016","exit_code":0,"seq":5,"hmac":"a5d3..."}
+```
+
+Verify log integrity after a session:
+
+```console
+$ carranca log --verify
+[carranca] Verifying session a3f7c91d2e4b8016...
+[carranca] HMAC chain: valid (47 events)
+[carranca] Checksums: valid
+[carranca] Result: PASS
+
+$ carranca log --verify   # after tampering with the log
+[carranca] Verifying session a3f7c91d2e4b8016...
+[carranca] HMAC chain: BROKEN at event 23 (expected a1b2..., got f4e5...)
+[carranca] Result: FAIL — log integrity compromised
+```
 
 ## Commands
 
@@ -119,10 +159,25 @@ companion guides.
 | `carranca status` | Show active sessions and recent logs |
 | `carranca kill` | Stop one or all active sessions |
 
-Run `carranca help <command>` for command-specific options. See
-[usage.md](doc/usage.md) for the full CLI reference and
-[configuration.md](doc/configuration.md) for the `.carranca.yml` schema.
-Persona-oriented example setups live under [doc/examples/](doc/examples/).
+## FAQ
+
+**Why Bash?**
+
+The entire runtime is ~4000 lines of auditable shell that calls `podman`/`docker`
+directly. No framework, no compiled binary the operator can't read, no transitive
+dependencies. `shellcheck` enforces lint on every commit.
+
+**`eval` of `AGENT_COMMAND` looks dangerous**
+
+`.carranca.yml` is operator configuration, like a Makefile or CI workflow. The
+operator controls what command runs. Carranca does not accept agent-authored
+commands. The config is hidden from the agent at runtime.
+
+**The HMAC key is on the same machine**
+
+HMAC protects against post-session accidental or agent-initiated tampering, not
+against a malicious operator with host access. For that, ship logs to an external
+system. This is defense-in-depth, not a single guarantee.
 
 ## Platform support
 

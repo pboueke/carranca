@@ -128,6 +128,32 @@ assert_contains "degraded mode checks ALLOW_DEGRADED" 'ALLOW_DEGRADED" = "true"'
 # Empty rules skip
 assert_contains "skips iptables when no rules" 'No network policy rules' "$CONTENT"
 
+# ip6tables rules (IPv6 egress filtering)
+echo ""
+echo "--- network-setup.sh IPv6 / ip6tables ---"
+
+test_start
+assert_contains "sets ip6tables default OUTPUT DROP" "ip6tables -P OUTPUT DROP" "$CONTENT"
+assert_contains "ip6tables allows loopback" "ip6tables -A OUTPUT -o lo -j ACCEPT" "$CONTENT"
+assert_contains "ip6tables allows ESTABLISHED,RELATED" 'ip6tables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT' "$CONTENT"
+
+# ip6tables DNS rules
+assert_contains "ip6tables allows DNS port 53 UDP" 'ip6tables -A OUTPUT -p udp -d "$resolver" --dport 53' "$CONTENT"
+assert_contains "ip6tables allows DNS port 53 TCP" 'ip6tables -A OUTPUT -p tcp -d "$resolver" --dport 53' "$CONTENT"
+
+# Bracket-notation parsing for IPv6 entries
+assert_contains "parses bracket-notation IPv6 entries" '\[*' "$CONTENT"
+assert_contains "applies ip6tables for IPv6 entries" 'ip6tables -A OUTPUT -p tcp -d "$local_ip" --dport "$local_port" -j ACCEPT' "$CONTENT"
+
+# ip6tables availability check with degraded/fail-closed
+assert_contains "checks ip6tables availability" "command -v ip6tables" "$CONTENT"
+assert_contains "ip6tables degraded mode" "ip6tables not available" "$CONTENT"
+assert_contains "ip6tables fail-closed reason" "ip6tables_unavailable" "$CONTENT"
+
+# No remaining IPv4-only skip logic
+assert_not_contains "no IPv4-only skip warning" "iptables is IPv4-only" "$CONTENT"
+assert_not_contains "no IPv6 skip logic" "skipping IPv6 entry" "$CONTENT"
+
 # Cleanup
 rm -rf "$TMPDIR"
 

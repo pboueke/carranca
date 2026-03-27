@@ -41,6 +41,7 @@ _build_seccomp_flag() {
   local profile="$1" carranca_home="$2"
   case "$profile" in
     default) echo "--security-opt seccomp=$carranca_home/runtime/security/seccomp-agent.json" ;;
+    strict) echo "--security-opt seccomp=$carranca_home/runtime/security/seccomp-strict.json" ;;
     unconfined) echo "--security-opt seccomp=unconfined" ;;
     /*) echo "--security-opt seccomp=$profile" ;;
     *) echo "" ;;
@@ -84,6 +85,34 @@ echo "--- apparmor profile file ---"
 APPARMOR_FILE="$SCRIPT_DIR/runtime/security/apparmor-agent.profile"
 file_exists=0; [ -f "$APPARMOR_FILE" ] && file_exists=1
 assert_eq "AppArmor reference profile exists" "1" "$file_exists"
+
+# --- Strict profile tests ---
+STRICT_PROFILE="$SCRIPT_DIR/runtime/security/seccomp-strict.json"
+
+echo "--- strict seccomp profile validation ---"
+
+# Valid JSON
+rc=0; python3 -c "import json; json.load(open('$STRICT_PROFILE'))" 2>/dev/null || jq empty "$STRICT_PROFILE" 2>/dev/null || rc=$?
+assert_eq "strict profile is valid JSON" "0" "$rc"
+
+# Default action is ERRNO
+STRICT_CONTENT="$(cat "$STRICT_PROFILE")"
+assert_contains "strict default is SCMP_ACT_ERRNO" "SCMP_ACT_ERRNO" "$STRICT_CONTENT"
+
+# Allowlists essential syscalls
+for syscall in read write execve clone fork open close; do
+  assert_contains "strict allows $syscall" "\"$syscall\"" "$STRICT_CONTENT"
+done
+
+# Does NOT allowlist dangerous syscalls
+DANGEROUS_SYSCALLS="ptrace mount unshare setns bpf io_uring_setup kexec_load"
+for syscall in $DANGEROUS_SYSCALLS; do
+  assert_not_contains "strict blocks $syscall" "\"$syscall\"" "$STRICT_CONTENT"
+done
+
+# Flag generation
+result="$(_build_seccomp_flag "strict" "/opt/carranca")"
+assert_eq "strict flag" "--security-opt seccomp=/opt/carranca/runtime/security/seccomp-strict.json" "$result"
 
 echo ""
 print_results

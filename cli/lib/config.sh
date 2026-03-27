@@ -505,7 +505,7 @@ carranca_config_validate_values() {
   # --- runtime.seccomp_profile: if a path, must point to an existing file ---
   local seccomp
   seccomp="$(carranca_config_get runtime.seccomp_profile "$file" 2>/dev/null || true)"
-  if [ -n "$seccomp" ] && [ "$seccomp" != "default" ] && [ "$seccomp" != "unconfined" ]; then
+  if [ -n "$seccomp" ] && [ "$seccomp" != "default" ] && [ "$seccomp" != "strict" ] && [ "$seccomp" != "unconfined" ]; then
     if [ ! -f "$seccomp" ]; then
       carranca_die "runtime.seccomp_profile points to a non-existent file: $seccomp"
     fi

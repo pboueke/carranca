@@ -53,6 +53,14 @@ if ! command -v iptables >/dev/null 2>&1; then
   _fail_closed "iptables required for network policy but not available" "iptables_unavailable"
 fi
 
+if ! command -v ip6tables >/dev/null 2>&1; then
+  if [ "$ALLOW_DEGRADED" = "true" ]; then
+    _log "WARNING: ip6tables not available — IPv6 network policy not enforced (degraded mode)"
+  else
+    _fail_closed "ip6tables required for network policy but not available" "ip6tables_unavailable"
+  fi
+fi
+
 # Default policy: drop all outbound traffic
 iptables -P OUTPUT DROP 2>/dev/null || {
   if [ "$ALLOW_DEGRADED" = "true" ]; then
@@ -62,11 +70,21 @@ iptables -P OUTPUT DROP 2>/dev/null || {
   _fail_closed "cannot set iptables OUTPUT policy" "iptables_output_policy_failed"
 }
 
+ip6tables -P OUTPUT DROP 2>/dev/null || {
+  if [ "$ALLOW_DEGRADED" = "true" ]; then
+    _log "WARNING: ip6tables failed (likely insufficient privileges) — IPv6 network policy not enforced (degraded mode)"
+  else
+    _fail_closed "cannot set ip6tables OUTPUT policy" "ip6tables_output_policy_failed"
+  fi
+}
+
 # Allow loopback
 iptables -A OUTPUT -o lo -j ACCEPT
+ip6tables -A OUTPUT -o lo -j ACCEPT
 
 # Allow established/related connections (for DNS responses, etc.)
 iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+ip6tables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 # Allow DNS only to the container's configured resolvers (not to arbitrary IPs).
 # This prevents exfiltration of data via DNS to attacker-controlled nameservers.
@@ -88,23 +106,36 @@ fi
 for resolver in $dns_resolvers; do
   iptables -A OUTPUT -p udp -d "$resolver" --dport 53 -j ACCEPT
   iptables -A OUTPUT -p tcp -d "$resolver" --dport 53 -j ACCEPT
+  ip6tables -A OUTPUT -p udp -d "$resolver" --dport 53 -j ACCEPT
+  ip6tables -A OUTPUT -p tcp -d "$resolver" --dport 53 -j ACCEPT
 done
 
 # Apply allow rules from NETWORK_POLICY_RULES
-# Format: IP1:PORT1,IP2:PORT2,... (IPv4 only — IPv6 filtered out by cli/run.sh)
+# Format: IP1:PORT1,[IPv6]:PORT2,... (IPv4 plain, IPv6 in bracket notation)
 IFS=',' read -ra entries <<< "$RULES"
 for entry in "${entries[@]}"; do
   [ -z "$entry" ] && continue
-  local_ip="${entry%%:*}"
-  local_port="${entry##*:}"
-  # Defense in depth: skip entries that look like IPv6 (contain colons in IP part)
-  case "$local_ip" in
-    *:*) _log "WARNING: skipping IPv6 entry $entry (iptables is IPv4-only)"; continue ;;
+  case "$entry" in
+    \[*)
+      # IPv6 bracket notation: [addr]:port
+      local_ip="${entry%%]:*}"
+      local_ip="${local_ip#\[}"
+      local_port="${entry##*]:}"
+      if [ -n "$local_ip" ] && [ -n "$local_port" ]; then
+        ip6tables -A OUTPUT -p tcp -d "$local_ip" --dport "$local_port" -j ACCEPT
+        _log "Allowed (IPv6): [$local_ip]:$local_port"
+      fi
+      ;;
+    *)
+      # IPv4: addr:port
+      local_ip="${entry%%:*}"
+      local_port="${entry##*:}"
+      if [ -n "$local_ip" ] && [ -n "$local_port" ]; then
+        iptables -A OUTPUT -p tcp -d "$local_ip" --dport "$local_port" -j ACCEPT
+        _log "Allowed: $local_ip:$local_port"
+      fi
+      ;;
   esac
-  if [ -n "$local_ip" ] && [ -n "$local_port" ]; then
-    iptables -A OUTPUT -p tcp -d "$local_ip" --dport "$local_port" -j ACCEPT
-    _log "Allowed: $local_ip:$local_port"
-  fi
 done
 
 # Signal that network rules are ready

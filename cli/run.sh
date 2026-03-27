@@ -164,6 +164,9 @@ if [ "$(uname -s)" = "Linux" ]; then
     default)
       SECCOMP_FLAG="--security-opt seccomp=$CARRANCA_HOME/runtime/security/seccomp-agent.json"
       ;;
+    strict)
+      SECCOMP_FLAG="--security-opt seccomp=$CARRANCA_HOME/runtime/security/seccomp-strict.json"
+      ;;
     unconfined)
       SECCOMP_FLAG="--security-opt seccomp=unconfined"
       ;;
@@ -329,7 +332,6 @@ NETWORK_POLICY_ENTRYPOINT=""
 if [ "$NETWORK_MODE" = "filtered" ]; then
   # Resolve DNS for allow-list entries and build iptables rules
   NETWORK_POLICY_RULES=""
-  IPV6_SKIPPED_HOSTS=""
   while IFS= read -r entry; do
     [ -z "$entry" ] && continue
     local_host="${entry%%:*}"
@@ -342,37 +344,30 @@ if [ "$NETWORK_MODE" = "filtered" ]; then
       \*.*) resolve_host="${resolve_host#\*.}" ;;
     esac
 
-    # Resolve hostname to IPv4 addresses only. IPv6 is excluded because:
-    # (a) iptables cannot enforce IPv6 rules (would need ip6tables/nft)
-    # (b) colon-delimited IP:PORT serialization is ambiguous for IPv6
+    # Resolve hostname to all addresses (IPv4 and IPv6).
+    # IPv6 addresses are serialized in bracket notation: [addr]:port (RFC 3986)
     all_ips="$(getent ahosts "$resolve_host" 2>/dev/null | awk '{print $1}' | sort -u || true)"
     resolved_ips=""
-    ipv6_skipped=false
     while IFS= read -r ip; do
       [ -z "$ip" ] && continue
       case "$ip" in
-        *:*) ipv6_skipped=true ;;  # Skip IPv6 addresses
+        *:*) resolved_ips="${resolved_ips:+$resolved_ips$'\n'}[$ip]" ;;  # Bracket IPv6
         *)   resolved_ips="${resolved_ips:+$resolved_ips$'\n'}$ip" ;;
       esac
     done <<< "$all_ips"
 
-    if [ "$ipv6_skipped" = "true" ]; then
-      carranca_log warn "Network policy: IPv6 addresses for $local_host skipped (iptables is IPv4-only)"
-      DEGRADATION_WARNINGS="${DEGRADATION_WARNINGS}  - network: IPv6 addresses not enforced for $local_host (iptables is IPv4-only)\n"
-      IPV6_SKIPPED_HOSTS="${IPV6_SKIPPED_HOSTS:+$IPV6_SKIPPED_HOSTS,}$local_host"
-    fi
-
     if [ -z "$resolved_ips" ]; then
-      carranca_log warn "Network policy: could not resolve $local_host to IPv4 — skipping"
+      carranca_log warn "Network policy: could not resolve $local_host — skipping"
       continue
     fi
 
     while IFS= read -r ip; do
       [ -z "$ip" ] && continue
+      local_rule="$ip:$local_port"
       if [ -z "$NETWORK_POLICY_RULES" ]; then
-        NETWORK_POLICY_RULES="$ip:$local_port"
+        NETWORK_POLICY_RULES="$local_rule"
       else
-        NETWORK_POLICY_RULES="$NETWORK_POLICY_RULES,$ip:$local_port"
+        NETWORK_POLICY_RULES="$NETWORK_POLICY_RULES,$local_rule"
       fi
     done <<< "$resolved_ips"
   done < <(carranca_config_get_list runtime.network.allow 2>/dev/null || true)
