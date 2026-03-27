@@ -208,6 +208,32 @@ assert_eq "_wait_for_fifo finds existing FIFO" "1" "$is_fifo"
 rc=0; grep -q '_find_agent_host_pid()' "$SCRIPT_DIR/runtime/observer.sh" || rc=$?
 assert_eq "_find_agent_host_pid defined in observer.sh" "0" "$rc"
 
+# _find_agent_host_pid: verify fallback reads agent-host-pid file
+rc=0; grep -q 'agent-host-pid' "$SCRIPT_DIR/runtime/observer.sh" || rc=$?
+assert_eq "_find_agent_host_pid has host PID fallback" "0" "$rc"
+
+# Test host PID fallback logic inline (mirrors observer.sh fallback)
+echo "--- host PID fallback logic ---"
+FALLBACK_DIR="$TMPDIR/fallback-state"
+mkdir -p "$FALLBACK_DIR"
+# Write current shell PID as a known-valid PID
+printf '%s' "$$" > "$FALLBACK_DIR/agent-host-pid"
+fallback_pid="$(cat "$FALLBACK_DIR/agent-host-pid" 2>/dev/null)"
+fb_valid=0
+if [ -n "$fallback_pid" ] && [ "$fallback_pid" -gt 0 ] 2>/dev/null && [ -d "/proc/$fallback_pid" ]; then
+  fb_valid=1
+fi
+assert_eq "host PID fallback finds valid PID" "1" "$fb_valid"
+
+# Fallback with invalid PID
+printf '%s' "9999999" > "$FALLBACK_DIR/agent-host-pid"
+fallback_pid="$(cat "$FALLBACK_DIR/agent-host-pid" 2>/dev/null)"
+fb_valid=0
+if [ -n "$fallback_pid" ] && [ "$fallback_pid" -gt 0 ] 2>/dev/null && [ -d "/proc/$fallback_pid" ]; then
+  fb_valid=1
+fi
+assert_eq "host PID fallback rejects nonexistent PID" "0" "$fb_valid"
+
 # _start_observer_tracer: verify function exists
 rc=0; grep -q '_start_observer_tracer()' "$SCRIPT_DIR/runtime/observer.sh" || rc=$?
 assert_eq "_start_observer_tracer defined in observer.sh" "0" "$rc"

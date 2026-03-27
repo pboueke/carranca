@@ -107,6 +107,25 @@ _find_agent_host_pid() {
     return 0
   fi
 
+  # Fallback: read host PID written by the lifecycle script.
+  # This covers rootless Podman on cgroup v2 where /proc/*/cgroup
+  # does not contain the container ID.
+  local pid_file="/state/agent-host-pid"
+  local fallback_pid=""
+  local fb_attempts=0
+  while [ "$fb_attempts" -lt 10 ]; do
+    if [ -f "$pid_file" ]; then
+      fallback_pid="$(cat "$pid_file" 2>/dev/null)"
+      if [ -n "$fallback_pid" ] && [ "$fallback_pid" -gt 0 ] 2>/dev/null && [ -d "/proc/$fallback_pid" ]; then
+        echo "observer: using host PID fallback: $fallback_pid" >&2
+        printf '%s' "$fallback_pid"
+        return 0
+      fi
+    fi
+    sleep 1
+    fb_attempts=$((fb_attempts + 1))
+  done
+
   echo "observer: no process found for container $container_id" >&2
   return 1
 }

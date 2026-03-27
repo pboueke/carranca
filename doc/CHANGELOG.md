@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.6
+- fix: **observer sidecar PID discovery on rootless Podman** — `_find_agent_host_pid()` now falls back to reading `/state/agent-host-pid` (written by the host lifecycle script) when the cgroup-based `/proc/*/cgroup` search fails; this is the common case on rootless Podman with cgroup v2 where container IDs are not embedded in cgroup paths
+- fix: **host PID written via single inspect call** — `carranca_lifecycle_resolve_agent_id()` now uses a combined `{{.Id}}|{{.State.Pid}}` format template to write both `agent-container-id` and `agent-host-pid` in one podman call, avoiding BoltDB lock contention that caused ~10s startup delays in rootless Podman
+- test: observer fallback unit tests for valid and nonexistent PID validation
+
 ## 0.17.5
 - feat: **`CARRANCA_CONFIG_FILE` env override** — select an alternate project config file (e.g., `.carranca.ci.yml`) without changing `.carranca.yml`; follows existing `CARRANCA_CONFIG_DIR` pattern; logged at startup
 - feat: **`.carranca.ci.yml`** — CI-hardened config with network deny-by-default (allowlist: `api.openai.com`, `*.anthropic.com`, `z.ai`, `api.z.ai`), cap-drop-all, read-only root FS, resource limits, and disabled sidecar; PR review workflow updated to use it

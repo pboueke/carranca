@@ -123,16 +123,27 @@ carranca_lifecycle_start_observer() {
     "$LOGGER_IMAGE" >/dev/null
 }
 
-# Resolve agent container ID in background for resource sampler cgroup lookup.
+# Resolve agent container ID (and host PID) in background.
+# The container ID is used by the resource sampler for cgroup lookup.
+# The host PID is written for the observer's fallback when cgroup-based
+# PID discovery fails (common with rootless Podman on cgroup v2).
+# Uses a single inspect call to avoid extra podman lock contention.
 # Globals: AGENT_CONTAINER_NAME, STATE_DIR
 carranca_lifecycle_resolve_agent_id() {
   local attempts=0
   while [ "$attempts" -lt 30 ]; do
-    local cid
-    cid="$(carranca_runtime_call inspect --format '{{.Id}}' "$AGENT_CONTAINER_NAME" 2>/dev/null || true)"
-    if [ -n "$cid" ]; then
-      printf '%s' "$cid" > "$STATE_DIR/agent-container-id"
-      return 0
+    local info
+    info="$(carranca_runtime_call inspect --format '{{.Id}}|{{.State.Pid}}' "$AGENT_CONTAINER_NAME" 2>/dev/null || true)"
+    if [ -n "$info" ]; then
+      local cid="${info%%|*}"
+      local host_pid="${info##*|}"
+      if [ -n "$cid" ]; then
+        printf '%s' "$cid" > "$STATE_DIR/agent-container-id"
+        if [ -n "$host_pid" ] && [ "$host_pid" -gt 0 ] 2>/dev/null; then
+          printf '%s' "$host_pid" > "$STATE_DIR/agent-host-pid"
+        fi
+        return 0
+      fi
     fi
     sleep 1
     attempts=$((attempts + 1))
