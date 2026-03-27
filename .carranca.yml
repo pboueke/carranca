@@ -45,12 +45,15 @@ watched_paths:
 # Environment variables forwarded into agent containers
 environment:
   passthrough:
+    - ANTHROPIC_API_KEY
     - OPENAI_API_KEY
 
-# Deep observability — all features opt-in, degrade gracefully
+# Deep observability — all features enabled for local development
+# Each feature degrades gracefully when the host lacks required capabilities
 observability:
   resource_interval: 10           # Seconds between cgroup resource samples; 0 disables
-  execve_tracing: false           # strace-based process tracing; adds CAP_SYS_PTRACE to logger
-  network_logging: false          # /proc/net/tcp polling; requires PID namespace sharing
+  independent_observer: true      # Sidecar container: traces processes and network from outside agent namespaces
+  execve_tracing: true            # strace-based process tracing; adds CAP_SYS_PTRACE to logger
+  network_logging: true           # /proc/net/tcp polling; requires PID namespace sharing
   network_interval: 5             # Seconds between network polls
-  secret_monitoring: false        # fanotify file-read detection on watched_paths; adds CAP_SYS_ADMIN to logger
+  secret_monitoring: true         # fanotify file-read detection on watched_paths; adds CAP_SYS_ADMIN to logger

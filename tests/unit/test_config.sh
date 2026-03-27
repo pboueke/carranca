@@ -516,6 +516,29 @@ EOF
 rc=0; (carranca_config_validate_values "$VALIDATE_CONFIG" 2>/dev/null) || rc=$?
 assert_eq "validate_values rejects lowercase cap_add" "1" "$rc"
 
+# --- Test CARRANCA_CONFIG_FILE env var override ---
+
+ENV_OVERRIDE_CONFIG="$TMPDIR/custom-config.yml"
+cat > "$ENV_OVERRIDE_CONFIG" <<'EOF'
+agents:
+  - name: custom-agent
+    adapter: stdin
+    command: echo hello
+runtime:
+  network: false
+EOF
+
+_save_config="$CARRANCA_CONFIG_FILE"
+CARRANCA_CONFIG_FILE="$ENV_OVERRIDE_CONFIG"
+
+val="$(carranca_config_get runtime.network)"
+assert_eq "env override: reads from custom config file" "false" "$val"
+
+name="$(carranca_config_agent_names)"
+assert_eq "env override: reads agent from custom config" "custom-agent" "$name"
+
+CARRANCA_CONFIG_FILE="$_save_config"
+
 rm -rf "$TMPDIR"
 
 echo ""
