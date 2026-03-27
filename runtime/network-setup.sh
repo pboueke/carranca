@@ -184,7 +184,7 @@ if [ -n "$TARGET_USER" ]; then
   addgroup -g "$target_gid" carranca 2>/dev/null || true
   adduser -D -u "$target_uid" -G carranca -h /home/carranca -s /bin/bash carranca 2>/dev/null || true
 
-  exec su -s /bin/bash -c "/usr/local/bin/shell-wrapper.sh" carranca
+  exec su -s /bin/sh -c "/usr/local/bin/shell-wrapper.sh" carranca
 else
   exec /usr/local/bin/shell-wrapper.sh
 fi
