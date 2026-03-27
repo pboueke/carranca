@@ -64,13 +64,19 @@ cat > "$TMPDIR/doc/trust-model.md" <<'EOF'
 Trust content.
 EOF
 
+cat > "$TMPDIR/doc/faq.md" <<'EOF'
+# FAQ
+
+FAQ content.
+EOF
+
 OUT="$(cd "$TMPDIR" && bash .githooks/build-doc-page.sh 2>&1)"
 HTML="$(cat "$TMPDIR/doc/page/index.html")"
 
 assert_contains "builder reports output path" "doc-page: built" "$OUT"
 assert_contains "page title uses reviewable evidence wording" "reviewable evidence, deep observability" "$HTML"
-assert_contains "page intro describes workflow layer framing" "workflow, policy, and audit layer around" "$HTML"
-assert_contains "page intro mentions complementary substrates" "gVisor, Kata" "$HTML"
+assert_contains "page intro describes workflow layer framing" "workflow, policy, and audit controls on top of" "$HTML"
+assert_contains "page intro mentions tamper-evident logs" "tamper-evident logs" "$HTML"
 assert_contains "usage section carries source path" 'data-source-path="doc/usage.md"' "$HTML"
 assert_contains "configuration section carries source path" 'data-source-path="doc/configuration.md"' "$HTML"
 assert_contains "github blob base embedded in script" 'const repoBlobBase = '"'"'https://github.com/pboueke/carranca/blob/main'"'"';' "$HTML"
