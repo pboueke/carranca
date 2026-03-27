@@ -34,7 +34,7 @@ cross-referencing to detect unreported or forged activity.
 | Network policies | Hard boundary | iptables rules restrict outbound traffic to allow-listed destinations (rootful mode only) |
 | Capability drop | Hard boundary | `--cap-drop ALL` removes all Linux capabilities; `runtime.cap_add` is a strict allowlist |
 | Read-only root FS | Hard boundary | `--read-only` prevents agent from modifying its own runtime environment; explicit tmpfs for writable paths |
-| Seccomp filtering | Hard boundary | Default seccomp profile blocks dangerous syscalls (ptrace, mount, unshare, module loading, etc.) |
+| Seccomp filtering | Hard boundary | Default denylist profile blocks dangerous syscalls (ptrace, mount, unshare, module loading, etc.). `strict` allowlist profile (~200 syscalls, `SCMP_ACT_ERRNO` default) available via `runtime.seccomp_profile: strict` for tighter filtering at the cost of potential operator tuning |
 | AppArmor confinement | Opt-in hardening | Reference AppArmor profile restricts file access, mounts, and ptrace; user must load and configure |
 
 ## Current limitations and non-goals

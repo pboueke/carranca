@@ -162,9 +162,15 @@ APPARMOR_FLAG=""
 if [ "$(uname -s)" = "Linux" ]; then
   case "$SECCOMP_PROFILE" in
     default)
+      if [ ! -f "$CARRANCA_HOME/runtime/security/seccomp-agent.json" ]; then
+        carranca_die "Seccomp profile not found: $CARRANCA_HOME/runtime/security/seccomp-agent.json (reinstall carranca)"
+      fi
       SECCOMP_FLAG="--security-opt seccomp=$CARRANCA_HOME/runtime/security/seccomp-agent.json"
       ;;
     strict)
+      if [ ! -f "$CARRANCA_HOME/runtime/security/seccomp-strict.json" ]; then
+        carranca_die "Seccomp profile not found: $CARRANCA_HOME/runtime/security/seccomp-strict.json (reinstall carranca)"
+      fi
       SECCOMP_FLAG="--security-opt seccomp=$CARRANCA_HOME/runtime/security/seccomp-strict.json"
       ;;
     unconfined)

@@ -53,9 +53,11 @@ if ! command -v iptables >/dev/null 2>&1; then
   _fail_closed "iptables required for network policy but not available" "iptables_unavailable"
 fi
 
+IPV6_ENFORCED="true"
 if ! command -v ip6tables >/dev/null 2>&1; then
   if [ "$ALLOW_DEGRADED" = "true" ]; then
     _log "WARNING: ip6tables not available — IPv6 network policy not enforced (degraded mode)"
+    IPV6_ENFORCED="false"
   else
     _fail_closed "ip6tables required for network policy but not available" "ip6tables_unavailable"
   fi
@@ -73,6 +75,7 @@ iptables -P OUTPUT DROP 2>/dev/null || {
 ip6tables -P OUTPUT DROP 2>/dev/null || {
   if [ "$ALLOW_DEGRADED" = "true" ]; then
     _log "WARNING: ip6tables failed (likely insufficient privileges) — IPv6 network policy not enforced (degraded mode)"
+    IPV6_ENFORCED="false"
   else
     _fail_closed "cannot set ip6tables OUTPUT policy" "ip6tables_output_policy_failed"
   fi
@@ -117,14 +120,16 @@ for entry in "${entries[@]}"; do
   [ -z "$entry" ] && continue
   case "$entry" in
     \[*)
-      # IPv6 bracket notation: [addr]:port
+      # IPv6 bracket notation: [addr]:port — validate format before use
+      if ! echo "$entry" | grep -qE '^\[.+\]:[0-9]+$'; then
+        _log "WARNING: malformed IPv6 entry skipped: $entry"
+        continue
+      fi
       local_ip="${entry%%]:*}"
       local_ip="${local_ip#\[}"
       local_port="${entry##*]:}"
-      if [ -n "$local_ip" ] && [ -n "$local_port" ]; then
-        ip6tables -A OUTPUT -p tcp -d "$local_ip" --dport "$local_port" -j ACCEPT
-        _log "Allowed (IPv6): [$local_ip]:$local_port"
-      fi
+      ip6tables -A OUTPUT -p tcp -d "$local_ip" --dport "$local_port" -j ACCEPT
+      _log "Allowed (IPv6): [$local_ip]:$local_port"
       ;;
     *)
       # IPv4: addr:port
@@ -143,7 +148,11 @@ if [ -d "/fifo" ]; then
   touch /fifo/network-ready
 fi
 
-_log "Network policy applied ($(echo "$RULES" | tr ',' ' ' | wc -w) rules)"
+if [ "$IPV6_ENFORCED" = "true" ]; then
+  _log "Network policy applied — IPv4+IPv6 ($(echo "$RULES" | tr ',' ' ' | wc -w) rules)"
+else
+  _log "Network policy applied — IPv4 only ($(echo "$RULES" | tr ',' ' ' | wc -w) rules)"
+fi
 
 # Drop privileges and exec shell-wrapper.
 # TARGET_USER is UID:GID from the host, passed via NETWORK_POLICY_USER.

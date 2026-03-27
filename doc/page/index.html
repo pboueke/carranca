@@ -294,7 +294,7 @@
       enforceable guardrails, and forgery detection.
     </p>
     <div class="links">
-      <a href="https://github.com/pboueke/carranca">source 0.17.3</a>
+      <a href="https://github.com/pboueke/carranca">source 0.17.4</a>
     </div>
   </div>
 
@@ -1235,6 +1235,30 @@ carranca log --verify --session abc12345
 carranca log --timeline --session abc12345
 ```
 
+Example `--timeline` output:
+
+```
+Timeline: session a3f7c91d2e4b8016
+──────────────────────────────────────────────────────────────
+TIME              EVENT
+──────────────────────────────────────────────────────────────
+14:00:00  &gt;&gt;  session start (codex via podman)
+14:00:03   $  git status (exit=0, 312ms)
+14:00:07  F~  /workspace/src/main.py MODIFY
+14:00:08   $  python -m pytest tests/ (exit=0, 2847ms)
+14:00:12  F+  /workspace/tests/test_main.py CREATE
+14:00:15   N  142.251.46.206:443 tcp ESTABLISHED
+14:00:30   .  heartbeat
+14:01:45  &lt;&lt;  agent stop (exit=0)
+──────────────────────────────────────────────────────────────
+Duration: 1m 45s | 2 commands | 2 file events | 0 failures
+```
+
+Glyphs: `&gt;&gt;` session/agent start, `&lt;&lt;` stop, `$` shell command, `F+` file
+create, `F~` modify, `F-` delete, `N` network connection, `X` execve,
+`R` resource sample, `A` file access (fanotify), `P` policy event,
+`.` heartbeat, `!!` degraded, `??` invalid event.
+
 ## `carranca diff`
 
 ```text
@@ -2027,7 +2051,7 @@ cross-referencing to detect unreported or forged activity.
 | Network policies | Hard boundary | iptables rules restrict outbound traffic to allow-listed destinations (rootful mode only) |
 | Capability drop | Hard boundary | `--cap-drop ALL` removes all Linux capabilities; `runtime.cap_add` is a strict allowlist |
 | Read-only root FS | Hard boundary | `--read-only` prevents agent from modifying its own runtime environment; explicit tmpfs for writable paths |
-| Seccomp filtering | Hard boundary | Default seccomp profile blocks dangerous syscalls (ptrace, mount, unshare, module loading, etc.) |
+| Seccomp filtering | Hard boundary | Default denylist profile blocks dangerous syscalls (ptrace, mount, unshare, module loading, etc.). `strict` allowlist profile (~200 syscalls, `SCMP_ACT_ERRNO` default) available via `runtime.seccomp_profile: strict` for tighter filtering at the cost of potential operator tuning |
 | AppArmor confinement | Opt-in hardening | Reference AppArmor profile restricts file access, mounts, and ptrace; user must load and configure |
 
 ## Current limitations and non-goals
@@ -2099,6 +2123,17 @@ evidence.
       <summary>Changelog <span class="desc">Release history and version source of truth</span></summary>
       <div class="doc-content" data-source-path="doc/CHANGELOG.md">
         <pre class="doc-markdown-static">
+## 0.17.4
+- feat: **IPv6 network policy** — `ip6tables` rules alongside iptables for dual-stack egress filtering; bracket notation (`[addr]:port`) for IPv6 address serialization; malformed entry validation; log message distinguishes IPv4-only vs IPv4+IPv6 enforcement
+- feat: **strict seccomp profile** — allowlist-based `seccomp-strict.json` (~200 syscalls) with `SCMP_ACT_ERRNO` default; exposed via `runtime.seccomp_profile: strict`; builtin profile existence validated at startup
+- feat: **base image digest pinning** — Alpine image pinned by SHA-256 digest in `Containerfile.logger` and template Containerfile; overridable via `--build-arg ALPINE_IMAGE`
+- feat: **SECURITY.md** — responsible disclosure policy, supported versions, scope definition separating carranca vulnerabilities from operator misconfigurations
+- feat: **integration test CI** — weekly `make test-all` workflow on GitHub Actions with container runtime
+- feat: **UID/namespace documentation** — architecture doc updated with agent UID model across Docker and rootless Podman
+- docs: README updated with example session output, preemptive FAQ, and log verification examples
+- docs: trust model and configuration docs updated for IPv6, strict seccomp, and digest pinning
+- test: hardening tests for digest pinning, IPv6 bracket parsing, and seccomp strict profile
+
 ## 0.17.3
 - docs: updates reame structure and adds phase 8 to roadmap
 - docs: index links to repo
