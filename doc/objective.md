@@ -1,28 +1,26 @@
 # Objective
 
-Carranca is a local agent runtime for engineers and teams that want coding
-agents to run inside operator-controlled containers with reviewable evidence and
-enforceable guardrails.
+Carranca is a workflow, policy, and audit layer that wraps coding-agent
+execution inside operator-controlled containers, whether on a developer's
+local machine or in CI and headless automation. It makes day-to-day development
+with coding agents more practical and disciplined, giving engineers reviewable
+evidence, enforceable guardrails, and live session visibility without giving up
+repo context.
 
-It is best understood as a workflow, policy, and audit layer around agent
-execution, not as a claim to replace every stronger isolation substrate or
-kernel-native telemetry mechanism. Carranca's current execution boundary is the
-container runtime plus the hardening and observability Carranca adds around it.
+Carranca does not claim to replace stronger isolation substrates or
+kernel-native telemetry; its execution boundary today is the container runtime
+plus the hardening and observability it adds on top.
 
-Its objective is not just to make agent sessions visible after the fact. It is
-to make them easier to constrain, inspect, and reason about while they run:
-
-- with isolated agent execution through Podman or Docker
-- with tamper-evident session logs and signed exports
-- with policy controls for network, filesystem, runtime duration, and resource usage
-- with optional independent observation outside the agent's namespaces
+The goal is not just post-hoc transparency. It is to make agent sessions easier
+to constrain, inspect, and reason about while they run: through isolated
+execution via Podman or Docker, tamper-evident session logs and signed exports,
+policy controls for network, filesystem, runtime duration, and resource usage,
+and optional independent observation outside the agent's namespaces.
 
 ## Current position
 
-Carranca sits above the raw execution substrate.
-
-- It uses Podman or Docker as the execution boundary today
-- It adds agent-specific policy, audit, and session controls on top of that
+Carranca sits above the raw execution substrate. It adds agent-specific
+policy, audit, and session controls on top of that.
 - It is complementary to stronger isolation technologies such as gVisor, Kata
   Containers, or Firecracker rather than a replacement for them
 - It is also complementary to kernel-native telemetry and enforcement tools
