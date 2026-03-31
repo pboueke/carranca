@@ -22,6 +22,12 @@ cat > "$TMPDIR/doc/CHANGELOG.md" <<'EOF'
 - docs: synthetic test version
 EOF
 
+cat > "$TMPDIR/doc/quickstart.md" <<'EOF'
+# Quickstart
+
+Quickstart content.
+EOF
+
 cat > "$TMPDIR/doc/objective.md" <<'EOF'
 # Objective
 
