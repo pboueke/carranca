@@ -19,8 +19,8 @@
 
 | Doc | What it covers |
 |-----|---------------|
+| [Quickstart](doc/quickstart.md) | Get from zero to a running agent session in under five minutes |
 | [Objective](doc/objective.md) | Current product position, intended users, non-goals, and comparison with other sandbox models |
-| [Technical reference](doc/page/index.html) | Primary browsable reference (open locally after cloning) for architecture, configuration, session log schema, trust model, roadmap, versioning, and changelog |
 | [Usage](doc/usage.md) | Detailed CLI command reference, options, and operator workflows |
 | [Architecture](doc/architecture.md) | Container layout, data flow, directory structure |
 | [CI/CD integration](doc/ci.md) | Headless execution, timeouts, exit codes, session artifacts, and GitHub Actions patterns |
@@ -32,37 +32,6 @@
 | [Versioning](doc/versioning.md) | Semver policy, changelog format |
 
 Open [doc/page/index.html](https://pboueke.github.io/carranca/) for the full technical reference. The markdown files in [`doc/`](doc/) remain the source chapters and companion guides. Run `carranca help <command>` for command-specific options. See [usage.md](doc/usage.md) for the full CLI reference and [configuration.md](doc/configuration.md) for the `.carranca.yml` schema. Persona-oriented example setups live under [doc/examples/](doc/examples/).
-
-## Quick start
-
-```bash
-# Install
-git clone https://github.com/pboueke/carranca.git ~/.local/share/carranca
-export PATH="$HOME/.local/share/carranca/cli:$PATH"
-# Add the export line to ~/.bashrc or ~/.zshrc to persist across sessions
-
-# Initialize a project
-cd your-project
-carranca init --agent codex
-
-# Ask carranca to propose container/runtime setup updates for this repo
-carranca config --prompt "install claude"
-
-# Run an agent session
-carranca run --agent codex
-
-# Inspect the latest session
-carranca log
-
-# Show active and recent sessions for this repo
-carranca status
-
-# Stop a specific session or all active sessions
-carranca kill --session <id>
-
-# Show command-specific help
-carranca help run
-```
 
 ## How it works
 

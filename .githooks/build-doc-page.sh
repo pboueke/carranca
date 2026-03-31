@@ -353,6 +353,7 @@ cat > "$TMP_FILE" <<'EOF'
 
 EOF
 
+emit_doc_section "quickstart" "Quickstart" "Get from zero to a running agent session in under five minutes" "$ROOT_DIR/doc/quickstart.md"
 emit_doc_section "objective" "Objective" "Who Carranca is for, who it is not for, and how it differs from other sandbox models" "$ROOT_DIR/doc/objective.md"
 emit_doc_section "architecture" "Architecture" "Container layout, data flow, and session lifecycle" "$ROOT_DIR/doc/architecture.md"
 emit_doc_section "configuration" "Configuration" "Complete .carranca.yml reference" "$ROOT_DIR/doc/configuration.md"
